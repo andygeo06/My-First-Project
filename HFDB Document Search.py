@@ -83,13 +83,27 @@ st.markdown("""
         border: none;
     }
 
-    /* 7. PULSING INDICATOR */
+    /* 7. PULSING INDICATOR (Mobile Only) */
     .mobile-hint {
-        background: #007bff; color: #ffffff !important; 
+        background: #007bff; 
+        color: #ffffff !important; 
         text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
-        padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; 
-        margin-bottom: 15px; animation: pulse 1.5s infinite;
+        padding: 10px; 
+        border-radius: 10px; 
+        text-align: center; 
+        font-weight: bold; 
+        margin-bottom: 15px; 
+        animation: pulse 1.5s infinite;
+        display: block; /* Show by default */
     }
+
+    /* HIDE the hint when the screen is desktop-sized (wider than 768px) */
+    @media (min-width: 768px) {
+        .mobile-hint {
+            display: none !important;
+        }
+    }
+
     @keyframes pulse {
         0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
         50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); }
