@@ -8,18 +8,18 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. COMPACT TOP & LAYOUT FIXES */
+   /* 1. COMPACT TOP & LAYOUT FIXES */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
     
-    /* Pull content to the literal top and remove hidden margins */
+    /* Pull content up but leave just enough room for the glow not to be cut */
     .block-container { 
-        padding-top: 0rem !important; 
-        margin-top: -3.5rem !important; /* Pushes the title to the very top */
+        padding-top: 2rem !important;   /* Added 2rem of safe space */
+        margin-top: -3.8rem !important; /* Kept the aggressive pull-up */
         padding-bottom: 8rem !important; 
     }
 
-    /* Target the first element in the column to remove Streamlit's default gap */
+    /* Force the first element (the title) to ignore extra padding */
     [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0px !important;
         padding-top: 0px !important;
