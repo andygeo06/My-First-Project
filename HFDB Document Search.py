@@ -3,7 +3,7 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 
-# --- 1. PAGE CONFIG & THEME ---
+# --- 1. PAGE CONFIG ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
@@ -24,15 +24,12 @@ def load_sheet_data(url, sheet_name):
 
 try:
     SHEET_URL = st.secrets["gsheets_url"]
-    # Pre-loading both search tabs and the user list
-    df_incoming_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
-    df_outgoing_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
+    df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
+    df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # Filtering both to A-N columns (0-13)
-    df_in = df_incoming_raw.iloc[:, :14]
-    df_out = df_outgoing_raw.iloc[:, :14]
-    
+    df_in = df_in_raw.iloc[:, :14]
+    df_out = df_out_raw.iloc[:, :14]
     st.success("✅ Search Portal Online")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
@@ -54,17 +51,15 @@ def send_signal(user_name, dtrak_list):
         except: return False
     return True
 
-# --- 4. UI LAYOUT ---
+# --- 4. THE UI LAYOUT ---
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
     st.title("HFDB Document Searching Tool")
-    
-    # Dual Tab Setup
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # Shared configuration for the dataframes to keep code clean
-    col_config_setup = {
+    # --- MICRO-MANAGEMENT: INCOMING CONFIG ---
+    config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=40),
         df_in.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
@@ -81,12 +76,31 @@ with col_main:
         df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
+    # --- MICRO-MANAGEMENT: OUTGOING CONFIG ---
+    # Edit these numbers independently if Outgoing data needs different spacing!
+    config_out = {
+        df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
+        df_out.columns[1]: st.column_config.TextColumn("Time", width=40),
+        df_out.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
+        df_out.columns[3]: st.column_config.TextColumn("Control No.", width=110),
+        df_out.columns[4]: st.column_config.TextColumn("Subject", width="large"),
+        df_out.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),
+        df_out.columns[6]: st.column_config.TextColumn("Origin", width="small"),
+        df_out.columns[7]: st.column_config.TextColumn("Acted", width="small"),
+        df_out.columns[8]: st.column_config.TextColumn("Time", width=40),
+        df_out.columns[9]: st.column_config.TextColumn("Sent", width="small"),
+        df_out.columns[10]: st.column_config.TextColumn("Division", width="small"),
+        df_out.columns[11]: st.column_config.TextColumn("Staff", width="small"),
+        df_out.columns[12]: st.column_config.TextColumn("Tag", width="small"),
+        df_out.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
+    }
+
     with tab_in:
         q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", column_config=col_config_setup, key="in_grid"
+            on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid"
         )
 
     with tab_out:
@@ -94,7 +108,7 @@ with col_main:
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", column_config=col_config_setup, key="out_grid"
+            on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid"
         )
 
 with col_action:
@@ -106,7 +120,6 @@ with col_action:
     
     st.divider()
     
-    # Check both tabs for selected rows
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     
@@ -114,7 +127,6 @@ with col_action:
         total_selected = len(sel_in) + len(sel_out)
         st.write(f"**Selected:** {total_selected}")
         
-        # Combine DTRAKs from both tabs
         selected_dtraks = []
         if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
         if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 2].tolist())
