@@ -8,28 +8,37 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. EMBRACE SYSTEM THEME: Remove the hardcoded black background to let Streamlit decide */
-    /* This ensures light mode users get white backgrounds and dark mode stays dark */
-    
+    /* 1. UNIVERSAL EYE-CARE THEME */
+    /* This targets the main container. We use an off-white for light mode 
+       and keep the deep charcoal for dark mode users. */
+    @media (prefers-color-scheme: light) {
+        [data-testid="stAppViewContainer"] {
+            background-color: #f0f2f6 !important; /* Soft Gray-White */
+            color: #1f2937 !important; /* Dark Slate Text */
+        }
+        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; }
+        header[data-testid="stHeader"] { background-color: #f0f2f6 !important; }
+    }
+
+    /* 2. SPACING & PADDING */
     .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
     
-    /* 2. TAB & TITLE TEXT: Force high visibility */
-    /* This targets the 'INCOMING' and 'OUTGOING' labels specifically */
-    .stTabs [data-baseweb="tab"] p {
-        font-weight: bold;
-        font-size: 16px;
-    }
-    
-    /* 3. SEARCH INPUTS: Keep the Neon Teal for the borders/active text, 
-       but let the background breathe */
+    /* 3. SEARCH INPUTS: 
+       Using a darker teal (#008a7b) for light mode so it doesn't 'glow' too hard */
     .stTextInput > div > div > input { 
-        color: #00ffcc !important; 
         border-radius: 10px; 
         border: 2px solid #00ffcc !important; 
         background-color: transparent !important;
     }
     
-    /* 4. ACTION PANEL: Use a dynamic border and high-contrast header */
+    @media (prefers-color-scheme: light) {
+        .stTextInput > div > div > input { 
+            border: 2px solid #008a7b !important; 
+            color: #004d40 !important; 
+        }
+    }
+
+    /* 4. ACTION PANEL: Soft border for light mode */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
@@ -37,11 +46,15 @@ st.markdown("""
         background-color: rgba(0, 255, 204, 0.05);
     }
     
-    @media (min-width: 768px) {
-        .action-panel { position: sticky; top: 1rem; }
+    @media (prefers-color-scheme: light) {
+        .action-panel { 
+            border: 2px solid #008a7b;
+            background-color: #ffffff;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+        }
     }
 
-    /* 5. THE INDICATOR: High contrast Blue for visibility */
+    /* 5. THE INDICATOR: High contrast Blue */
     .mobile-hint {
         background: #007bff;
         color: white;
@@ -70,7 +83,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
 # --- 2. DATA LOADING ---
 @st.cache_data(ttl=300)
 def load_sheet_data(url, sheet_name):
