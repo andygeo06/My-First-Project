@@ -8,76 +8,76 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. COMPACT LAYOUT */
+    /* 1. COMPACT TOP & LAYOUT */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
     .block-container { padding-top: 0rem !important; padding-bottom: 8rem !important; }
 
-    /* 2. THE GLOBAL SENTINEL GLOW */
-    /* This targets almost all text elements in the app */
+    /* 2. THE WHITE FONT + THIN CYAN GLOW */
+    /* This targets headers, labels, and general text */
     html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-        color: #00ffcc !important;
-        text-shadow: 0 0 10px rgba(0, 255, 204, 0.7), 0 0 20px rgba(0, 255, 204, 0.3) !important;
+        color: #ffffff !important; /* Pure White Font */
+        text-shadow: 
+            0 0 5px rgba(0, 255, 204, 0.8), 
+            0 0 10px rgba(0, 255, 204, 0.3) !important; /* Thin Cyan Glow */
     }
 
-    /* 3. INPUTS & PANEL OUTLINES */
+    /* 3. INPUT BOXES & PANEL OUTLINES */
+    /* Keeping the outlines Cyan to separate them from the white text */
     .stTextInput > div > div > input { 
         border-radius: 10px; 
-        border: 2px solid #00ffcc !important; 
+        border: 1px solid #00ffcc !important; 
         background-color: transparent !important;
-        box-shadow: 0 0 10px rgba(0, 255, 204, 0.4) !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 5px rgba(0, 255, 204, 0.2) !important;
     }
-
+    
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
-        border: 2px solid #00ffcc;
-        background-color: rgba(0, 255, 204, 0.05);
-        box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+        border: 1px solid #00ffcc;
+        background-color: rgba(0, 255, 204, 0.03);
     }
 
-    /* 4. LIGHT MODE ADAPTIVE GLOW (EYE-CARE) */
-    /* We keep the glow but shift it to a darker, sharper teal for legibility */
+    /* 4. LIGHT MODE ADAPTIVE (High Legibility) */
     @media (prefers-color-scheme: light) {
         [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; }
         
+        /* In Light mode, we use a darker text for the eyes, but keep a very faint glow */
         html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-            color: #008a7b !important;
-            text-shadow: 0 0 5px rgba(0, 138, 123, 0.2) !important;
+            color: #1f2937 !important; /* Dark Slate for readability */
+            text-shadow: 0 0 3px rgba(0, 138, 123, 0.2) !important;
         }
         
         .stTextInput > div > div > input { 
-            border: 2px solid #008a7b !important; 
-            color: #004d40 !important;
-            box-shadow: none !important;
-        }
-
-        .action-panel { 
-            border: 2px solid #008a7b;
-            background-color: #ffffff;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #008a7b !important; 
+            color: #1f2937 !important;
         }
     }
 
-    /* 5. INTERACTIVE BUTTONS */
+    /* 5. BUTTONS (No glow on text for sharpness) */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: black !important; 
-        text-shadow: none !important; /* Keep button text sharp */
-        font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none;
-        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+        color: #000000 !important; 
+        text-shadow: none !important; 
+        font-weight: bold; 
+        border-radius: 12px; 
+        height: 50px; 
+        width: 100%; 
+        border: none;
     }
 
     /* 6. PULSING INDICATOR */
     .mobile-hint {
-        background: #007bff; color: white !important; 
-        text-shadow: 0 0 5px white !important;
+        background: #007bff; 
+        color: #ffffff !important; 
+        text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
         padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; 
         margin-bottom: 15px; animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
         0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
-        50% { transform: scale(0.98); box-shadow: 0 0 20px rgba(0, 123, 255, 0.8); }
+        50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); }
         100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
     }
     </style>
