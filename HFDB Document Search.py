@@ -3,7 +3,7 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 
-# --- 1. PAGE CONFIG ---
+# --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
@@ -28,6 +28,7 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
+    # Fill NAs to prevent 'nan' appearing in search
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     st.success("✅ Search Portal Online")
@@ -60,14 +61,13 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- INCOMING CONFIG WITH WRAPPING ---
+    # --- MICRO-MANAGEMENT: INCOMING (Removed the problematic wrap argument) ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
         df_in.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
         df_in.columns[3]: st.column_config.TextColumn("Control No.", width=110),
-        # wrap=True is the key here!
-        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large", wrap=True),
+        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large"),
         df_in.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),
         df_in.columns[6]: st.column_config.TextColumn("Origin", width="small"),
         df_in.columns[7]: st.column_config.TextColumn("Acted", width="small"),
@@ -76,20 +76,20 @@ with col_main:
         df_in.columns[10]: st.column_config.TextColumn("Division", width="small"),
         df_in.columns[11]: st.column_config.TextColumn("Staff", width="small"),
         df_in.columns[12]: st.column_config.TextColumn("Tag", width="small"),
-        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large", wrap=True),
+        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
-    # --- OUTGOING CONFIG WITH WRAPPING ---
+    # --- MICRO-MANAGEMENT: OUTGOING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
         df_out.columns[2]: st.column_config.TextColumn("Control No.", width=110),
-        df_out.columns[3]: st.column_config.TextColumn("Subject", width="large", wrap=True),
+        df_out.columns[3]: st.column_config.TextColumn("Subject", width="large"),
         df_out.columns[4]: st.column_config.TextColumn("Former DTRAK", width=110),
         df_out.columns[5]: st.column_config.TextColumn("Current DTRAK", width=110),
         df_out.columns[6]: st.column_config.TextColumn("Doc Type", width="small"),
         df_out.columns[7]: st.column_config.TextColumn("Staff", width="small"),
-        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large", wrap=True),
+        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large"),
         df_out.columns[9]: st.column_config.TextColumn("Date Acted", width="small"),
         df_out.columns[10]: st.column_config.TextColumn("Time", width=45),
         df_out.columns[11]: st.column_config.TextColumn("Status", width="small"),
@@ -98,7 +98,7 @@ with col_main:
     }
 
     with tab_in:
-        q_in = st.text_input("Search Incoming", placeholder="🔍 Search...", key="in_search")
+        q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
@@ -106,7 +106,7 @@ with col_main:
         )
 
     with tab_out:
-        q_out = st.text_input("Search Outgoing", placeholder="🔍 Search...", key="out_search")
+        q_out = st.text_input("Search Outgoing Documents", placeholder="🔍 Search...", key="out_search")
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
@@ -145,7 +145,6 @@ with col_action:
                         user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
                     except:
                         user_email = None
-                        
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
