@@ -9,10 +9,9 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #e0e0e0; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; }
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
     
-    /* Responsive Action Panel: Sticky on desktop, standard on mobile */
     .action-panel { 
         background: rgba(255, 255, 255, 0.05); 
         padding: 20px; 
@@ -20,8 +19,20 @@ st.markdown("""
         border: 1px solid #30363d; 
     }
     
+    /* Desktop Sticky Logic */
     @media (min-width: 768px) {
         .action-panel { position: sticky; top: 1rem; }
+    }
+
+    /* Mobile "Scroll Down" Prompt */
+    .mobile-hint {
+        background: linear-gradient(90deg, #ff8a00, #e52e71);
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 10px;
     }
 
     .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
@@ -65,17 +76,14 @@ def send_signal(user_name, user_email, dtrak_list):
         except: return False
     return True
 
-# --- 4. DYNAMIC HEIGHT SETTING ---
-# If on mobile, use a shorter height; if on desktop, use the expanded view.
-# We use a simple height-based logic since screen-width detection is limited in standard Streamlit.
-# Setting to 'None' allows the table to auto-adjust to the number of rows found, which is best for mobile.
-table_height = 700 if not st.sidebar.checkbox("Mobile View Mode", value=False) else 400
-
-# --- 5. THE UI LAYOUT ---
+# --- 4. THE UI LAYOUT ---
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
     st.title("HFDB Document Search")
+    
+    # Logic for Mobile Hint
+    # We check if any checkboxes are ticked before showing the hint
     tab_in, tab_out = st.tabs(["📥 INCOMING", "📤 OUTGOING"])
     
     config_in = {
@@ -117,7 +125,6 @@ with col_main:
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
-            height=None if q_in else 400, # Shrinks if many results, keeps it tight if none
             on_select="rerun", selection_mode="multi-row", 
             column_config=config_in, key="in_grid"
         )
@@ -127,12 +134,19 @@ with col_main:
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
-            height=None if q_out else 400, 
             on_select="rerun", selection_mode="multi-row", 
             column_config=config_out, key="out_grid"
         )
 
 with col_action:
+    # --- DYNAMIC MOBILE PROMPT ---
+    # This only shows if the user has selected something but hasn't reached the bottom yet
+    sel_in = selection_in.selection.rows
+    sel_out = selection_out.selection.rows
+    
+    if len(sel_in) > 0 or len(sel_out) > 0:
+        st.markdown('<div class="mobile-hint">👇 SCROLL DOWN TO FINISH REQUEST</div>', unsafe_allow_html=True)
+
     st.markdown('<div class="action-panel">', unsafe_allow_html=True)
     st.header("📤 Request File")
     
@@ -140,9 +154,6 @@ with col_action:
     user_name = st.selectbox("Select Your Name", names_list)
     
     st.divider()
-    
-    sel_in = selection_in.selection.rows
-    sel_out = selection_out.selection.rows
     
     if len(sel_in) > 0 or len(sel_out) > 0:
         total_selected = len(sel_in) + len(sel_out)
