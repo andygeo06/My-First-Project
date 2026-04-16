@@ -104,7 +104,7 @@ with col_action:
     st.header("📤 Request File")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
-    user_name = st.selectbox("1. Select Your Name", names_list)
+    user_name = st.selectbox("Select Your Name in the Dropdown Below", names_list)
     
     st.divider()
     
@@ -136,5 +136,5 @@ with col_action:
                         st.snow()
                         st.success("Sent!")
     else:
-        st.warning("Select rows to continue.")
+        st.warning("Kindly select which item(s) you want to request by ticking the checkbox on the left side of the table.")
     st.markdown('</div>', unsafe_allow_html=True)
