@@ -9,7 +9,7 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #e0e0e0; }
-    /* REDUCE TOP MARGIN/PADDING TO MAXIMIZE SPACE */
+    /* Maximize space at the top */
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
     .action-panel { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 1rem; }
@@ -30,7 +30,6 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # Processed data (Silently, no success message)
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
 except Exception as e:
@@ -62,7 +61,7 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- CONFIGS ---
+    # --- YOUR CUSTOM WIDTHS & NAMES ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -97,12 +96,14 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
+    # Increased height to 750 pixels to fill the screen downward
     with tab_in:
         q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid"
+            height=750, on_select="rerun", selection_mode="multi-row", 
+            column_config=config_in, key="in_grid"
         )
 
     with tab_out:
@@ -110,7 +111,8 @@ with col_main:
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid"
+            height=750, on_select="rerun", selection_mode="multi-row", 
+            column_config=config_out, key="out_grid"
         )
 
 with col_action:
