@@ -3,7 +3,7 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 
-# --- 1. PAGE CONFIG & THEME ---
+# --- 1. PAGE CONFIG ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
@@ -12,13 +12,6 @@ st.markdown("""
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
     .action-panel { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 1rem; }
     .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
-    
-    /* THE FIX FOR TRUNCATION: This forces cells to wrap text instead of using '...' */
-    .stDataFrame [data-testid="stTable"] td {
-        white-space: normal !important;
-        word-break: break-word !important;
-        line-height: 1.2 !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,13 +60,14 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- RESTORED CUSTOM WIDTHS & NAMES: INCOMING ---
+    # --- INCOMING CONFIG WITH WRAPPING ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
         df_in.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
         df_in.columns[3]: st.column_config.TextColumn("Control No.", width=110),
-        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large"),
+        # wrap=True is the key here!
+        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large", wrap=True),
         df_in.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),
         df_in.columns[6]: st.column_config.TextColumn("Origin", width="small"),
         df_in.columns[7]: st.column_config.TextColumn("Acted", width="small"),
@@ -82,20 +76,20 @@ with col_main:
         df_in.columns[10]: st.column_config.TextColumn("Division", width="small"),
         df_in.columns[11]: st.column_config.TextColumn("Staff", width="small"),
         df_in.columns[12]: st.column_config.TextColumn("Tag", width="small"),
-        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
+        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large", wrap=True),
     }
 
-    # --- RESTORED CUSTOM WIDTHS & NAMES: OUTGOING ---
+    # --- OUTGOING CONFIG WITH WRAPPING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
         df_out.columns[2]: st.column_config.TextColumn("Control No.", width=110),
-        df_out.columns[3]: st.column_config.TextColumn("Subject", width="large"),
+        df_out.columns[3]: st.column_config.TextColumn("Subject", width="large", wrap=True),
         df_out.columns[4]: st.column_config.TextColumn("Former DTRAK", width=110),
         df_out.columns[5]: st.column_config.TextColumn("Current DTRAK", width=110),
         df_out.columns[6]: st.column_config.TextColumn("Doc Type", width="small"),
         df_out.columns[7]: st.column_config.TextColumn("Staff", width="small"),
-        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large"),
+        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large", wrap=True),
         df_out.columns[9]: st.column_config.TextColumn("Date Acted", width="small"),
         df_out.columns[10]: st.column_config.TextColumn("Time", width=45),
         df_out.columns[11]: st.column_config.TextColumn("Status", width="small"),
@@ -146,7 +140,7 @@ with col_action:
             if not user_name:
                 st.error("Select name!")
             else:
-                with st.spinner("Processing..."):
+                with st.spinner("Pinging..."):
                     try:
                         user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
                     except:
@@ -154,7 +148,7 @@ with col_action:
                         
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
-                        st.success("Sent!")
+                        st.success("Done!")
     else:
         st.warning("Kindly select which item(s) you want to request by ticking the checkbox on the left side of the table.")
     st.markdown('</div>', unsafe_allow_html=True)
