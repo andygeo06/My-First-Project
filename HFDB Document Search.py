@@ -170,7 +170,7 @@ with col_action:
             if not user_name:
                 st.error("Select name!")
             else:
-                with st.spinner("Pinging..."):
+                with st.spinner("Requesting..."):
                     try:
                         user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
                     except:
