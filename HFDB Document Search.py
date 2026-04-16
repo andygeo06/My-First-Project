@@ -3,7 +3,7 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 
-# --- 1. PAGE CONFIG ---
+# --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
@@ -28,6 +28,7 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
+    # We take columns A-N (0-13) for both
     df_in = df_in_raw.iloc[:, :14]
     df_out = df_out_raw.iloc[:, :14]
     st.success("✅ Search Portal Online")
@@ -35,15 +36,20 @@ except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
 
-# --- 3. SIGNAL FUNCTION ---
-def send_signal(user_name, dtrak_list):
+# --- 3. SIGNAL FUNCTION (With Reply-To Logic) ---
+def send_signal(user_name, user_email, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
     for dtrak in dtrak_list:
         msg = MIMEText(f"SENTINEL REQUEST: {dtrak} for {user_name}")
         msg['Subject'] = str(dtrak)
-        msg['From'] = bot_email
+        msg['From'] = f"Sentinel Cloud <{bot_email}>"
         msg['To'] = bot_email
+        
+        # Set Reply-To so the office can reply directly to the staff member
+        if user_email and str(user_email) != 'nan':
+            msg['Reply-To'] = user_email
+            
         try:
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.login(bot_email, bot_pw)
@@ -77,26 +83,25 @@ with col_main:
     }
 
     # --- MICRO-MANAGEMENT: OUTGOING CONFIG ---
-    # Edit these numbers independently if Outgoing data needs different spacing!
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=40),
         df_out.columns[2]: st.column_config.TextColumn("Control No.", width=110),
         df_out.columns[3]: st.column_config.TextColumn("Subject", width="large"),
-        df_out.columns[4]: st.column_config.TextColumn("Former DTRAK No.", width=110),
-        df_out.columns[5]: st.column_config.TextColumn("Current DTRAK No.", width=110),
+        df_out.columns[4]: st.column_config.TextColumn("Former DTRAK", width=110),
+        df_out.columns[5]: st.column_config.TextColumn("Current DTRAK", width=110),
         df_out.columns[6]: st.column_config.TextColumn("Doc Type", width="small"),
         df_out.columns[7]: st.column_config.TextColumn("Staff", width="small"),
-        df_out.columns[8]: st.column_config.TextColumn("ACtion Taken", width="large"),
-        df_out.columns[9]: st.column_config.TextColumn("Date Released", width="small"),
-        df_out.columns[10]: st.column_config.TextColumn("Time", width="40"),
+        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large"),
+        df_out.columns[9]: st.column_config.TextColumn("Date Acted", width="small"),
+        df_out.columns[10]: st.column_config.TextColumn("Time", width=40),
         df_out.columns[11]: st.column_config.TextColumn("Status", width="small"),
-        df_out.columns[12]: st.column_config.TextColumn("Date", width="small"),
-        df_out.columns[13]: st.column_config.TextColumn("Time", width=40),
+        df_out.columns[12]: st.column_config.TextColumn("Admin Date", width="small"),
+        df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=40),
     }
 
     with tab_in:
-        q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
+        q_in = st.text_input("Search Incoming", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
@@ -104,7 +109,7 @@ with col_main:
         )
 
     with tab_out:
-        q_out = st.text_input("Search Outgoing Documents", placeholder="🔍 Search...", key="out_search")
+        q_out = st.text_input("Search Outgoing", placeholder="🔍 Search...", key="out_search")
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
@@ -116,7 +121,7 @@ with col_action:
     st.header("📤 Request File Copy")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
-    user_name = st.selectbox("1. Select Your Name in the Dropdown Below", names_list)
+    user_name = st.selectbox("1. Select Your Name", names_list)
     
     st.divider()
     
@@ -128,8 +133,9 @@ with col_action:
         st.write(f"**Selected:** {total_selected}")
         
         selected_dtraks = []
+        # Grab DTRAK from Index 2 for Incoming, and Index 5 (Current DTRAK) for Outgoing
         if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
-        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 2].tolist())
+        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
         
         for d in selected_dtraks:
             st.info(f"📄 {d}")
@@ -139,9 +145,15 @@ with col_action:
                 st.error("Select name!")
             else:
                 with st.spinner("Pinging..."):
-                    if send_signal(user_name, selected_dtraks):
+                    # Lookup email: Name is Col 0, Email is Col 1 in USER tab
+                    try:
+                        user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
+                    except:
+                        user_email = None
+                        
+                    if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
     else:
-        st.warning("Select items using the checkbox on the far left.")
+        st.warning("Select items to request.")
     st.markdown('</div>', unsafe_allow_html=True)
