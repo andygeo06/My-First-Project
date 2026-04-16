@@ -8,41 +8,43 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* Main Background & Text */
-    [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #f0f0f0; }
+    /* 1. EMBRACE SYSTEM THEME: Remove the hardcoded black background to let Streamlit decide */
+    /* This ensures light mode users get white backgrounds and dark mode stays dark */
     
-    /* Maximize space at the top & bottom for mobile/android */
     .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
     
-    /* SEARCH INPUTS: 
-       Switched border from gray to #00ffcc (Bright Teal) 
-       Switched text to #00ffcc for maximum legibility
-    */
+    /* 2. TAB & TITLE TEXT: Force high visibility */
+    /* This targets the 'INCOMING' and 'OUTGOING' labels specifically */
+    .stTabs [data-baseweb="tab"] p {
+        font-weight: bold;
+        font-size: 16px;
+    }
+    
+    /* 3. SEARCH INPUTS: Keep the Neon Teal for the borders/active text, 
+       but let the background breathe */
     .stTextInput > div > div > input { 
-        background-color: #1a1f26 !important; 
         color: #00ffcc !important; 
         border-radius: 10px; 
         border: 2px solid #00ffcc !important; 
+        background-color: transparent !important;
     }
     
-    /* ACTION PANEL:
-       Switched border to #00ffcc to define the area better
-    */
+    /* 4. ACTION PANEL: Use a dynamic border and high-contrast header */
     .action-panel { 
-        background: rgba(0, 255, 204, 0.05); 
         padding: 20px; 
         border-radius: 15px; 
-        border: 2px solid #00ffcc; 
+        border: 2px solid #00ffcc;
+        background-color: rgba(0, 255, 204, 0.05);
     }
     
     @media (min-width: 768px) {
         .action-panel { position: sticky; top: 1rem; }
     }
 
-    /* THE INDICATOR: Pulsing Neon */
+    /* 5. THE INDICATOR: High contrast Blue for visibility */
     .mobile-hint {
-        background: linear-gradient(90deg, #00f2fe, #4facfe);
-        color: #000000;
+        background: #007bff;
+        color: white;
         padding: 12px;
         border-radius: 10px;
         text-align: center;
