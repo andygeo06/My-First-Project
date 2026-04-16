@@ -8,34 +8,64 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #e0e0e0; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; }
-    .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
+    /* Main Background & Text */
+    [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #f0f0f0; }
     
-    .action-panel { 
-        background: rgba(255, 255, 255, 0.05); 
-        padding: 20px; 
-        border-radius: 15px; 
-        border: 1px solid #30363d; 
+    /* Maximize space at the top & bottom for mobile/android */
+    .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
+    
+    /* SEARCH INPUTS: 
+       Switched border from gray to #00ffcc (Bright Teal) 
+       Switched text to #00ffcc for maximum legibility
+    */
+    .stTextInput > div > div > input { 
+        background-color: #1a1f26 !important; 
+        color: #00ffcc !important; 
+        border-radius: 10px; 
+        border: 2px solid #00ffcc !important; 
     }
     
-    /* Desktop Sticky Logic */
+    /* ACTION PANEL:
+       Switched border to #00ffcc to define the area better
+    */
+    .action-panel { 
+        background: rgba(0, 255, 204, 0.05); 
+        padding: 20px; 
+        border-radius: 15px; 
+        border: 2px solid #00ffcc; 
+    }
+    
     @media (min-width: 768px) {
         .action-panel { position: sticky; top: 1rem; }
     }
 
-    /* Mobile "Scroll Down" Prompt */
+    /* THE INDICATOR: Pulsing Neon */
     .mobile-hint {
-        background: linear-gradient(90deg, #ff8a00, #e52e71);
-        color: white;
-        padding: 10px;
+        background: linear-gradient(90deg, #00f2fe, #4facfe);
+        color: #000000;
+        padding: 12px;
         border-radius: 10px;
         text-align: center;
         font-weight: bold;
-        margin-bottom: 10px;
+        margin-bottom: 25px;
+        animation: pulse 1.5s infinite;
     }
 
-    .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
+    @keyframes pulse {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(0.98); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+
+    .stButton > button { 
+        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
+        color: black; 
+        font-weight: bold; 
+        border-radius: 12px; 
+        height: 45px; 
+        width: 100%; 
+        border: none; 
+    }
     </style>
 """, unsafe_allow_html=True)
 
