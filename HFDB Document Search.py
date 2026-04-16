@@ -151,7 +151,7 @@ with col_action:
     st.header("📤 Request File")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
-    user_name = st.selectbox("Select Your Name", names_list)
+    user_name = st.selectbox("Select Your Name in the Dropdown", names_list)
     
     st.divider()
     
@@ -179,5 +179,5 @@ with col_action:
                         st.snow()
                         st.success("Done!")
     else:
-        st.warning("Kindly select item(s) to request.")
+        st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
