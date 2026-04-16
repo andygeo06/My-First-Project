@@ -102,7 +102,7 @@ with col_main:
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
-            height=650, on_select="rerun", selection_mode="multi-row", 
+            height=600, on_select="rerun", selection_mode="multi-row", 
             column_config=config_in, key="in_grid"
         )
 
