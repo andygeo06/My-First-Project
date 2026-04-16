@@ -28,7 +28,6 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # Fill NAs to prevent 'nan' appearing in search
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     st.success("✅ Search Portal Online")
@@ -61,7 +60,6 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- YOUR CUSTOM MICRO-MANAGEMENT: INCOMING ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -79,7 +77,6 @@ with col_main:
         df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
-    # --- YOUR CUSTOM MICRO-MANAGEMENT: OUTGOING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -149,9 +146,11 @@ with col_action:
                         st.snow()
                         st.success("Done!")
                         
-                        # --- THE AUTO-RESET MAGIC ---
+                        # --- THE AUTO-RESET FIX ---
+                        # Manually clearing the selection state for both grids
                         st.session_state.in_grid = {"selection": {"rows": []}}
                         st.session_state.out_grid = {"selection": {"rows": []}}
+                        # Rerun ensures the UI updates and checkboxes disappear
                         st.rerun()
     else:
         st.warning("Kindly select which item(s) you want to request by ticking the checkbox on the left side of the table.")
