@@ -4,7 +4,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 # --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="Sentinel 4.4 - Cloud Portal", layout="wide")
+st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
@@ -31,7 +31,7 @@ try:
     # We take the first 14 columns (A=0 to N=13)
     df = df_raw.iloc[:, :14]
     
-    st.success("✅ Sentinel Online")
+    st.success("✅ Search Portal Online")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -56,7 +56,7 @@ def send_signal(user_name, dtrak_list):
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
-    st.title("🛡️ Sentinel Search")
+    st.title("HFDB Document Searching Tool")
     query = st.text_input("", placeholder="🔍 Search by Subject, DTRAK, or Office...")
 
     if query:
@@ -74,14 +74,14 @@ with col_main:
         on_select="rerun",
         selection_mode="multi-row",
         column_config={
-            df.columns[0]: st.column_config.TextColumn("Date", width="small"),           # A
-            df.columns[1]: st.column_config.TextColumn("AM/PM", width="small"),          # B
-            df.columns[2]: st.column_config.TextColumn("DTRAK", width="medium"),        # C
-            df.columns[3]: st.column_config.TextColumn("Control No.", width="medium"),  # D
+            df.columns[0]: st.column_config.TextColumn("Received", width="small"),           # A
+            df.columns[1]: st.column_config.TextColumn("Time", width="small"),          # B
+            df.columns[2]: st.column_config.TextColumn("DTRAK No.", width="small"),        # C
+            df.columns[3]: st.column_config.TextColumn("Control No.", width="small"),  # D
             df.columns[4]: st.column_config.TextColumn("Subject", width="large"),        # E (Readable)
-            df.columns[5]: st.column_config.TextColumn("Type", width="small"),           # F (Truncated)
-            df.columns[6]: st.column_config.TextColumn("Office", width="small"),         # G
-            df.columns[7]: st.column_config.TextColumn("Released", width="small"),       # H
+            df.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),           # F (Truncated)
+            df.columns[6]: st.column_config.TextColumn("Origin", width="small"),         # G
+            df.columns[7]: st.column_config.TextColumn("Acted", width="small"),       # H
             df.columns[8]: st.column_config.TextColumn("Time", width="small"),           # I
             df.columns[9]: st.column_config.TextColumn("Sent", width="small"),           # J
             df.columns[10]: st.column_config.TextColumn("Division", width="small"),      # K
@@ -93,10 +93,10 @@ with col_main:
 
 with col_action:
     st.markdown('<div class="action-panel">', unsafe_allow_html=True)
-    st.header("📤 Request")
+    st.header("📤 Request File Copy")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
-    user_name = st.selectbox("1. Select Your Name", names_list)
+    user_name = st.selectbox("1. Select Your Name in the Dropdown Below", names_list)
     
     st.divider()
     
@@ -118,5 +118,5 @@ with col_action:
                         st.balloons()
                         st.success("Done!")
     else:
-        st.warning("Select items.")
+        st.warning("Select items using the checkbox on the far left.")
     st.markdown('</div>', unsafe_allow_html=True)
