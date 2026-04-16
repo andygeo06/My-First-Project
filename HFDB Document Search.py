@@ -12,8 +12,13 @@ st.markdown("""
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
     .action-panel { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 1rem; }
     .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
-    /* Enable row wrapping for the table cells */
-    .stDataFrame [data-testid="stTable"] { white-space: normal !important; }
+    
+    /* THE FIX FOR TRUNCATION: This forces cells to wrap text instead of using '...' */
+    .stDataFrame [data-testid="stTable"] td {
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.2 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -62,7 +67,7 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- RESTORED MICRO-MANAGEMENT: INCOMING ---
+    # --- RESTORED CUSTOM WIDTHS & NAMES: INCOMING ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -80,7 +85,7 @@ with col_main:
         df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
-    # --- RESTORED MICRO-MANAGEMENT: OUTGOING ---
+    # --- RESTORED CUSTOM WIDTHS & NAMES: OUTGOING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -101,7 +106,6 @@ with col_main:
     with tab_in:
         q_in = st.text_input("Search Incoming", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
-        if q_in: st.caption(f"Found {len(filtered_in)} matches.")
         selection_in = st.dataframe(
             filtered_in, use_container_width=True, hide_index=True,
             on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid"
@@ -110,7 +114,6 @@ with col_main:
     with tab_out:
         q_out = st.text_input("Search Outgoing", placeholder="🔍 Search...", key="out_search")
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
-        if q_out: st.caption(f"Found {len(filtered_out)} matches.")
         selection_out = st.dataframe(
             filtered_out, use_container_width=True, hide_index=True,
             on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid"
@@ -143,7 +146,7 @@ with col_action:
             if not user_name:
                 st.error("Select name!")
             else:
-                with st.spinner("Pinging..."):
+                with st.spinner("Processing..."):
                     try:
                         user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
                     except:
@@ -151,7 +154,7 @@ with col_action:
                         
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
-                        st.success("Done!")
+                        st.success("Sent!")
     else:
         st.warning("Kindly select which item(s) you want to request by ticking the checkbox on the left side of the table.")
     st.markdown('</div>', unsafe_allow_html=True)
