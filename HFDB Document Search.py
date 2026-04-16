@@ -5,7 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 # --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="Sentinel 4.4 - Cloud Portal", layout="wide")
+st.set_page_config(page_title="HFDB Document Search Portal", layout="wide")
 
 # CUSTOM CSS: Dark Mode & Permanent Right Panel
 st.markdown("""
