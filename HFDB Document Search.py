@@ -8,22 +8,41 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. COMPACT TOP & LAYOUT */
+    /* 1. COMPACT TOP & LAYOUT FIXES */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
-    .block-container { padding-top: 0rem !important; padding-bottom: 8rem !important; }
-
-    /* 2. THE WHITE FONT + THIN CYAN GLOW */
-    /* This targets headers, labels, and general text */
-    html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-        color: #ffffff !important; /* Pure White Font */
-        text-shadow: 
-            0 0 5px rgba(0, 255, 204, 0.8), 
-            0 0 10px rgba(0, 255, 204, 0.3) !important; /* Thin Cyan Glow */
+    
+    /* Pull content to the literal top and remove hidden margins */
+    .block-container { 
+        padding-top: 0rem !important; 
+        margin-top: -3.5rem !important; /* Pushes the title to the very top */
+        padding-bottom: 8rem !important; 
     }
 
-    /* 3. INPUT BOXES & PANEL OUTLINES */
-    /* Keeping the outlines Cyan to separate them from the white text */
+    /* Target the first element in the column to remove Streamlit's default gap */
+    [data-testid="stVerticalBlock"] > div:first-child {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
+    }
+
+    /* 2. THE SENTINEL LINE (Your custom glowing divider) */
+    .sentinel-line {
+        border: 0;
+        height: 1px;
+        background: linear-gradient(to right, rgba(0, 255, 204, 0), rgba(0, 255, 204, 0.8), rgba(0, 255, 204, 0));
+        margin: 5px 0 15px 0;
+        box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
+    }
+
+    /* 3. THE WHITE FONT + THIN CYAN GLOW */
+    html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
+        color: #ffffff !important;
+        text-shadow: 
+            0 0 5px rgba(0, 255, 204, 0.8), 
+            0 0 10px rgba(0, 255, 204, 0.3) !important;
+    }
+
+    /* 4. INPUT BOXES & PANEL OUTLINES */
     .stTextInput > div > div > input { 
         border-radius: 10px; 
         border: 1px solid #00ffcc !important; 
@@ -39,23 +58,20 @@ st.markdown("""
         background-color: rgba(0, 255, 204, 0.03);
     }
 
-    /* 4. LIGHT MODE ADAPTIVE (High Legibility) */
+    /* 5. LIGHT MODE ADAPTIVE */
     @media (prefers-color-scheme: light) {
         [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; }
-        
-        /* In Light mode, we use a darker text for the eyes, but keep a very faint glow */
         html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-            color: #1f2937 !important; /* Dark Slate for readability */
+            color: #1f2937 !important;
             text-shadow: 0 0 3px rgba(0, 138, 123, 0.2) !important;
         }
-        
         .stTextInput > div > div > input { 
             border: 1px solid #008a7b !important; 
             color: #1f2937 !important;
         }
     }
 
-    /* 5. BUTTONS (No glow on text for sharpness) */
+    /* 6. BUTTONS */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
         color: #000000 !important; 
@@ -67,10 +83,9 @@ st.markdown("""
         border: none;
     }
 
-    /* 6. PULSING INDICATOR */
+    /* 7. PULSING INDICATOR */
     .mobile-hint {
-        background: #007bff; 
-        color: #ffffff !important; 
+        background: #007bff; color: #ffffff !important; 
         text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
         padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; 
         margin-bottom: 15px; animation: pulse 1.5s infinite;
