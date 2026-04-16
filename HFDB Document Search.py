@@ -76,8 +76,8 @@ with col_main:
         column_config={
             df.columns[0]: st.column_config.TextColumn("Received", width="small"),           # A
             df.columns[1]: st.column_config.TextColumn("Time", width=40),          # B
-            df.columns[2]: st.column_config.TextColumn("DTRAK No.", width=120),        # C
-            df.columns[3]: st.column_config.TextColumn("Control No.", width=120),  # D
+            df.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),        # C
+            df.columns[3]: st.column_config.TextColumn("Control No.", width=110),  # D
             df.columns[4]: st.column_config.TextColumn("Subject", width="large"),        # E (Readable)
             df.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),           # F (Truncated)
             df.columns[6]: st.column_config.TextColumn("Origin", width="small"),         # G
