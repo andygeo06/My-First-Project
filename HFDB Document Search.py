@@ -148,7 +148,7 @@ with col_action:
         st.markdown('<div class="mobile-hint">👇 SCROLL DOWN TO FINISH REQUEST</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="action-panel">', unsafe_allow_html=True)
-    st.header("📤 Request File")
+    st.header("📤 File Request")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
     user_name = st.selectbox("Select Your Name in the Dropdown", names_list)
@@ -170,7 +170,7 @@ with col_action:
             if not user_name:
                 st.error("Select name!")
             else:
-                with st.spinner("Requesting..."):
+                with st.spinner("Processing..."):
                     try:
                         user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
                     except:
