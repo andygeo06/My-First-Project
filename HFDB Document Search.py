@@ -9,6 +9,8 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #e0e0e0; }
+    /* REDUCE TOP MARGIN/PADDING TO MAXIMIZE SPACE */
+    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
     .action-panel { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 1rem; }
     .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
@@ -28,10 +30,9 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # Fill NAs to prevent 'nan' appearing in search
+    # Processed data (Silently, no success message)
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
-    st.success("✅ Search Portal Online")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -61,7 +62,7 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- MICRO-MANAGEMENT: INCOMING (Removed the problematic wrap argument) ---
+    # --- CONFIGS ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -79,7 +80,6 @@ with col_main:
         df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
-    # --- MICRO-MANAGEMENT: OUTGOING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
