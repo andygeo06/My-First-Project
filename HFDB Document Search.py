@@ -153,7 +153,7 @@ def send_signal(user_name, user_email, dtrak_list):
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
-    st.title("HFDB File Search")
+    st.title("HFDB DocTrack")
     
     # Logic for Mobile Hint
     # We check if any checkboxes are ticked before showing the hint
