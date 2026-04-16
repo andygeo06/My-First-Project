@@ -75,14 +75,14 @@ with col_main:
         selection_mode="multi-row",
         column_config={
             df.columns[0]: st.column_config.TextColumn("Received", width="small"),           # A
-            df.columns[1]: st.column_config.TextColumn("Time", width="small"),          # B
+            df.columns[1]: st.column_config.TextColumn("Time", width=50),          # B
             df.columns[2]: st.column_config.TextColumn("DTRAK No.", width="small"),        # C
             df.columns[3]: st.column_config.TextColumn("Control No.", width="small"),  # D
             df.columns[4]: st.column_config.TextColumn("Subject", width="large"),        # E (Readable)
             df.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),           # F (Truncated)
             df.columns[6]: st.column_config.TextColumn("Origin", width="small"),         # G
             df.columns[7]: st.column_config.TextColumn("Acted", width="small"),       # H
-            df.columns[8]: st.column_config.TextColumn("Time", width="small"),           # I
+            df.columns[8]: st.column_config.TextColumn("Time", width=50),           # I
             df.columns[9]: st.column_config.TextColumn("Sent", width="small"),           # J
             df.columns[10]: st.column_config.TextColumn("Division", width="small"),      # K
             df.columns[11]: st.column_config.TextColumn("Staff", width="small"),         # L
