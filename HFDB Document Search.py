@@ -8,26 +8,39 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    @media (prefers-color-scheme: light) {
-        [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; color: #1f2937 !important; }
-        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; }
+    /* 1. MIDNIGHT LOCK: Forces Dark Mode even if system is in Light Mode */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #0b0e14 !important;
+        color: #e0e0e0 !important;
     }
+
+    /* 2. TABLE STABILITY: Prevents white background in the grid */
+    [data-testid="stTable"], [data-testid="stDataFrame"] {
+        background-color: #1a1f26 !important;
+    }
+
     .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
     
-    /* Better touch targets for mobile */
-    .stRadio [data-testid="stWidgetLabel"] { font-weight: bold; font-size: 1.1rem; }
-    
+    /* 3. NEON INPUTS: High contrast search bars */
     .stTextInput > div > div > input { 
+        background-color: #1a1f26 !important;
+        color: #00ffcc !important; 
         border-radius: 10px; 
         border: 2px solid #00ffcc !important; 
-        background-color: transparent !important;
     }
     
+    /* 4. TAB LABELS: Forced white for legibility */
+    .stTabs [data-baseweb="tab"] p {
+        color: #ffffff !important;
+        font-weight: bold;
+    }
+
+    /* 5. ACTION PANEL & PULSE: The pulsing 'Scroll Down' bar */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
         border: 2px solid #00ffcc;
-        background-color: rgba(0, 255, 204, 0.05);
+        background-color: rgba(255, 255, 255, 0.05);
     }
     
     @media (min-width: 768px) { .action-panel { position: sticky; top: 1rem; } }
@@ -48,6 +61,9 @@ st.markdown("""
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
         color: black; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; 
     }
+    
+    /* Forced white for radio labels (the names) */
+    .stRadio label { color: #ffffff !important; }
     </style>
 """, unsafe_allow_html=True)
 
