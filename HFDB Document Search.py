@@ -8,45 +8,21 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. UNIVERSAL EYE-CARE & DYNAMIC THEME */
-    /* This ensures a soft background for light mode and deep charcoal for dark mode */
     @media (prefers-color-scheme: light) {
-        [data-testid="stAppViewContainer"] {
-            background-color: #f0f2f6 !important; 
-            color: #1f2937 !important; 
-        }
-        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; font-weight: bold; }
-        header[data-testid="stHeader"] { background-color: #f0f2f6 !important; }
+        [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; color: #1f2937 !important; }
+        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; }
     }
-
-    /* 2. SPACING & PADDING */
     .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
     
-    /* 3. THE SEARCH BOX: 
-       - Added a dark-tinted background so it doesn't merge.
-       - Added a 2px solid border for clear definition.
-       - Added a slight shadow for depth.
-    */
+    /* Better touch targets for mobile */
+    .stRadio [data-testid="stWidgetLabel"] { font-weight: bold; font-size: 1.1rem; }
+    
     .stTextInput > div > div > input { 
-        border-radius: 12px !important; 
-        border: 2px solid #00ffcc !important; /* Permanent Neon Teal Outline */
-        background-color: rgba(0, 0, 0, 0.2) !important; /* Darker inner tint */
-        color: #00ffcc !important; 
-        padding: 10px !important;
-        box-shadow: inset 0px 2px 4px rgba(0, 0, 0, 0.3); /* Subtle inner shadow */
+        border-radius: 10px; 
+        border: 2px solid #00ffcc !important; 
+        background-color: transparent !important;
     }
     
-    /* Light Mode specific adjustments for the search box */
-    @media (prefers-color-scheme: light) {
-        .stTextInput > div > div > input { 
-            background-color: #ffffff !important;
-            border: 2px solid #008a7b !important; 
-            color: #004d40 !important; 
-            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-        }
-    }
-
-    /* 4. ACTION PANEL */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
@@ -54,23 +30,11 @@ st.markdown("""
         background-color: rgba(0, 255, 204, 0.05);
     }
     
-    @media (prefers-color-scheme: light) {
-        .action-panel { 
-            border: 2px solid #008a7b;
-            background-color: #ffffff;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
-        }
-    }
+    @media (min-width: 768px) { .action-panel { position: sticky; top: 1rem; } }
 
-    /* 5. THE INDICATOR */
     .mobile-hint {
-        background: #007bff;
-        color: white;
-        padding: 12px;
-        border-radius: 10px;
-        text-align: center;
-        font-weight: bold;
-        margin-bottom: 25px;
+        background: #007bff; color: white; padding: 12px; border-radius: 10px;
+        text-align: center; font-weight: bold; margin-bottom: 25px;
         animation: pulse 1.5s infinite;
     }
 
@@ -80,15 +44,9 @@ st.markdown("""
         100% { opacity: 1; transform: scale(1); }
     }
 
-    /* 6. BUTTON STYLING */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: black; 
-        font-weight: bold; 
-        border-radius: 12px; 
-        height: 45px; 
-        width: 100%; 
-        border: none; 
+        color: black; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; 
     }
     </style>
 """, unsafe_allow_html=True)
