@@ -10,32 +10,33 @@ st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #0b0e14; color: #e0e0e0; }
     .stTextInput > div > div > input { background-color: #1a1f26 !important; color: #00ffcc !important; border-radius: 10px; border: 2px solid #30363d; }
-    .action-panel { background: rgba(255, 255, 255, 0.05); padding: 25px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 2rem; }
-    .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; }
-    .stButton > button:hover { box-shadow: 0 0 15px #4facfe; transform: translateY(-2px); }
+    .action-panel { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #30363d; position: sticky; top: 1rem; }
+    .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: black; font-weight: bold; border-radius: 12px; height: 45px; width: 100%; border: none; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. THE SMART DATA LOADER (Targeting your specific tabs) ---
+# --- 2. DATA LOADING ---
 @st.cache_data(ttl=300)
 def load_sheet_data(url, sheet_name):
-    # Encodes spaces in sheet names for the URL
     safe_name = sheet_name.replace(" ", "%20")
     csv_url = url.replace("/edit?usp=sharing", f"/gviz/tq?tqx=out:csv&sheet={safe_name}")
     return pd.read_csv(csv_url)
 
 try:
     SHEET_URL = st.secrets["gsheets_url"]
-    # Loading INCOMING SEARCH for the main grid and USER for the names
-    df = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
+    df_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
-    st.success("✅ Sentinel System Online")
+    
+    # --- 3. COLUMN FILTERING (A to N only) ---
+    # We take the first 14 columns (A=0 to N=13)
+    df = df_raw.iloc[:, :14]
+    
+    st.success("✅ Sentinel Online")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
-    st.info("Ensure tab names are exactly 'INCOMING SEARCH' and 'USER'")
     st.stop()
 
-# --- 3. SIGNAL FUNCTION ---
+# --- 4. SIGNAL FUNCTION ---
 def send_signal(user_name, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
@@ -51,21 +52,12 @@ def send_signal(user_name, dtrak_list):
         except: return False
     return True
 
-# --- 4. THE LAYOUT ---
-col_main, col_action = st.columns([3, 1], gap="large")
+# --- 5. UI LAYOUT ---
+col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
     st.title("🛡️ Sentinel Search")
-    st.caption("20th Congress | HFDB Document Tracking")
-    
-    # Toggle between Incoming and Outgoing (Optional Bonus!)
-    mode = st.radio("Select View", ["Incoming", "Outgoing"], horizontal=True)
-    
-    if mode == "Outgoing":
-        # Load Outgoing if the user switches
-        df = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
-
-    query = st.text_input("", placeholder=f"🔍 Search {mode} by Subject, DTRAK, or Office...")
+    query = st.text_input("", placeholder="🔍 Search by Subject, DTRAK, or Office...")
 
     if query:
         mask = df.astype(str).apply(lambda x: x.str.contains(query, case=False)).any(axis=1)
@@ -73,19 +65,36 @@ with col_main:
     else:
         filtered_df = df
 
+    # --- 6. DATA DISPLAY CONFIGURATION ---
+    # Here we map your specific Column A-N instructions
     selection = st.dataframe(
         filtered_df, 
         use_container_width=True, 
         hide_index=True,
         on_select="rerun",
-        selection_mode="multi-row"
+        selection_mode="multi-row",
+        column_config={
+            df.columns[0]: st.column_config.TextColumn("Date", width="small"),           # A
+            df.columns[1]: st.column_config.TextColumn("AM/PM", width="small"),          # B
+            df.columns[2]: st.column_config.TextColumn("DTRAK", width="medium"),        # C
+            df.columns[3]: st.column_config.TextColumn("Control No.", width="medium"),  # D
+            df.columns[4]: st.column_config.TextColumn("Subject", width="large"),        # E (Readable)
+            df.columns[5]: st.column_config.TextColumn("Type", width="small"),           # F (Truncated)
+            df.columns[6]: st.column_config.TextColumn("Office", width="small"),         # G
+            df.columns[7]: st.column_config.TextColumn("Released", width="small"),       # H
+            df.columns[8]: st.column_config.TextColumn("Time", width="small"),           # I
+            df.columns[9]: st.column_config.TextColumn("Sent", width="small"),           # J
+            df.columns[10]: st.column_config.TextColumn("Division", width="small"),      # K
+            df.columns[11]: st.column_config.TextColumn("Staff", width="small"),         # L
+            df.columns[12]: st.column_config.TextColumn("Tag", width="small"),           # M
+            df.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),  # N (Important)
+        }
     )
 
 with col_action:
     st.markdown('<div class="action-panel">', unsafe_allow_html=True)
     st.header("📤 Request")
     
-    # Pull names from the 'USER' tab (Assuming names are in the first column)
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
     user_name = st.selectbox("1. Select Your Name", names_list)
     
@@ -95,23 +104,19 @@ with col_action:
     if len(selected_indices) > 0:
         st.write(f"**Selected:** {len(selected_indices)}")
         
-        # We search for a column that looks like DTRAK NO. to be safe
-        dtrak_col = [col for col in filtered_df.columns if 'DTRAK' in col.upper()]
-        if dtrak_col:
-            selected_dtraks = filtered_df.iloc[selected_indices][dtrak_col[0]].tolist()
-            for d in selected_dtraks:
-                st.info(f"📄 {d}")
+        # Pulling DTRAK (Column C / Index 2)
+        selected_dtraks = filtered_df.iloc[selected_indices, 2].tolist()
+        for d in selected_dtraks:
+            st.info(f"📄 {d}")
         
-            if st.button("SEND TO MY EMAIL"):
-                if not user_name:
-                    st.error("Select name!")
-                else:
-                    with st.spinner("Pinging Server..."):
-                        if send_signal(user_name, selected_dtraks):
-                            st.balloons()
-                            st.success("Request processed!")
-        else:
-            st.error("DTRAK column not found in this sheet.")
+        if st.button("SEND TO MY EMAIL"):
+            if not user_name:
+                st.error("Select name!")
+            else:
+                with st.spinner("Pinging..."):
+                    if send_signal(user_name, selected_dtraks):
+                        st.balloons()
+                        st.success("Done!")
     else:
-        st.warning("Select rows on the left.")
+        st.warning("Select items.")
     st.markdown('</div>', unsafe_allow_html=True)
