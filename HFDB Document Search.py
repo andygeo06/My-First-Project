@@ -8,37 +8,45 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. UNIVERSAL EYE-CARE THEME */
-    /* This targets the main container. We use an off-white for light mode 
-       and keep the deep charcoal for dark mode users. */
+    /* 1. UNIVERSAL EYE-CARE & DYNAMIC THEME */
+    /* This ensures a soft background for light mode and deep charcoal for dark mode */
     @media (prefers-color-scheme: light) {
         [data-testid="stAppViewContainer"] {
-            background-color: #f0f2f6 !important; /* Soft Gray-White */
-            color: #1f2937 !important; /* Dark Slate Text */
+            background-color: #f0f2f6 !important; 
+            color: #1f2937 !important; 
         }
-        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; }
+        .stTabs [data-baseweb="tab"] p { color: #1f2937 !important; font-weight: bold; }
         header[data-testid="stHeader"] { background-color: #f0f2f6 !important; }
     }
 
     /* 2. SPACING & PADDING */
     .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
     
-    /* 3. SEARCH INPUTS: 
-       Using a darker teal (#008a7b) for light mode so it doesn't 'glow' too hard */
+    /* 3. THE SEARCH BOX: 
+       - Added a dark-tinted background so it doesn't merge.
+       - Added a 2px solid border for clear definition.
+       - Added a slight shadow for depth.
+    */
     .stTextInput > div > div > input { 
-        border-radius: 10px; 
-        border: 2px solid #00ffcc !important; 
-        background-color: transparent !important;
+        border-radius: 12px !important; 
+        border: 2px solid #00ffcc !important; /* Permanent Neon Teal Outline */
+        background-color: rgba(0, 0, 0, 0.2) !important; /* Darker inner tint */
+        color: #00ffcc !important; 
+        padding: 10px !important;
+        box-shadow: inset 0px 2px 4px rgba(0, 0, 0, 0.3); /* Subtle inner shadow */
     }
     
+    /* Light Mode specific adjustments for the search box */
     @media (prefers-color-scheme: light) {
         .stTextInput > div > div > input { 
+            background-color: #ffffff !important;
             border: 2px solid #008a7b !important; 
             color: #004d40 !important; 
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
         }
     }
 
-    /* 4. ACTION PANEL: Soft border for light mode */
+    /* 4. ACTION PANEL */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
@@ -54,7 +62,7 @@ st.markdown("""
         }
     }
 
-    /* 5. THE INDICATOR: High contrast Blue */
+    /* 5. THE INDICATOR */
     .mobile-hint {
         background: #007bff;
         color: white;
@@ -72,6 +80,7 @@ st.markdown("""
         100% { opacity: 1; transform: scale(1); }
     }
 
+    /* 6. BUTTON STYLING */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
         color: black; 
@@ -83,6 +92,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 # --- 2. DATA LOADING ---
 @st.cache_data(ttl=300)
 def load_sheet_data(url, sheet_name):
