@@ -61,7 +61,7 @@ with col_main:
     st.title("HFDB Document Searching Tool")
     tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
     
-    # --- MICRO-MANAGEMENT: INCOMING (Removed the problematic wrap argument) ---
+    # --- YOUR CUSTOM MICRO-MANAGEMENT: INCOMING ---
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
         df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -79,7 +79,7 @@ with col_main:
         df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
     }
 
-    # --- MICRO-MANAGEMENT: OUTGOING ---
+    # --- YOUR CUSTOM MICRO-MANAGEMENT: OUTGOING ---
     config_out = {
         df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
         df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
@@ -148,6 +148,11 @@ with col_action:
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
+                        
+                        # --- THE AUTO-RESET MAGIC ---
+                        st.session_state.in_grid = {"selection": {"rows": []}}
+                        st.session_state.out_grid = {"selection": {"rows": []}}
+                        st.rerun()
     else:
         st.warning("Kindly select which item(s) you want to request by ticking the checkbox on the left side of the table.")
     st.markdown('</div>', unsafe_allow_html=True)
