@@ -24,19 +24,21 @@ def load_sheet_data(url, sheet_name):
 
 try:
     SHEET_URL = st.secrets["gsheets_url"]
-    df_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
+    # Pre-loading both search tabs and the user list
+    df_incoming_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
+    df_outgoing_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # --- 3. COLUMN FILTERING (A to N only) ---
-    # We take the first 14 columns (A=0 to N=13)
-    df = df_raw.iloc[:, :14]
+    # Filtering both to A-N columns (0-13)
+    df_in = df_incoming_raw.iloc[:, :14]
+    df_out = df_outgoing_raw.iloc[:, :14]
     
     st.success("✅ Search Portal Online")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
 
-# --- 4. SIGNAL FUNCTION ---
+# --- 3. SIGNAL FUNCTION ---
 def send_signal(user_name, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
@@ -52,44 +54,48 @@ def send_signal(user_name, dtrak_list):
         except: return False
     return True
 
-# --- 5. UI LAYOUT ---
+# --- 4. UI LAYOUT ---
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
     st.title("HFDB Document Searching Tool")
-    query = st.text_input("", placeholder="🔍 Search by Subject, DTRAK, or Office...")
+    
+    # Dual Tab Setup
+    tab_in, tab_out = st.tabs(["📥 INCOMING DOCUMENTS", "📤 OUTGOING DOCUMENTS"])
+    
+    # Shared configuration for the dataframes to keep code clean
+    col_config_setup = {
+        df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
+        df_in.columns[1]: st.column_config.TextColumn("Time", width=40),
+        df_in.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
+        df_in.columns[3]: st.column_config.TextColumn("Control No.", width=110),
+        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large"),
+        df_in.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),
+        df_in.columns[6]: st.column_config.TextColumn("Origin", width="small"),
+        df_in.columns[7]: st.column_config.TextColumn("Acted", width="small"),
+        df_in.columns[8]: st.column_config.TextColumn("Time", width=40),
+        df_in.columns[9]: st.column_config.TextColumn("Sent", width="small"),
+        df_in.columns[10]: st.column_config.TextColumn("Division", width="small"),
+        df_in.columns[11]: st.column_config.TextColumn("Staff", width="small"),
+        df_in.columns[12]: st.column_config.TextColumn("Tag", width="small"),
+        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
+    }
 
-    if query:
-        mask = df.astype(str).apply(lambda x: x.str.contains(query, case=False)).any(axis=1)
-        filtered_df = df[mask]
-    else:
-        filtered_df = df
+    with tab_in:
+        q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
+        filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
+        selection_in = st.dataframe(
+            filtered_in, use_container_width=True, hide_index=True,
+            on_select="rerun", selection_mode="multi-row", column_config=col_config_setup, key="in_grid"
+        )
 
-    # --- 6. DATA DISPLAY CONFIGURATION ---
-    # Here we map your specific Column A-N instructions
-    selection = st.dataframe(
-        filtered_df, 
-        use_container_width=True, 
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="multi-row",
-        column_config={
-            df.columns[0]: st.column_config.TextColumn("Received", width="small"),           # A
-            df.columns[1]: st.column_config.TextColumn("Time", width=40),          # B
-            df.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),        # C
-            df.columns[3]: st.column_config.TextColumn("Control No.", width=110),  # D
-            df.columns[4]: st.column_config.TextColumn("Subject", width="large"),        # E (Readable)
-            df.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),           # F (Truncated)
-            df.columns[6]: st.column_config.TextColumn("Origin", width="small"),         # G
-            df.columns[7]: st.column_config.TextColumn("Acted", width="small"),       # H
-            df.columns[8]: st.column_config.TextColumn("Time", width=40),           # I
-            df.columns[9]: st.column_config.TextColumn("Sent", width="small"),           # J
-            df.columns[10]: st.column_config.TextColumn("Division", width="small"),      # K
-            df.columns[11]: st.column_config.TextColumn("Staff", width="small"),         # L
-            df.columns[12]: st.column_config.TextColumn("Tag", width="small"),           # M
-            df.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),  # N (Important)
-        }
-    )
+    with tab_out:
+        q_out = st.text_input("Search Outgoing Documents", placeholder="🔍 Search...", key="out_search")
+        filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
+        selection_out = st.dataframe(
+            filtered_out, use_container_width=True, hide_index=True,
+            on_select="rerun", selection_mode="multi-row", column_config=col_config_setup, key="out_grid"
+        )
 
 with col_action:
     st.markdown('<div class="action-panel">', unsafe_allow_html=True)
@@ -100,12 +106,19 @@ with col_action:
     
     st.divider()
     
-    selected_indices = selection.selection.rows
-    if len(selected_indices) > 0:
-        st.write(f"**Selected:** {len(selected_indices)}")
+    # Check both tabs for selected rows
+    sel_in = selection_in.selection.rows
+    sel_out = selection_out.selection.rows
+    
+    if len(sel_in) > 0 or len(sel_out) > 0:
+        total_selected = len(sel_in) + len(sel_out)
+        st.write(f"**Selected:** {total_selected}")
         
-        # Pulling DTRAK (Column C / Index 2)
-        selected_dtraks = filtered_df.iloc[selected_indices, 2].tolist()
+        # Combine DTRAKs from both tabs
+        selected_dtraks = []
+        if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
+        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 2].tolist())
+        
         for d in selected_dtraks:
             st.info(f"📄 {d}")
         
