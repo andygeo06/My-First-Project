@@ -115,7 +115,7 @@ with col_action:
             else:
                 with st.spinner("Pinging..."):
                     if send_signal(user_name, selected_dtraks):
-                        st.balloons()
+                        st.snow()
                         st.success("Done!")
     else:
         st.warning("Select items using the checkbox on the far left.")
