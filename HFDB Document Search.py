@@ -8,60 +8,70 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. FORCED DARK MODE (Midnight Lock) */
-    /* This ensures the app stays dark and readable even if the user has Light Mode on */
+    /* 1. MIDNIGHT LOCK: Forces the dark theme */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #0b0e14 !important;
-        color: #f0f2f6 !important;
+        color: #e0e0e0 !important;
     }
 
-    /* 2. SPACING & SCROLL FIX */
-    .block-container { padding-top: 1rem !important; padding-bottom: 8rem !important; }
-    
-    /* 3. INPUT FIELDS (Search & Select) */
-    /* Using #00ffcc for borders so they 'pop' against the dark background */
-    .stTextInput > div > div > input, .stSelectbox [data-baseweb="select"] { 
-        background-color: #1a1f26 !important; 
-        color: #00ffcc !important; 
-        border-radius: 10px; 
-        border: 2px solid #00ffcc !important; 
-    }
-
-    /* 4. TAB LABELS (Incoming/Outgoing) */
-    /* Forces the labels to stay bright white for legibility */
+    /* 2. GLOWING TABS: Makes 'INCOMING' and 'OUTGOING' labels pop */
+    /* We use a cyan text-shadow to give it that 'monitor' glow */
     .stTabs [data-baseweb="tab"] p {
         color: #ffffff !important;
         font-weight: bold;
-        font-size: 16px;
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.6), 0 0 12px rgba(0, 255, 204, 0.3);
     }
-    
-    /* 5. ACTION PANEL & INDICATOR */
+
+    /* 3. GLOWING INPUT LABELS: Fixes 'Search Incoming Documents' text */
+    /* This targets the label above the search box */
+    [data-testid="stWidgetLabel"] p {
+        color: #ffffff !important;
+        font-weight: bold !important;
+        text-shadow: 0 0 5px rgba(0, 255, 204, 0.4);
+    }
+
+    /* 4. SEARCH INPUT FIX: Better internal text contrast */
+    .stTextInput > div > div > input { 
+        background-color: #1a1f26 !important;
+        color: #00ffcc !important; 
+        border-radius: 10px; 
+        border: 2px solid #00ffcc !important;
+        font-weight: 500;
+    }
+
+    /* 5. ACTION PANEL: Neon border & Glow */
     .action-panel { 
-        background: rgba(255, 255, 255, 0.05); 
         padding: 20px; 
         border-radius: 15px; 
-        border: 2px solid #00ffcc; 
+        border: 2px solid #00ffcc;
+        background-color: rgba(0, 255, 204, 0.05);
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); /* Subtle box glow */
+    }
+
+    /* 6. BUTTON GLOW: Makes the send button feel more premium */
+    .stButton > button { 
+        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
+        color: black; 
+        font-weight: bold; 
+        border-radius: 12px; 
+        height: 50px; 
+        width: 100%; 
+        border: none;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
     }
     
-    /* Sticky for Desktop, normal for Mobile */
-    @media (min-width: 768px) { .action-panel { position: sticky; top: 1rem; } }
-
-    /* Pulsing 'Scroll Down' bar for Mobile users */
+    /* Pulse for the Row Selection hint */
     .mobile-hint {
         background: #007bff; color: white; padding: 12px; border-radius: 10px;
         text-align: center; font-weight: bold; margin-bottom: 25px;
         animation: pulse 1.5s infinite;
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
     }
 
     @keyframes pulse {
         0% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.8; transform: scale(0.98); }
         100% { opacity: 1; transform: scale(1); }
-    }
-
-    .stButton > button { 
-        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: black; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; 
     }
     </style>
 """, unsafe_allow_html=True)
