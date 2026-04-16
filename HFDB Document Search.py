@@ -8,59 +8,54 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. MIDNIGHT LOCK: Forces the dark theme */
+    /* 1. MIDNIGHT LOCK: Forces Dark Theme */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #0b0e14 !important;
         color: #e0e0e0 !important;
     }
 
-    /* 2. GLOWING TABS: Makes 'INCOMING' and 'OUTGOING' labels pop */
-    /* We use a cyan text-shadow to give it that 'monitor' glow */
+    /* 2. THE LUMINOUS TITLES: Glow for Main Title and Action Header */
+    /* Targetting st.title and st.header */
+    h1, h2, [data-testid="stHeader"] {
+        color: #ffffff !important;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.7), 0 0 20px rgba(0, 255, 204, 0.4) !important;
+        font-weight: 800 !important;
+    }
+
+    /* 3. GLOWING TABS: For 'INCOMING' and 'OUTGOING' */
     .stTabs [data-baseweb="tab"] p {
         color: #ffffff !important;
         font-weight: bold;
-        text-shadow: 0 0 8px rgba(0, 255, 204, 0.6), 0 0 12px rgba(0, 255, 204, 0.3);
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
     }
 
-    /* 3. GLOWING INPUT LABELS: Fixes 'Search Incoming Documents' text */
-    /* This targets the label above the search box */
+    /* 4. GLOWING WIDGET LABELS: For 'Search...' and 'Filter...' */
     [data-testid="stWidgetLabel"] p {
         color: #ffffff !important;
         font-weight: bold !important;
         text-shadow: 0 0 5px rgba(0, 255, 204, 0.4);
     }
 
-    /* 4. SEARCH INPUT FIX: Better internal text contrast */
+    /* 5. NEON INPUTS: High contrast for Search Bars */
     .stTextInput > div > div > input { 
         background-color: #1a1f26 !important;
         color: #00ffcc !important; 
         border-radius: 10px; 
         border: 2px solid #00ffcc !important;
-        font-weight: 500;
     }
 
-    /* 5. ACTION PANEL: Neon border & Glow */
+    /* 6. ACTION PANEL: Neon Border & Box Glow */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
         border: 2px solid #00ffcc;
         background-color: rgba(0, 255, 204, 0.05);
-        box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); /* Subtle box glow */
-    }
-
-    /* 6. BUTTON GLOW: Makes the send button feel more premium */
-    .stButton > button { 
-        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: black; 
-        font-weight: bold; 
-        border-radius: 12px; 
-        height: 50px; 
-        width: 100%; 
-        border: none;
-        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
     }
     
-    /* Pulse for the Row Selection hint */
+    @media (min-width: 768px) { .action-panel { position: sticky; top: 1rem; } }
+
+    /* 7. PULSING INDICATOR & BUTTONS */
     .mobile-hint {
         background: #007bff; color: white; padding: 12px; border-radius: 10px;
         text-align: center; font-weight: bold; margin-bottom: 25px;
@@ -73,6 +68,15 @@ st.markdown("""
         50% { opacity: 0.8; transform: scale(0.98); }
         100% { opacity: 1; transform: scale(1); }
     }
+
+    .stButton > button { 
+        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
+        color: black; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+    }
+
+    /* Forced white for Radio Labels */
+    .stRadio label { color: #ffffff !important; text-shadow: 0 0 5px rgba(0, 255, 204, 0.2); }
     </style>
 """, unsafe_allow_html=True)
 
