@@ -4,18 +4,22 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- 1. THE PAINT PALETTE (Change your colors here!) ---
+# --- 1. THE PAINT PALETTE (Dark Mode Edition) ---
 COLORS = {
-    "main_background": "#FFFFFF",      # App Background
-    "card_background": "#F0F2F6",      # Default Module Card color
-    "new_user_btn": "#1f77b4",         # "New User" Button (Blue)
-    "existing_user_btn": "#2E7D32",    # "Existing User" Button (Green)
-    "back_btn": "#6c757d",             # "Back" Button (Gray)
-    "finalize_btn": "#d32f2f",         # "Finalize" Button (Red)
-    "card_text": "#000000",            # Text inside cards
-    "card_hover": "#E8F5E9"            # Color when hovering over a card
+    "main_background": "#0E1117",      # Deep Midnight Background
+    "sidebar_content": "#161B22",      # Secondary background for containers
+    "card_background": "#21262D",      # Dark Slate for Module Cards
+    "card_text": "#C9D1D9",            # Off-white/Gray text for readability
+    "card_hover": "#30363D",           # Slightly lighter gray for hover
+    
+    "new_user_btn": "#1F6FEB",         # Bright Blue for "New User"
+    "existing_user_btn": "#238636",    # Forest Green for "Existing User"
+    "finalize_btn": "#DA3633",         # Alert Red for Finalizing
+    
+    "input_bg": "#0D1117",             # Input field background
+    "input_text": "#FFFFFF",           # Input field text color
+    "border_color": "#30363D"          # Subtle border color
 }
-
 # --- 2. CONFIG & CONNECTION ---
 st.set_page_config(page_title="Project FORT", layout="wide")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
@@ -153,12 +157,20 @@ elif "current_module" in st.session_state:
 else:
     dashboard()
 
-# --- 7. CSS ENGINE (Uses the Paint Palette) ---
+# --- 7. CSS ENGINE (Enhanced for Dark Mode) ---
 st.markdown(f"""
 <style>
-    /* Global Background */
+    /* Global App Background */
     .stApp {{
         background-color: {COLORS['main_background']};
+        color: {COLORS['card_text']};
+    }}
+
+    /* Input Fields */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {{
+        background-color: {COLORS['input_bg']} !important;
+        color: {COLORS['input_text']} !important;
+        border: 1px solid {COLORS['border_color']} !important;
     }}
 
     /* Large Card Buttons */
@@ -169,27 +181,35 @@ st.markdown(f"""
         font-size: 18px;
         background-color: {COLORS['card_background']};
         color: {COLORS['card_text']};
-        border: 1px solid #d1d5db;
+        border: 1px solid {COLORS['border_color']};
         transition: 0.3s;
     }}
 
-    /* Hover effect for all buttons */
+    /* Hover effect */
     div.stButton > button:hover {{
         background-color: {COLORS['card_hover']} !important;
-        border-color: {COLORS['existing_user_btn']} !important;
+        border-color: {COLORS['new_user_btn']} !important;
+        color: #FFFFFF !important;
     }}
 
     /* "Primary" Button styling (Existing User / Proceed) */
     button[kind="primary"] {{
         background-color: {COLORS['existing_user_btn']} !important;
         color: white !important;
+        border: none !important;
     }}
 
-    /* "Secondary" Button styling (New User) */
+    /* Specific ID for New User Button to keep it Blue */
     button[key="btn_mode_new"] {{
         background-color: {COLORS['new_user_btn']} !important;
         color: white !important;
+        border: none !important;
     }}
-
+    
+    /* Success/Warning box adjustments for Dark Mode */
+    .stAlert {{
+        background-color: {COLORS['sidebar_content']};
+        border: 1px solid {COLORS['border_color']};
+    }}
 </style>
 """, unsafe_allow_html=True)
