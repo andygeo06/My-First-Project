@@ -662,43 +662,48 @@ def dashboard():
     st.title("🏥 Project FORT Dashboard")
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
     
-    deadline_str, locked = get_module_config("Mod1")
-    status = "🔒 CLOSED" if locked else "🟢 OPEN"
+    # --- FETCH CONFIGS FOR BOTH MODULES ---
+    d1_str, d1_locked = get_module_config("Mod1")
+    d2_str, d2_locked = get_module_config("Mod2") # <--- Added this line
     
     st.markdown("---")
     st.markdown("### 📋 Available Modules")
     
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1: st.markdown("**Module**")
-    with col2: st.markdown("**Deadline**")
-    with col3: st.markdown("**Status**")
+    # Headers
+    h_col1, h_col2, h_col3 = st.columns([2, 1, 1])
+    h_col1.markdown("**Module**")
+    h_col2.markdown("**Deadline**")
+    h_col3.markdown("**Status**")
     
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1: st.markdown("Hospital Scorecard (Mod1)")
-    with col2: st.markdown(f"`{deadline_str}`")
-    with col3: st.markdown(f"**{status}**")
+    # --- MODULE 1 ROW ---
+    m1_col1, m1_col2, m1_col3 = st.columns([2, 1, 1])
+    m1_col1.markdown("Hospital Scorecard (Mod1)")
+    m1_col2.markdown(f"`{d1_str}`")
+    m1_col3.markdown("🔒 CLOSED" if d1_locked else "🟢 OPEN")
     
-    if st.button("📊 Open Scorecard", use_container_width=True, type="primary"):
-        with st.spinner("Loading your data into memory..."):
+    if st.button("📊 Open Scorecard", use_container_width=True, key="btn_mod1"):
+        with st.spinner("Loading Mod1..."):
             st.session_state.staged_data = get_previous_entry("Mod1")
             st.session_state.current_module = "Mod1"
         st.rerun()
 
-    # ... inside dashboard() ...
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1: st.markdown("Hospital Census & HCPN (Mod2)")
-    with col2: st.markdown(f"`{deadline_str}`") # You can set a separate deadline for Mod2 in your Config sheet
-    with col3: st.markdown(f"**{status}**")
+    st.write("") # Spacer
+
+    # --- MODULE 2 ROW ---
+    m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
+    m2_col1.markdown("Hospital Census & HCPN (Mod2)")
+    m2_col2.markdown(f"`{d2_str}`") # <--- Now uses Mod2 date
+    m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
     
-    if st.button("📈 Open Census & HCPN", use_container_width=True):
-        with st.spinner("Loading Module 2..."):
+    if st.button("📈 Open Census & HCPN", use_container_width=True, key="btn_mod2"):
+        with st.spinner("Loading Mod2..."):
             st.session_state.staged_data = get_previous_entry("Mod2")
             st.session_state.current_module = "Mod2"
         st.rerun()
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
-
+        
 if "user_id" not in st.session_state: 
     login_screen()
 elif "current_module" in st.session_state:
