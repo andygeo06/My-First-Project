@@ -163,7 +163,15 @@ elif "current_module" in st.session_state:
 else:
     dashboard()
 
-# --- 7. CSS ENGINE (Enhanced for Dark Mode) ---
+# --- 1. THE PAINT PALETTE (Updated with Spacing) ---
+COLORS = {
+    # ... keep your other colors same ...
+    "button_height": "auto",           # Changed from 140px to 'auto'
+    "button_padding": "20px 10px",     # Top/Bottom: 20px, Left/Right: 10px
+    "font_size": "1.1rem"              # Balanced size
+}
+
+# --- 7. CSS ENGINE (Compact & Proportional) ---
 st.markdown(f"""
 <style>
     /* Global App Background */
@@ -172,50 +180,43 @@ st.markdown(f"""
         color: {COLORS['card_text']};
     }}
 
-    /* Input Fields */
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea {{
-        background-color: {COLORS['input_bg']} !important;
-        color: {COLORS['input_text']} !important;
-        border: 1px solid {COLORS['border_color']} !important;
-    }}
-
-    /* Large Card Buttons */
+    /* Balanced Card Buttons */
     div.stButton > button {{
-        height: 140px;
-        border-radius: 15px;
-        font-weight: bold;
-        font-size: 18px;
+        height: {COLORS['button_height']};
+        padding: {COLORS['button_padding']} !important;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: {COLORS['font_size']};
+        line-height: 1.4;
+        white-space: pre-wrap;
         background-color: {COLORS['card_background']};
         color: {COLORS['card_text']};
         border: 1px solid {COLORS['border_color']};
-        transition: 0.3s;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }}
 
-    /* Hover effect */
+    /* Hover effect - Subtle lift */
     div.stButton > button:hover {{
         background-color: {COLORS['card_hover']} !important;
         border-color: {COLORS['new_user_btn']} !important;
-        color: #FFFFFF !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }}
 
-    /* "Primary" Button styling (Existing User / Proceed) */
+    /* Specific Styles for Gatekeeper Buttons */
     button[kind="primary"] {{
         background-color: {COLORS['existing_user_btn']} !important;
         color: white !important;
         border: none !important;
     }}
 
-    /* Specific ID for New User Button to keep it Blue */
-    button[key="btn_mode_new"] {{
-        background-color: {COLORS['new_user_btn']} !important;
-        color: white !important;
-        border: none !important;
+    /* Styling for New User Button specifically via its generated key */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {{
+        /* This targets the 'New User' button if it's the first in a column */
     }}
     
-    /* Success/Warning box adjustments for Dark Mode */
-    .stAlert {{
-        background-color: {COLORS['sidebar_content']};
-        border: 1px solid {COLORS['border_color']};
-    }}
 </style>
 """, unsafe_allow_html=True)
