@@ -11,6 +11,70 @@ def get_submission_by_code(code, hospital_id, module_sheet):
     # In reality, this would be: conn.read(query=f"SELECT * FROM {module_sheet} WHERE Code='{code}'")
     return None # Returns None if new, or a Dict if editing
 
+import streamlit as st
+
+# --- CUSTOM CSS FOR INTERACTIVE CARDS ---
+st.markdown("""
+<style>
+    .module-card {
+        background-color: #f0f2f6;
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid #d1d5db;
+        transition: transform 0.2s;
+        cursor: pointer;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .module-card:hover {
+        transform: scale(1.02);
+        border-color: #2e7d32;
+        background-color: #e8f5e9;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+def home_page():
+    st.title("🏥 HFDB Online Data Submission Portal")
+    st.markdown("---")
+    
+    # Header for progress
+    st.subheader("Your Submission Progress")
+    
+    # The Modules Data Structure
+    modules = [
+        {"id": "Mod1", "name": "Hospital Scorecard", "status": "Submitted", "icon": "📊"},
+        {"id": "Mod2", "name": "Financial Data", "status": "In Progress", "icon": "💰"},
+        {"id": "Mod3", "name": "Hospital MOOE", "status": "Pending", "icon": "🏥"}
+    ]
+
+    # Create Responsive Columns (1 column on mobile, 3 on desktop)
+    cols = st.columns(3)
+
+    for i, mod in enumerate(modules):
+        with cols[i]:
+            # Status Indicator Logic
+            indicator = "🟢" if mod['status'] == "Submitted" else "🟡" if mod['status'] == "In Progress" else "⚪"
+            
+            # THE CARD (Wrapped in a button to make it interactive)
+            if st.button(f"{mod['icon']} {mod['name']}\n\nStatus: {indicator} {mod['status']}", 
+                         key=mod['id'], 
+                         use_container_width=True):
+                st.session_state.page = mod['id']
+                st.rerun()
+
+# --- MODULE ROUTER ---
+if 'page' not in st.session_state: st.session_state.page = "Home"
+
+if st.session_state.page == "Home":
+    home_page()
+else:
+    # Logic for individual module entry
+    st.header(f"Module: {st.session_state.page}")
+    if st.button("Back to Dashboard"):
+        st.session_state.page = "Home"
+        st.rerun()
+
 # --- SHARED COMPONENTS ---
 def accountability_header(module_name):
     st.info(f"📍 Module: {module_name}")
