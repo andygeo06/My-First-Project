@@ -64,6 +64,45 @@ def get_all_profiles():
     try: return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
     except: return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Service_Capability", "Encoder_Name", "Position", "Year"])
 
+# --- NEW: SUBMIT & OVERRIDE LOGIC ---
+def submit_scorecard_data(res_data):
+    """Saves or overrides scorecard data in the Google Sheet"""
+    try:
+        # 1. Pull current data or create blank df
+        try:
+            df = conn.read(spreadsheet=SHEET_URL, worksheet="Scorecard_Data", ttl=0)
+        except:
+            df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder"])
+            
+        u = st.session_state.user_info
+        
+        # 2. Prep the new record
+        new_record = {
+            "User_ID": st.session_state.user_id,
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Hospital": u["hosp"],
+            "Encoder": u["user"]
+        }
+        # Flatten all values from scorecard into the record
+        for key, value in res_data.items():
+            new_record[key] = value
+            
+        new_df = pd.DataFrame([new_record])
+        
+        # 3. Handle Override (Remove old entry if User_ID exists)
+        if st.session_state.user_id in df["User_ID"].astype(str).values:
+            df = df[df["User_ID"].astype(str) != st.session_state.user_id]
+            st.toast("Existing entry found. Overwriting data...", icon="🔄")
+            
+        # 4. Merge and push back to Google Sheets
+        updated_df = pd.concat([df, new_df], ignore_index=True)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Scorecard_Data", data=updated_df)
+        st.toast("Data successfully submitted to HFDB!", icon="🚀")
+        return True
+    except Exception as e:
+        st.error(f"Submission failed: {e}")
+        return False
+
 # --- 4. MODULE 1: THE FULL SCORECARD ---
 
 def module_scorecard():
@@ -75,7 +114,7 @@ def module_scorecard():
         return
 
     # --- STRATEGIC SECTION ---
-    st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC INDICATORS</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC PERFORMANCE INDICATORS</h2></div>', unsafe_allow_html=True)
     
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=True):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value="0%", key="si1_in"))
@@ -117,7 +156,7 @@ def module_scorecard():
         s8v = score_calc(c1.number_input("Paperless Areas", 0, key="s8n"), c2.number_input("Expected Areas", 1, key="s8d"), "SI 8")
 
     # --- CORE SECTION ---
-    st.markdown('<div class="section-header-core"><h2>🎯 CORE INDICATORS</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-core"><h2>🎯 CORE QUALITY INDICATORS</h2></div>', unsafe_allow_html=True)
 
     with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)"):
         c1, c2 = st.columns(2)
@@ -148,42 +187,86 @@ def module_scorecard():
     h_name = c1.text_input("Name of Head of Facility:")
     h_pos = c2.text_input("Designation of Head of Facility:")
 
-    if st.button("🖨️ GENERATE OFFICIAL REPORT", type="primary", use_container_width=True):
-        res = {
-            "s1": s1, "s2": s2, "cat": cat, "stat": stat,
-            "ci1": ci1v, "ci2": ci2v, "ci3": ci3v, "ci4": ci4v, "ci5": ci5v, "ci6": ci6v,
-            "h_name": h_name, "h_pos": h_pos
-        }
+    # Map all captured values to a dictionary
+    res = {
+        "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
+        "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
+        "SI6": s6v, "SI7": s7v, "SI8": s8v,
+        "CI1": ci1v, "CI2": ci2v, "CI3": ci3v, "CI4": ci4v, "CI5": ci5v, "CI6": ci6v,
+        "Head_Name": h_name, "Head_Pos": h_pos
+    }
+
+    # --- ACTION BUTTONS (SIDE BY SIDE) ---
+    btn_col1, btn_col2 = st.columns(2)
+    
+    with btn_col1:
+        if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
+            submit_scorecard_data(res)
+            st.session_state.show_print = True
+            
+    with btn_col2:
+        if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
+            submit_scorecard_data(res)
+
+    # Display Print Frame if triggered
+    if st.session_state.get("show_print", False):
         generate_print_view(res)
 
-# --- 5. PRINT ENGINE ---
+# --- 5. PRINT ENGINE (Centered & Sized) ---
 
 def generate_print_view(d):
     u = st.session_state.user_info
     html = f"""
-    <div style="font-family: Arial; padding: 40px; background: white; color: black; border: 2px solid #333;">
-        <center><h1>2025 DOH HOSPITAL SCORECARD</h1><h3>{u['hosp']} — {u['level']}</h3><hr></center>
-        <h4>I. STRATEGIC PERFORMANCE</h4>
-        <p>PHU: {d['s1']}% | Green Rating: {d['s2']}% | Capital: {d['cat']} ({d['stat']})</p>
-        <h4>II. CORE QUALITY INDICATORS</h4>
-        <table style="width:100%; border-collapse: collapse;">
-            <tr style="background:#eee;"><th>Indicator</th><th>Result</th></tr>
-            <tr><td>ER TAT (<4h)</td><td align="right">{d['ci1']:.2f}%</td></tr>
-            <tr><td>Discharge TAT (<6h)</td><td align="right">{d['ci2']:.2f}%</td></tr>
-            <tr><td>Lab TAT (<5h)</td><td align="right">{d['ci3']:.2f}%</td></tr>
-            <tr><td>HAI Rate</td><td align="right">{d['ci4']:.2f}%</td></tr>
-            <tr><td>Experience Survey</td><td align="right">{d['ci5']:.2f}%</td></tr>
-            <tr><td>Disbursement Rate</td><td align="right">{d['ci6']:.2f}%</td></tr>
+    <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 800px; margin: 0 auto;">
+        <center>
+            <h1 style="margin:0; color:#111;">2025 DOH HOSPITAL SCORECARD</h1>
+            <h3 style="margin:5px 0; color:#444;">{u['hosp']} — {u['level']}</h3>
+            <hr style="border:1px solid #111;">
+        </center>
+        
+        <br>
+        <table style="width: 100%; border-collapse: collapse; text-align: center; margin: 0 auto;">
+            <tr style="background-color: #1A365D; color: white;">
+                <th colspan="2" style="padding: 10px; border: 1px solid #333;">I. STRATEGIC PERFORMANCE INDICATORS</th>
+            </tr>
+            <tr style="background-color: #f2f2f2;">
+                <th style="padding: 8px; border: 1px solid #333; width: 60%;">Indicator</th>
+                <th style="padding: 8px; border: 1px solid #333; width: 40%;">Performance / Status</th>
+            </tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333;">{d['SI1']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333;">{d['SI2']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI3_Cat']} ({d['SI3_Stat']})</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 4: ISO Accreditation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI4_Status']}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 5: PGS Accreditation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI5_25']}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 6: Specialty Centers</td><td style="padding: 8px; border: 1px solid #333;">{d['SI6']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 7: Zero Co-Payment</td><td style="padding: 8px; border: 1px solid #333;">{d['SI7']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 8: Paperless EMR</td><td style="padding: 8px; border: 1px solid #333;">{d['SI8']:.2f}%</td></tr>
+            
+            <tr style="background-color: #7B341E; color: white;">
+                <th colspan="2" style="padding: 10px; border: 1px solid #333;">II. CORE QUALITY INDICATORS</th>
+            </tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 1: ER TAT (<4h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI1']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 2: Discharge TAT (<6h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI2']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 3: Lab TAT (<5h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI3']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 4: HAI Rate</td><td style="padding: 8px; border: 1px solid #333;">{d['CI4']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 5: Client Experience Survey</td><td style="padding: 8px; border: 1px solid #333;">{d['CI5']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 6: Disbursement Rate</td><td style="padding: 8px; border: 1px solid #333;">{d['CI6']:.2f}%</td></tr>
         </table>
-        <br><br><table style="width:100%; text-align:center;">
-            <tr><td>__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
-                <td>__________________________<br><b>{d['h_name']}</b><br>{d['h_pos']}</td></tr>
+        
+        <br><br><br>
+        <table style="width:100%; text-align:center;">
+            <tr>
+                <td>__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
+                <td>__________________________<br><b>{d['Head_Name']}</b><br>{d['Head_Pos']}</td>
+            </tr>
         </table>
-        <br><center><button onclick="window.print()">Print to PDF</button></center>
+        
+        <br><br>
+        <center><button onclick="window.print()" style="padding:12px 25px; background:#1A365D; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print to PDF</button></center>
     </div>"""
-    st.components.v1.html(html, height=800, scrolling=True)
+    st.components.v1.html(html, height=1000, scrolling=True)
 
-# --- 6. ROUTING & DASHBOARD ---
+# --- 6. ROUTING & LOGIN ---
 
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
@@ -206,8 +289,8 @@ def login_screen():
             uid = st.text_input("Enter ID Code")
             if st.button("Enter Portal"):
                 p = get_all_profiles()
-                if uid in p["User_ID"].values:
-                    r = p[p["User_ID"] == uid].iloc[0]
+                if uid in p["User_ID"].astype(str).values:
+                    r = p[p["User_ID"].astype(str) == uid].iloc[0]
                     st.session_state.user_id = uid
                     st.session_state.user_info = {"hosp": r["Hospital_Name"], "level": r["Service_Capability"], "user": r["Encoder_Name"], "pos": r["Position"]}
                     st.rerun()
@@ -222,6 +305,9 @@ def dashboard():
 
 if "user_id" not in st.session_state: login_screen()
 elif "current_module" in st.session_state:
-    if st.button("🏠 Home"): del st.session_state.current_module; st.rerun()
+    if st.button("🏠 Home"): 
+        if "show_print" in st.session_state: del st.session_state.show_print
+        del st.session_state.current_module
+        st.rerun()
     module_scorecard()
 else: dashboard()
