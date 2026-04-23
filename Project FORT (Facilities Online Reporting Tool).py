@@ -717,15 +717,16 @@ def dashboard():
     m1_col2.markdown(f"`{d1_str}`")
     m1_col3.markdown("🔒 CLOSED" if d1_locked else "🟢 OPEN")
     
-    # --- Module 1 Button ---
-    st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
-    if st.button("📊 OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_mod1"):
-        st.session_state.staged_data = get_previous_entry("Mod1")
-        st.session_state.current_module = "Mod1"
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    # MODULE 1 - BLUE BOX
+    st.markdown("""
+        <a href="?module=Mod1" target="_self" style="text-decoration: none;">
+            <div style="background-color: #1A365D; color: white; padding: 15px; border-radius: 10px; border: 2px solid #3B82F6; text-align: center; font-weight: bold; margin-bottom: 10px;">
+                📊 OPEN MODULE 1: SCORECARD
+            </div>
+        </a>
+    """, unsafe_allow_html=True)
 
-    st.write("") # Just a small space
+    st.write("")
 
     # --- MODULE 2 ROW ---
     m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
@@ -733,13 +734,14 @@ def dashboard():
     m2_col2.markdown(f"`{d2_str}`")
     m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
     
-    # --- Module 2 Button ---
-    st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
-    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
-        st.session_state.staged_data = get_previous_entry("Mod2")
-        st.session_state.current_module = "Mod2"
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    # MODULE 2 - RED BOX
+    st.markdown("""
+        <a href="?module=Mod2" target="_self" style="text-decoration: none;">
+            <div style="background-color: #7B341E; color: white; padding: 15px; border-radius: 10px; border: 2px solid #EF4444; text-align: center; font-weight: bold;">
+                📈 OPEN MODULE 2: CENSUS DATA
+            </div>
+        </a>
+    """, unsafe_allow_html=True)
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
