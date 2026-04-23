@@ -63,17 +63,6 @@ def home_page():
                 st.session_state.page = mod['id']
                 st.rerun()
 
-# --- MODULE ROUTER ---
-if 'page' not in st.session_state: st.session_state.page = "Home"
-
-if st.session_state.page == "Home":
-    home_page()
-else:
-    # Logic for individual module entry
-    st.header(f"Module: {st.session_state.page}")
-    if st.button("Back to Dashboard"):
-        st.session_state.page = "Home"
-        st.rerun()
 
 # --- SHARED COMPONENTS ---
 def accountability_header(module_name):
