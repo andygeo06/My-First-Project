@@ -185,7 +185,7 @@ def dashboard():
             # We use \n\n to create clear separation
             button_label = (
                 f"{mod['icon']} {mod['name']}\n\n"
-                f"📅 Deadline: {date_str}\n"
+                f"📅 Deadline: {date_str}\n\n"
                 f"Status: ⚪ Pending"
             )
             
