@@ -1,55 +1,83 @@
 import streamlit as st
+import uuid
+import pandas as pd
+from datetime import datetime
 
-def render_accountability_header(module_name):
-    """Reusable UI component for accountability across all modules."""
-    st.info(f"📍 **Module:** {module_name}")
-    
-    with st.expander("🔐 Accountability & Verification", expanded=True):
-        col1, col2, col3 = st.columns(3)
+# --- CONFIGURATION ---
+st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide")
+
+# Mock function to simulate Google Sheets connection
+def get_submission_by_code(code, hospital_id, module_sheet):
+    # In reality, this would be: conn.read(query=f"SELECT * FROM {module_sheet} WHERE Code='{code}'")
+    return None # Returns None if new, or a Dict if editing
+
+# --- SHARED COMPONENTS ---
+def accountability_header(module_name):
+    st.info(f"📍 Module: {module_name}")
+    with st.expander("🔐 Accountability & Edit Access", expanded=True):
+        c1, c2 = st.columns(2)
+        edit_code = c1.text_input("Enter Edit Code (Leave blank for New Submission)", help="Enter a previous code to load your data.")
         
-        with col1:
-            # Hospital Name (Can be a dropdown or text)
-            hosp_name = st.text_input("Hospital Name", 
-                                      value=st.session_state.get('hosp_name', ""),
-                                      placeholder="Full Name of Facility")
-        with col2:
-            encoder = st.text_input("Name of Encoder", 
-                                    value=st.session_state.get('encoder_name', ""),
-                                    placeholder="Firstname Lastname")
-        with col3:
-            position = st.text_input("Position/Designation", 
-                                     value=st.session_state.get('position', ""),
-                                     placeholder="e.g., Administrative Officer V")
-            
-        # Update session state so it persists across modules
-        st.session_state.hosp_name = hosp_name
-        st.session_state.encoder_name = encoder
-        st.session_state.position = position
+        st.divider()
+        
+        c3, c4, c5 = st.columns(3)
+        hosp_name = c3.text_input("Hospital Name", value=st.session_state.get('hosp_name', ""))
+        encoder = c4.text_input("Encoder Name", value=st.session_state.get('encoder', ""))
+        position = c5.text_input("Position", value=st.session_state.get('pos', ""))
+        
+        # Persistence
+        st.session_state.hosp_name, st.session_state.encoder, st.session_state.pos = hosp_name, encoder, position
+        
+    return edit_code, (hosp_name and encoder and position)
 
-    # Validation Check
-    if not hosp_name or not encoder:
-        st.warning("⚠️ Please fill in accountability details to enable submission.")
-        return False
-    return True
+# --- HOME PAGE ---
+def home_page():
+    st.title("🏥 HFDB Online Data Submission Portal (2026)")
+    
+    # Dashboard Section
+    st.subheader("Your Submission Progress")
+    # Mock data for demonstration
+    modules = {"Mod1: Scorecard": "Submitted", "Mod2: Financial": "In Progress", "Mod3: MOOE": "Pending"}
+    
+    cols = st.columns(len(modules))
+    for i, (name, status) in enumerate(modules.items()):
+        color = "🟢" if status == "Submitted" else "🟡" if status == "In Progress" else "⚪"
+        cols[i].metric(label=name, value=status, delta=color, delta_color="normal")
 
-def module_hospital_mooe():
-    st.title("🏥 Hospital MOOE Data Entry")
+    st.divider()
+    if st.button("🚀 Enter Hospital MOOE Module (Mod3)", use_container_width=True):
+        st.session_state.page = "MOOE"
+        st.rerun()
+
+# --- MODULE: MOOE ---
+def module_mooe():
+    st.header("📊 Hospital MOOE Entry")
+    edit_code, is_valid = accountability_header("Hospital MOOE")
     
-    # Render the accountability block
-    is_ready = render_accountability_header("Hospital MOOE")
-    
-    # The actual data entry fields
-    st.markdown("---")
-    st.subheader("Financial Metrics")
-    mooe_val = st.number_input("Current Operating Expenditures", min_value=0)
-    
-    # Submission logic only if accountability is filled
-    if st.button("Finalize Submission", disabled=not is_ready):
-        payload = {
-            "hospital_name": st.session_state.hosp_name,
-            "encoder": st.session_state.encoder_name,
-            "position": st.session_state.position,
-            "data": {"mooe": mooe_val}
-        }
-        # Call your sync_data function here to write to 'Mod3'
-        st.success("Data and Accountability record saved.")
+    # Logic to load previous data if edit_code is provided
+    if edit_code:
+        st.warning(f"Attempting to load data for code: {edit_code}...")
+        # (Insert code here to fetch from Google Sheets and fill session_state)
+
+    st.subheader("Financial Reporting")
+    ps_value = st.number_input("Personnel Services (PS)", value=0)
+    mooe_value = st.number_input("Maintenance and Other Operating Expenses", value=0)
+
+    if st.button("Finalize & Get Submission Code", disabled=not is_valid):
+        # Generate Code
+        new_code = f"HFDB-{uuid.uuid4().hex[:6].upper()}"
+        
+        # ACTION: Save to Google Sheet (Hospital_ID, Code, Data, etc.)
+        st.success(f"Successfully Submitted! Your Edit Code is: **{new_code}**")
+        st.code(new_code)
+        st.info("Keep this code safe. You will need it to edit this submission later.")
+        
+        if st.button("Return Home"):
+            st.session_state.page = "Home"
+            st.rerun()
+
+# --- ROUTER ---
+if 'page' not in st.session_state: st.session_state.page = "Home"
+
+if st.session_state.page == "Home": home_page()
+elif st.session_state.page == "MOOE": module_mooe()
