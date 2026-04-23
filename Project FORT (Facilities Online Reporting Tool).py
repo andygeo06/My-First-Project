@@ -81,12 +81,30 @@ def login_screen():
                 if not h_name or not u_name or not pos:
                     st.error("Fields cannot be blank.")
                 else:
-                    new_id = f"HFDB-2026-{uuid.uuid4().hex[:8].upper()}"
-                    if save_new_profile(new_id, h_name, u_name, pos):
-                        st.session_state.generated_id = new_id
-                        st.session_state.reg_success = True
-                        st.session_state.temp_info = {"hosp": h_name, "user": u_name}
+                    # 1. Fetch latest data to check for duplicates
+                    profiles = get_all_profiles()
+                    
+                    # 2. Check if Hospital Name already exists (Case-insensitive)
+                    existing_hospitals = profiles["Hospital_Name"].str.upper().str.strip().tolist()
+                    current_h_input = h_name.upper().strip()
 
+                    if current_h_input in existing_hospitals:
+                        st.error(f"🛑 Error: {h_name} already has an existing account.")
+                        st.info("Redirecting you to the Login screen...")
+                        
+                        # Wait 2 seconds so they can read the error, then redirect
+                        import time
+                        time.sleep(2.5)
+                        st.session_state.auth_mode = "existing"
+                        st.rerun()
+                    else:
+                        # 3. Proceed with Registration if no duplicate found
+                        new_id = f"HFDB-2026-{uuid.uuid4().hex[:8].upper()}"
+                        if save_new_profile(new_id, h_name, u_name, pos):
+                            st.session_state.generated_id = new_id
+                            st.session_state.reg_success = True
+                            st.session_state.temp_info = {"hosp": h_name, "user": u_name}
+                            
             if st.session_state.get("reg_success"):
                 st.success("✅ Profile Registered!")
                 st.code(st.session_state.generated_id)
