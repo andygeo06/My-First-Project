@@ -64,14 +64,15 @@ def get_all_profiles():
     try: return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
     except: return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Service_Capability", "Encoder_Name", "Position", "Year"])
 
-# --- NEW: SUBMIT & OVERRIDE LOGIC ---
-def submit_scorecard_data(res_data):
-    """Saves or overrides scorecard data in the Google Sheet"""
+# --- UPDATED: MODULAR SUBMIT LOGIC ---
+def submit_module_data(res_data, module_name="Mod1"):
+    """Saves data to a module-specific sheet (e.g., Mod1) and overrides old entries for that user."""
     try:
-        # 1. Pull current data or create blank df
+        # 1. Pull current data from the specific module worksheet
         try:
-            df = conn.read(spreadsheet=SHEET_URL, worksheet="Scorecard_Data", ttl=0)
+            df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
         except:
+            # If sheet doesn't exist, start with basic headers
             df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder"])
             
         u = st.session_state.user_info
@@ -83,24 +84,23 @@ def submit_scorecard_data(res_data):
             "Hospital": u["hosp"],
             "Encoder": u["user"]
         }
-        # Flatten all values from scorecard into the record
-        for key, value in res_data.items():
-            new_record[key] = value
+        # Add the scorecard values
+        new_record.update(res_data)
             
         new_df = pd.DataFrame([new_record])
         
-        # 3. Handle Override (Remove old entry if User_ID exists)
-        if st.session_state.user_id in df["User_ID"].astype(str).values:
-            df = df[df["User_ID"].astype(str) != st.session_state.user_id]
-            st.toast("Existing entry found. Overwriting data...", icon="🔄")
+        # 3. Handle Override (Remove old entry for this User_ID in this specific module)
+        if "User_ID" in df.columns:
+            df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
             
-        # 4. Merge and push back to Google Sheets
+        # 4. Merge and push back to the module worksheet
         updated_df = pd.concat([df, new_df], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet="Scorecard_Data", data=updated_df)
-        st.toast("Data successfully submitted to HFDB!", icon="🚀")
+        conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
+        
+        st.toast(f"Data successfully synced to {module_name}!", icon="✅")
         return True
     except Exception as e:
-        st.error(f"Submission failed: {e}")
+        st.error(f"Submission to {module_name} failed: {e}")
         return False
 
 # --- 4. MODULE 1: THE FULL SCORECARD ---
@@ -110,7 +110,7 @@ def module_scorecard():
         dd = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1_DD", ttl=0)
         dd.columns = dd.columns.str.strip()
     except:
-        st.error("Sheet 'Mod1_DD' not found or headers incorrect.")
+        st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
         return
 
     # --- STRATEGIC SECTION ---
@@ -187,7 +187,7 @@ def module_scorecard():
     h_name = c1.text_input("Name of Head of Facility:")
     h_pos = c2.text_input("Designation of Head of Facility:")
 
-    # Map all captured values to a dictionary
+    # Prep the dictionary for submission
     res = {
         "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
@@ -196,23 +196,22 @@ def module_scorecard():
         "Head_Name": h_name, "Head_Pos": h_pos
     }
 
-    # --- ACTION BUTTONS (SIDE BY SIDE) ---
+    # --- ACTION BUTTONS ---
     btn_col1, btn_col2 = st.columns(2)
     
     with btn_col1:
         if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
-            submit_scorecard_data(res)
+            submit_module_data(res, "Mod1")
             st.session_state.show_print = True
             
     with btn_col2:
         if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
-            submit_scorecard_data(res)
+            submit_module_data(res, "Mod1")
 
-    # Display Print Frame if triggered
     if st.session_state.get("show_print", False):
         generate_print_view(res)
 
-# --- 5. PRINT ENGINE (Centered & Sized) ---
+# --- 5. PRINT ENGINE ---
 
 def generate_print_view(d):
     u = st.session_state.user_info
