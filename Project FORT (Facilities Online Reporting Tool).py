@@ -4,18 +4,29 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- CONFIG & CONNECTION ---
+# --- 1. INITIAL CONFIGURATION ---
 st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide")
+
+# The URL of your master sheet for explicit connection
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
+
+# Initialize Connection
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+# --- 2. CORE DATABASE FUNCTIONS ---
+
 def get_all_profiles():
-    return conn.read(worksheet="User_Profiles", ttl="0")
+    """Retrieves the list of registered users from the Google Sheet."""
+    try:
+        return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl="0")
+    except Exception:
+        # Returns an empty DataFrame with correct columns if sheet is empty/missing
+        return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Encoder_Name", "Position", "Year", "Created_At"])
 
 def save_new_profile(user_id, h_name, u_name, pos):
-    # 1. Fetch existing profiles first
+    """Appends a new user profile to the master list."""
     existing_profiles = get_all_profiles()
     
-    # 2. Create the new row
     new_row = pd.DataFrame([{
         "User_ID": user_id,
         "Hospital_Name": h_name,
@@ -25,23 +36,19 @@ def save_new_profile(user_id, h_name, u_name, pos):
         "Created_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }])
     
-    # 3. Combine them (Stack the new row at the bottom of the old data)
+    # Combine and update
     updated_df = pd.concat([existing_profiles, new_row], ignore_index=True)
-    
-    # 4. Use .update() instead of .create() 
-    # This writes the updated list back to the specific worksheet
-    conn.update(worksheet="User_Profiles", data=updated_df)
-    
-    st.cache_data.clear() # Clear cache so the app sees the new user immediately
+    conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
+    st.cache_data.clear()
 
-# --- UI: THE NEW AUTHENTICATION GATE ---
+# --- 3. UI: LOGIN & REGISTRATION ---
 
 def login_screen():
     st.title("🏥 HFDB Online Data Submission Portal")
     st.markdown("### National Health Facility Data Entry (2026)")
     st.divider()
 
-    # Step 1: Mode Selection (Hidden if a mode is already selected)
+    # STEP 1: MODE SELECTION
     if "auth_mode" not in st.session_state:
         st.subheader("Please choose an option to begin:")
         col1, col2 = st.columns(2)
@@ -52,14 +59,12 @@ def login_screen():
                 st.rerun()
                 
         with col2:
-            # Styled via CSS below to appear Green
             if st.button("🔑\n\nEXISTING USER\n\nContinue Work", use_container_width=True, type="primary"):
                 st.session_state.auth_mode = "existing"
                 st.rerun()
 
-    # Step 2: Conditional Input Fields
+    # STEP 2: INPUT FIELDS
     else:
-        # Button to return to the selection screen
         if st.button("⬅️ Back to Selection"):
             del st.session_state.auth_mode
             st.rerun()
@@ -73,28 +78,27 @@ def login_screen():
             pos = st.text_input("Official Position:")
             
             if st.button("🚀 Register & Generate My Code", type="primary"):
-                invalid = ["N/A", "NA", "NONE", ".", " ", "NOT APPLICABLE"]
+                invalid_entries = ["N/A", "NA", "NONE", ".", " ", "NOT APPLICABLE"]
                 if not h_name or not u_name or not pos:
-                    st.error("All fields are required to establish accountability.")
-                elif any(x == h_name.upper().strip() for x in invalid):
-                    st.error("Invalid input detected. Please provide your actual hospital name.")
+                    st.error("All fields are mandatory for accountability.")
+                elif any(x == h_name.upper().strip() for x in invalid_entries):
+                    st.error("Please provide valid facility information.")
                 else:
                     new_id = f"HFDB-2026-{uuid.uuid4().hex[:8].upper()}"
                     save_new_profile(new_id, h_name, u_name, pos)
                     
                     st.success("✅ Profile Registered in Project FORT!")
-                    st.warning("⚠️ **CRITICAL: RECORD YOUR ACCESS CODE.** You cannot log in without it.")
+                    st.warning("⚠️ **IMPORTANT:** Save the code below. You cannot log in without it.")
                     st.code(new_id, language="text")
                     
-                    if st.button("I Have Saved My Code - Enter Portal"):
+                    if st.button("OK - Proceed to Dashboard"):
                         st.session_state.user_id = new_id
                         st.session_state.user_info = {"hosp": h_name, "user": u_name}
                         st.rerun()
 
         elif st.session_state.auth_mode == "existing":
             st.subheader("🔓 Access Your Existing Profile")
-            input_id = st.text_input("Enter Your User Identification Code:", 
-                                     placeholder="Example: HFDB-2026-A1B2C3D4")
+            input_id = st.text_input("Enter User Identification Code:", placeholder="HFDB-2026-XXXXXXXX")
             
             if st.button("Verify & Enter", type="primary"):
                 profiles = get_all_profiles()
@@ -105,18 +109,17 @@ def login_screen():
                         "hosp": user_row["Hospital_Name"], 
                         "user": user_row["Encoder_Name"]
                     }
-                    st.success(f"Identity Verified. Welcome back, {user_row['Encoder_Name']}.")
+                    st.success(f"Welcome back, {user_row['Encoder_Name']}!")
                     st.rerun()
                 else:
-                    st.error("Identification Code not found. Please verify the code or register as a New User.")
+                    st.error("Code not found. Please verify the code or register as a New User.")
 
-# --- UI: DASHBOARD ---
+# --- 4. UI: DASHBOARD & MODULES ---
 
-def dashboard():
+def home_dashboard():
     st.title("🏥 Module Selection")
     st.info(f"Facility: **{st.session_state.user_info['hosp']}** | User: **{st.session_state.user_info['user']}**")
     
-    # Grid of Module Cards
     cols = st.columns(3)
     modules = [
         {"key": "Mod1", "name": "Hospital Scorecard", "icon": "📊"},
@@ -131,39 +134,45 @@ def dashboard():
                 st.rerun()
     
     st.divider()
-    if st.button("Logout / Exit Session"):
+    if st.button("Logout"):
         st.session_state.clear()
         st.rerun()
 
-# --- ROUTER ---
-if "user_id" not in st.session_state:
-    login_screen()
-elif "current_module" in st.session_state:
-    # Placeholder for Module Content
-    st.header(f"Module: {st.session_state.current_module['name']}")
+def module_page():
+    mod = st.session_state.current_module
+    st.header(f"{mod['icon']} {mod['name']}")
+    st.write(f"Logged in as: {st.session_state.user_info['user']}")
+    
+    # Placeholder fields for data entry
+    st.text_area("Observations")
+    st.number_input("Numerical Data", min_value=0)
+    
     if st.button("Back to Dashboard"):
         del st.session_state.current_module
         st.rerun()
-else:
-    dashboard()
 
-# --- CUSTOM CSS ---
+# --- 5. ROUTER ---
+
+if "user_id" not in st.session_state:
+    login_screen()
+elif "current_module" in st.session_state:
+    module_page()
+else:
+    home_dashboard()
+
+# --- 6. CSS STYLING ---
 st.markdown("""
 <style>
-    /* Large Buttons for Mode Selection and Modules */
     div.stButton > button {
         height: 150px;
         border-radius: 15px;
         font-weight: bold;
-        font-size: 20px;
-        white-space: pre-wrap; /* Allows emojis and text to stack */
+        font-size: 18px;
+        white-space: pre-wrap;
     }
-    
-    /* Ensuring the Primary (Existing User) button is clearly visible */
     button[kind="primary"] {
         background-color: #2e7d32 !important;
         color: white !important;
-        border: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
