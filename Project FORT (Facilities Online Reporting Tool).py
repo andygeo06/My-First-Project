@@ -1,19 +1,12 @@
 import streamlit as st
-import uuid
 import pandas as pd
 import time
-from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 import string
 import random
+from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
-def generate_custom_id():
-    year = datetime.now().year
-    # Generates 10 random alphanumeric characters
-    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-    return f"HFDB-{year}-{random_str}"
-
-# --- 1. CORE CONFIG & FIXED DARK THEME ---
+# --- 1. CORE CONFIG & UPGRADED AESTHETICS ---
 st.set_page_config(
     page_title="Project FORT", 
     layout="wide", 
@@ -23,39 +16,94 @@ st.set_page_config(
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. CSS ENGINE (Forced Dark Mode & Expander Contrast) ---
+# --- 2. PREMIUM CSS ENGINE ---
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     
     .section-header-strat {{
         background-color: #1A365D; padding: 15px; border-radius: 10px 10px 0 0;
-        text-align: center; border-bottom: 2px solid #1F6FEB;
+        text-align: center; border-bottom: 3px solid #3B82F6;
     }}
     .section-header-core {{
         background-color: #7B341E; padding: 15px; border-radius: 10px 10px 0 0;
-        text-align: center; border-bottom: 2px solid #F56565;
+        text-align: center; border-bottom: 3px solid #EF4444;
     }}
 
     div[data-testid="stExpander"] {{
         background-color: #161B22 !important; border: 1px solid #30363D !important;
-        border-radius: 8px !important; margin-bottom: 12px;
+        border-radius: 8px !important; margin-bottom: 12px; transition: 0.3s;
     }}
+    div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
     
     div[data-testid="stExpander"] div[role="region"] {{
         background-color: #0D1117 !important; padding: 25px !important;
         border-top: 1px solid #30363D;
     }}
 
-    div.stButton > button {{
-        background-color: #21262D; color: white; border: 1px solid #30363D;
-        border-radius: 8px; transition: 0.3s; height: 3em;
+    /* Modern Primary Buttons (Blue Gradient) */
+    button[kind="primary"] {{
+        background: linear-gradient(135deg, #1d4ed8, #3b82f6) !important;
+        color: white !important; border: none !important; border-radius: 8px !important;
+        font-weight: bold !important; box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+        transition: all 0.3s ease !important; height: 3.2em !important;
     }}
-    div.stButton > button:hover {{ border-color: #58A6FF; background-color: #30363D; }}
+    button[kind="primary"]:hover {{
+        transform: translateY(-2px) !important; box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
+        background: linear-gradient(135deg, #2563eb, #60a5fa) !important;
+    }}
+
+    /* Modern Secondary Buttons (Sleek Dark) */
+    button[kind="secondary"] {{
+        background-color: #21262D !important; color: white !important;
+        border: 1px solid #30363D !important; border-radius: 8px !important;
+        transition: all 0.3s ease !important; height: 3.2em !important;
+    }}
+    button[kind="secondary"]:hover {{
+        border-color: #8B949E !important; background-color: #30363D !important;
+        transform: translateY(-1px) !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. HELPER FUNCTIONS ---
+# --- 3. CACHED & OPTIMIZED DATA FETCHING ---
+
+@st.cache_data(ttl="1h")
+def get_dropdown_data():
+    """Caches dropdown options so we don't spam Google Sheets every rerun."""
+    try:
+        dd = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1_DD", ttl=0)
+        dd.columns = dd.columns.str.strip()
+        return dd
+    except: return None
+
+@st.cache_data(ttl="10m")
+def get_module_config(module_name="Mod1"):
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
+        row = df[df.iloc[:, 0] == module_name]
+        if not row.empty:
+            deadline_str = str(row.iloc[0, 1]).strip()
+            deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
+            return deadline_str, datetime.now() > deadline_date
+    except: pass
+    return "Not Set", False
+
+def get_previous_entry(module_name="Mod1"):
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+        if df is not None and "User_ID" in df.columns:
+            user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
+            if not user_data.empty: return user_data.iloc[-1].to_dict()
+    except: pass
+    return {}
+
+# --- 4. HELPER FUNCTIONS ---
+
+def generate_custom_id():
+    year = 2026
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    return f"HFDB-{year}-{random_str}"
 
 def clean_pct(input_str):
     try:
@@ -68,77 +116,48 @@ def score_calc(n, d, label):
     st.markdown(f"📈 **Current {label} Performance:** `{val:.2f}%`")
     return val
 
-def get_all_profiles():
-    try: return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
-    except: return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Service_Capability", "Encoder_Name", "Position", "Year"])
-
-def get_previous_entry(module_name="Mod1"):
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
-        if df is not None and "User_ID" in df.columns:
-            user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
-            if not user_data.empty: return user_data.iloc[-1].to_dict()
-    except: pass
-    return {}
-
-def get_module_config(module_name="Mod1"):
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
-        row = df[df.iloc[:, 0] == module_name]
-        if not row.empty:
-            deadline_str = str(row.iloc[0, 1]).strip()
-            deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
-            is_locked = datetime.now() > deadline_date
-            return deadline_str, is_locked
-    except: pass
-    return "Not Set", False
-
 def get_idx(opts_series, val):
     opts_list = list(opts_series.dropna().unique())
     return opts_list.index(val) if val in opts_list else 0
 
 def submit_module_data(res_data, module_name="Mod1"):
-    try:
-        try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
-        except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder", "Scanned_PDF"])
+    with st.spinner("Syncing to Cloud Database..."):
+        try:
+            try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+            except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder", "Scanned_PDF"])
+                
+            u = st.session_state.user_info
+            new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
+            new_record.update(res_data)
             
-        u = st.session_state.user_info
-        new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
-        new_record.update(res_data)
-        new_df = pd.DataFrame([new_record])
-        
-        if "User_ID" in df.columns:
-            df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
-            
-        updated_df = pd.concat([df, new_df], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
-        st.toast(f"Data successfully synced to {module_name}!", icon="✅")
-        return True
-    except Exception as e:
-        st.error(f"Submission to {module_name} failed: {e}")
-        return False
+            if "User_ID" in df.columns:
+                df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
+                
+            updated_df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
+            conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
+            st.toast(f"Data successfully synced to {module_name}!", icon="✅")
+            return True
+        except Exception as e:
+            st.error(f"Submission failed: {e}")
+            return False
 
-# --- 4. MODULE 1: THE FULL SCORECARD ---
+# --- 5. THE SCORECARD (LOCAL STAGING ENGINE) ---
 
 def module_scorecard():
-    try:
-        dd = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1_DD", ttl=0)
-        dd.columns = dd.columns.str.strip()
-    except:
+    dd = get_dropdown_data()
+    if dd is None:
         st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
         return
 
-    prev = get_previous_entry("Mod1")
+    # Use the locally staged data instead of fetching every rerun
+    prev = st.session_state.staged_data 
     deadline_str, locked = get_module_config("Mod1")
     
-    # Initialize the expand_all state if it doesn't exist
-    if "expand_all" not in st.session_state: 
-        st.session_state.expand_all = False
+    if "expand_all" not in st.session_state: st.session_state.expand_all = False
 
     if locked:
         st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    # --- STRATEGIC SECTION ---
     st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC PERFORMANCE INDICATORS</h2></div>', unsafe_allow_html=True)
     
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=st.session_state.expand_all):
@@ -190,7 +209,6 @@ def module_scorecard():
         s8d = c2.number_input("Expected Areas", value=int(float(prev.get("SI8_D", 1))), disabled=locked, key="s8d")
         s8v = score_calc(s8n, s8d, "SI 8")
 
-    # --- CORE SECTION ---
     st.markdown('<div class="section-header-core"><h2>🎯 CORE QUALITY INDICATORS</h2></div>', unsafe_allow_html=True)
 
     with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)", expanded=st.session_state.expand_all):
@@ -234,6 +252,7 @@ def module_scorecard():
     h_name = c1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""), disabled=locked)
     h_pos = c2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
 
+    # Compile the final result dictionary
     res = {
         "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
@@ -243,36 +262,32 @@ def module_scorecard():
         "Head_Name": h_name, "Head_Pos": h_pos
     }
 
-    # --- ACTION BUTTONS (CLOSES EXPANDERS ON CLICK) ---
     if not locked:
         btn_col1, btn_col2 = st.columns(2)
-        
         with btn_col1:
             if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
-                submit_module_data(res, "Mod1")
-                st.session_state.show_print = True
-                st.session_state.expand_all = False  # FOLD THEM SHUT
-                st.rerun()
+                if submit_module_data(res, "Mod1"):
+                    st.session_state.staged_data.update(res) # Update local memory with saved data
+                    st.session_state.show_print = True
+                    st.session_state.expand_all = False
+                    st.rerun()
                 
         with btn_col2:
             if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
-                submit_module_data(res, "Mod1")
-                st.session_state.expand_all = False  # FOLD THEM SHUT
-                st.rerun()
-    else:
-        st.warning("🔒 Submissions disabled (Deadline passed). Data can be viewed but not altered or printed.")
+                if submit_module_data(res, "Mod1"):
+                    st.session_state.staged_data.update(res) # Update local memory
+                    st.session_state.expand_all = False
+                    st.rerun()
 
-    # --- PDF UPLOAD ATTACHMENT GATEWAY ---
+    # --- PDF ATTACHMENT SECTION ---
     if st.session_state.get("show_print", False):
         generate_print_view(res)
-        
         st.divider()
         st.markdown("### 📤 Attach Signed PDF Document")
-        st.info("Step 1: Print, sign, and scan the report.\nStep 2: Upload it to your Google Drive.\nStep 3: Paste the shareable link below.")
-        
+        st.info("Upload your signed report to Google Drive and paste the shareable link below.")
         pdf_link = st.text_input("🔗 Paste Google Drive Link Here:")
         
-        if st.button("💾 Attach Link to Submission", type="secondary"):
+        if st.button("💾 Attach Link to Submission", type="primary"):
             if pdf_link:
                 try:
                     df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
@@ -288,8 +303,7 @@ def module_scorecard():
             else:
                 st.warning("Please paste a link first.")
 
-# --- 5. PRINT ENGINE (WITH SMALLER FONT SIZES) ---
-
+# --- 6. PRINT ENGINE ---
 def generate_print_view(d):
     u = st.session_state.user_info
     html = f"""
@@ -342,10 +356,34 @@ def generate_print_view(d):
     </div>"""
     st.components.v1.html(html, height=950, scrolling=True)
 
-# --- 6. ROUTING & LOGIN (WITH REGISTRATION FIX) ---
+# --- 7. ROUTING & LOGIN ---
 
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
+    
+    # THE "FREEZE" MODAL (Mandatory Confirmation)
+    if "pending_id" in st.session_state:
+        st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
+        st.markdown(f"""
+            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
+                <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
+                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
+                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later. 
+                We do not store passwords, and the system will not show this again.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
+            st.session_state.user_id = st.session_state.pending_id
+            st.session_state.user_info = st.session_state.pending_info
+            del st.session_state.pending_id
+            del st.session_state.pending_info
+            st.success("Access Granted. Redirecting to Dashboard...")
+            time.sleep(1)
+            st.rerun()
+        st.stop() # Halts all execution. Background stays blank.
+
     if "auth_mode" not in st.session_state:
         c1, c2 = st.columns(2)
         if c1.button("🆕 NEW USER", use_container_width=True): st.session_state.auth_mode = "new"; st.rerun()
@@ -354,84 +392,40 @@ def login_screen():
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
         if st.session_state.auth_mode == "new":
-            # If the ID has been generated but not confirmed, show the "Lock Screen"
-            if "pending_id" in st.session_state:
-                st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
-                st.markdown(f"""
-                    <div style="background-color:#F0B216; padding:20px; border-radius:10px; text-align:center;">
-                        <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
-                        <h1 style="color:black; font-family:monospace; letter-spacing:2px;">{st.session_state.pending_id}</h1>
-                        <p style="color:black;"><b>Copy this code now.</b> You will need this to access your data later. 
-                        The system will not show this again.</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                st.write("")
-                if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
-                    # Move data from pending to active session
-                    st.session_state.user_id = st.session_state.pending_id
-                    st.session_state.user_info = st.session_state.pending_info
-                    # Cleanup
-                    del st.session_state.pending_id
-                    del st.session_state.pending_info
-                    st.success("Access Granted. Redirecting to Dashboard...")
-                    time.sleep(1)
-                    st.rerun()
-                
-                st.stop() # This "freezes" the screen by stopping the script execution here
-
-            # The standard Registration Form
-            h_name = st.selectbox("Hospital Name", [""] + sorted(conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List")["Facility_Name"].tolist()))
+            h_list = conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List", ttl=0)["Facility_Name"].tolist()
+            h_name = st.selectbox("Hospital Name", [""] + sorted(h_list))
             h_level = st.selectbox("Level", ["", "Level 1", "Level 2", "Level 3", "Specialty"])
             u_name = st.text_input("Your Name")
             u_pos = st.text_input("Your Designation")
             
-            if st.button("Register Profile"):
+            if st.button("Register Profile", type="primary"):
                 if not h_name or not u_name:
                     st.error("Please fill in all fields.")
                 else:
                     new_id = generate_custom_id()
-                    
-                    # Save to Google Sheets immediately
                     try:
                         p_df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
-                        new_profile = pd.DataFrame([{
-                            "User_ID": new_id, 
-                            "Hospital_Name": h_name, 
-                            "Service_Capability": h_level, 
-                            "Encoder_Name": u_name, 
-                            "Position": u_pos,
-                            "Year": datetime.now().year
-                        }])
-                        updated_p_df = pd.concat([p_df, new_profile], ignore_index=True)
-                        conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_p_df)
+                        new_profile = pd.DataFrame([{"User_ID": new_id, "Hospital_Name": h_name, "Service_Capability": h_level, "Encoder_Name": u_name, "Position": u_pos, "Year": 2026}])
+                        conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=pd.concat([p_df, new_profile], ignore_index=True))
                         
-                        # Store in temporary 'pending' state to trigger the Lock Screen
+                        # Trigger Freeze Screen
                         st.session_state.pending_id = new_id
-                        st.session_state.pending_info = {
-                            "hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos
-                        }
+                        st.session_state.pending_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
                         st.rerun()
-                        
                     except Exception as e:
-                        st.error(f"Critical Error: Could not save to database. {e}")
-                # ----------------------------------------
-                
-                st.session_state.user_id = new_id
-                st.session_state.user_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
-                st.success(f"Profile Created and Saved! ID: {new_id}"); time.sleep(1); st.rerun()
-                
+                        st.error(f"Could not save to database. {e}")
+                        
         elif st.session_state.auth_mode == "existing":
-            uid = st.text_input("Enter ID Code")
-            if st.button("Enter Portal"):
-                p = get_all_profiles()
+            uid = st.text_input("Enter HFDB-2026 ID Code")
+            if st.button("Enter Portal", type="primary"):
+                p = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
                 if uid in p["User_ID"].astype(str).values:
                     r = p[p["User_ID"].astype(str) == uid].iloc[0]
                     st.session_state.user_id = uid
                     st.session_state.user_info = {"hosp": r["Hospital_Name"], "level": r["Service_Capability"], "user": r["Encoder_Name"], "pos": r["Position"]}
                     st.rerun()
                 else:
-                    st.error("User ID not found in database.")
+                    st.error("User ID not found in database. Check for typos.")
 
 def dashboard():
     u = st.session_state.user_info
@@ -454,8 +448,11 @@ def dashboard():
     with col2: st.markdown(f"`{deadline_str}`")
     with col3: st.markdown(f"**{status}**")
     
-    if st.button("📊 Open Scorecard", use_container_width=True):
-        st.session_state.current_module = "Mod1"
+    if st.button("📊 Open Scorecard", use_container_width=True, type="primary"):
+        # FETCH DATA ONLY ONCE WHEN OPENING THE MODULE
+        with st.spinner("Loading your data into memory..."):
+            st.session_state.staged_data = get_previous_entry("Mod1")
+            st.session_state.current_module = "Mod1"
         st.rerun()
         
     st.markdown("---")
@@ -463,9 +460,10 @@ def dashboard():
 
 if "user_id" not in st.session_state: login_screen()
 elif "current_module" in st.session_state:
-    if st.button("🏠 Home"): 
+    if st.button("🏠 Return to Dashboard"): 
         if "show_print" in st.session_state: del st.session_state.show_print
         if "expand_all" in st.session_state: del st.session_state.expand_all
+        if "staged_data" in st.session_state: del st.session_state.staged_data
         del st.session_state.current_module
         st.rerun()
     module_scorecard()
