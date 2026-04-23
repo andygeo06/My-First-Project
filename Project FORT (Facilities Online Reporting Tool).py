@@ -4,6 +4,14 @@ import pandas as pd
 import time
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+import string
+import random
+
+def generate_custom_id():
+    year = datetime.now().year
+    # Generates 10 random alphanumeric characters
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    return f"HFDB-{year}-{random_str}"
 
 # --- 1. CORE CONFIG & FIXED DARK THEME ---
 st.set_page_config(
@@ -346,29 +354,67 @@ def login_screen():
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
         if st.session_state.auth_mode == "new":
+            # If the ID has been generated but not confirmed, show the "Lock Screen"
+            if "pending_id" in st.session_state:
+                st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
+                st.markdown(f"""
+                    <div style="background-color:#F0B216; padding:20px; border-radius:10px; text-align:center;">
+                        <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
+                        <h1 style="color:black; font-family:monospace; letter-spacing:2px;">{st.session_state.pending_id}</h1>
+                        <p style="color:black;"><b>Copy this code now.</b> You will need this to access your data later. 
+                        The system will not show this again.</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.write("")
+                if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
+                    # Move data from pending to active session
+                    st.session_state.user_id = st.session_state.pending_id
+                    st.session_state.user_info = st.session_state.pending_info
+                    # Cleanup
+                    del st.session_state.pending_id
+                    del st.session_state.pending_info
+                    st.success("Access Granted. Redirecting to Dashboard...")
+                    time.sleep(1)
+                    st.rerun()
+                
+                st.stop() # This "freezes" the screen by stopping the script execution here
+
+            # The standard Registration Form
             h_name = st.selectbox("Hospital Name", [""] + sorted(conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List")["Facility_Name"].tolist()))
             h_level = st.selectbox("Level", ["", "Level 1", "Level 2", "Level 3", "Specialty"])
-            u_name = st.text_input("Your Name"); u_pos = st.text_input("Your Designation")
+            u_name = st.text_input("Your Name")
+            u_pos = st.text_input("Your Designation")
             
             if st.button("Register Profile"):
-                new_id = f"FORT-{uuid.uuid4().hex[:6].upper()}"
-                
-                # --- BUG FIX 1: WRITE TO GOOGLE SHEET ---
-                try:
-                    p_df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
-                    new_profile = pd.DataFrame([{
-                        "User_ID": new_id, 
-                        "Hospital_Name": h_name, 
-                        "Service_Capability": h_level, 
-                        "Encoder_Name": u_name, 
-                        "Position": u_pos,
-                        "Year": datetime.now().year
-                    }])
-                    updated_p_df = pd.concat([p_df, new_profile], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_p_df)
-                except Exception as e:
-                    st.error(f"Failed to save profile to Google Sheets: {e}")
-                    st.stop()
+                if not h_name or not u_name:
+                    st.error("Please fill in all fields.")
+                else:
+                    new_id = generate_custom_id()
+                    
+                    # Save to Google Sheets immediately
+                    try:
+                        p_df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
+                        new_profile = pd.DataFrame([{
+                            "User_ID": new_id, 
+                            "Hospital_Name": h_name, 
+                            "Service_Capability": h_level, 
+                            "Encoder_Name": u_name, 
+                            "Position": u_pos,
+                            "Year": datetime.now().year
+                        }])
+                        updated_p_df = pd.concat([p_df, new_profile], ignore_index=True)
+                        conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_p_df)
+                        
+                        # Store in temporary 'pending' state to trigger the Lock Screen
+                        st.session_state.pending_id = new_id
+                        st.session_state.pending_info = {
+                            "hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos
+                        }
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Critical Error: Could not save to database. {e}")
                 # ----------------------------------------
                 
                 st.session_state.user_id = new_id
