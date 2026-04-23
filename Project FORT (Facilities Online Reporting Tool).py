@@ -65,7 +65,6 @@ def get_all_profiles():
     except: return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Service_Capability", "Encoder_Name", "Position", "Year"])
 
 def get_previous_entry(module_name="Mod1"):
-    """Fetches the user's previously submitted data for editing."""
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
         if df is not None and "User_ID" in df.columns:
@@ -75,13 +74,11 @@ def get_previous_entry(module_name="Mod1"):
     return {}
 
 def get_module_config(module_name="Mod1"):
-    """Fetches deadline from Config sheet. Assumes Col A = Module, Col B = Deadline Date."""
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
         row = df[df.iloc[:, 0] == module_name]
         if not row.empty:
             deadline_str = str(row.iloc[0, 1]).strip()
-            # Check if past deadline
             deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
             is_locked = datetime.now() > deadline_date
             return deadline_str, is_locked
@@ -89,15 +86,13 @@ def get_module_config(module_name="Mod1"):
     return "Not Set", False
 
 def get_idx(opts_series, val):
-    """Helper to safely find the index for selectboxes."""
     opts_list = list(opts_series.dropna().unique())
     return opts_list.index(val) if val in opts_list else 0
 
-# --- MODULAR SUBMIT LOGIC ---
 def submit_module_data(res_data, module_name="Mod1"):
     try:
         try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
-        except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder"])
+        except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder", "Scanned_PDF"])
             
         u = st.session_state.user_info
         new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
@@ -125,10 +120,10 @@ def module_scorecard():
         st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
         return
 
-    # Load Previous Data & Config
     prev = get_previous_entry("Mod1")
     deadline_str, locked = get_module_config("Mod1")
     
+    # Initialize the expand_all state if it doesn't exist
     if "expand_all" not in st.session_state: 
         st.session_state.expand_all = False
 
@@ -152,7 +147,6 @@ def module_scorecard():
         src_opts = dd["Indicator 3, DD2"]
         cat = c1.selectbox("Category", cat_opts.dropna().unique(), index=get_idx(cat_opts, prev.get("SI3_Cat")), disabled=locked)
         src = c2.selectbox("Fund Source", src_opts.dropna().unique(), index=get_idx(src_opts, prev.get("SI3_Src")), disabled=locked)
-        
         stat_opts = dd["Indicator 3, DD3.a"] if "Infrastructure" in str(cat) else dd["Indicator 3, DD3.b"]
         stat = st.selectbox("Status", stat_opts.dropna().unique(), index=get_idx(stat_opts, prev.get("SI3_Stat")), disabled=locked)
 
@@ -232,23 +226,16 @@ def module_scorecard():
     h_name = c1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""), disabled=locked)
     h_pos = c2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
 
-    # Added _N and _D to res so the script remembers them on reload!
     res = {
         "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
-        "SI6": s6v, "SI6_N": s6n, "SI6_D": s6d,
-        "SI7": s7v, "SI7_N": s7n, "SI7_D": s7d,
-        "SI8": s8v, "SI8_N": s8n, "SI8_D": s8d,
-        "CI1": ci1v, "CI1_N": ci1n, "CI1_D": ci1d,
-        "CI2": ci2v, "CI2_N": ci2n, "CI2_D": ci2d,
-        "CI3": ci3v, "CI3_N": ci3n, "CI3_D": ci3d,
-        "CI4": ci4v, "CI4_N": ci4n, "CI4_D": ci4d,
-        "CI5": ci5v, "CI5_N": ci5n, "CI5_D": ci5d,
-        "CI6": ci6v, "CI6_N": ci6n, "CI6_D": ci6d,
+        "SI6": s6v, "SI6_N": s6n, "SI6_D": s6d, "SI7": s7v, "SI7_N": s7n, "SI7_D": s7d, "SI8": s8v, "SI8_N": s8n, "SI8_D": s8d,
+        "CI1": ci1v, "CI1_N": ci1n, "CI1_D": ci1d, "CI2": ci2v, "CI2_N": ci2n, "CI2_D": ci2d, "CI3": ci3v, "CI3_N": ci3n, "CI3_D": ci3d,
+        "CI4": ci4v, "CI4_N": ci4n, "CI4_D": ci4d, "CI5": ci5v, "CI5_N": ci5n, "CI5_D": ci5d, "CI6": ci6v, "CI6_N": ci6n, "CI6_D": ci6d,
         "Head_Name": h_name, "Head_Pos": h_pos
     }
 
-    # --- ACTION BUTTONS ---
+    # --- ACTION BUTTONS (CLOSES EXPANDERS ON CLICK) ---
     if not locked:
         btn_col1, btn_col2 = st.columns(2)
         
@@ -256,21 +243,44 @@ def module_scorecard():
             if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
                 submit_module_data(res, "Mod1")
                 st.session_state.show_print = True
-                st.session_state.expand_all = True
+                st.session_state.expand_all = False  # FOLD THEM SHUT
                 st.rerun()
                 
         with btn_col2:
             if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
                 submit_module_data(res, "Mod1")
-                st.session_state.expand_all = True
+                st.session_state.expand_all = False  # FOLD THEM SHUT
                 st.rerun()
     else:
-        st.warning("🔒 Submissions are disabled because the deadline has passed. Data can be viewed but not altered or printed.")
+        st.warning("🔒 Submissions disabled (Deadline passed). Data can be viewed but not altered or printed.")
 
+    # --- PDF UPLOAD ATTACHMENT GATEWAY ---
     if st.session_state.get("show_print", False):
         generate_print_view(res)
+        
+        st.divider()
+        st.markdown("### 📤 Attach Signed PDF Document")
+        st.info("Step 1: Print, sign, and scan the report.\nStep 2: Upload it to your Google Drive.\nStep 3: Paste the shareable link below.")
+        
+        pdf_link = st.text_input("🔗 Paste Google Drive Link Here:")
+        
+        if st.button("💾 Attach Link to Submission", type="secondary"):
+            if pdf_link:
+                try:
+                    df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
+                    mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
+                    if mask.any():
+                        df.loc[mask, "Scanned_PDF"] = pdf_link
+                        conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
+                        st.success("✅ PDF Link successfully encoded to your module database!")
+                    else:
+                        st.error("Submission record not found. Please submit data first.")
+                except Exception as e:
+                    st.error(f"Failed to attach link: {e}")
+            else:
+                st.warning("Please paste a link first.")
 
-# --- 5. PRINT ENGINE ---
+# --- 5. PRINT ENGINE (WITH SMALLER FONT SIZES) ---
 
 def generate_print_view(d):
     u = st.session_state.user_info
@@ -283,32 +293,32 @@ def generate_print_view(d):
         </center>
         
         <br>
-        <table style="width: 100%; border-collapse: collapse; text-align: center; margin: 0 auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; margin: 0 auto;">
             <tr style="background-color: #1A365D; color: white;">
-                <th colspan="2" style="padding: 10px; border: 1px solid #333;">I. STRATEGIC PERFORMANCE INDICATORS</th>
+                <th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">I. STRATEGIC PERFORMANCE INDICATORS</th>
             </tr>
             <tr style="background-color: #f2f2f2;">
-                <th style="padding: 8px; border: 1px solid #333; width: 60%;">Indicator</th>
-                <th style="padding: 8px; border: 1px solid #333; width: 40%;">Performance / Status</th>
+                <th style="padding: 8px; border: 1px solid #333; width: 65%;">Indicator</th>
+                <th style="padding: 8px; border: 1px solid #333; width: 35%; text-align: center;">Performance / Status</th>
             </tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333;">{d['SI1']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333;">{d['SI2']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI3_Cat']} ({d['SI3_Stat']})</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 4: ISO Accreditation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI4_Status']}</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 5: PGS Accreditation</td><td style="padding: 8px; border: 1px solid #333;">{d['SI5_25']}</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 6: Specialty Centers</td><td style="padding: 8px; border: 1px solid #333;">{d['SI6']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 7: Zero Co-Payment</td><td style="padding: 8px; border: 1px solid #333;">{d['SI7']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">SI 8: Paperless EMR</td><td style="padding: 8px; border: 1px solid #333;">{d['SI8']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['SI1']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['SI2']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d['SI3_Cat']} ({d['SI3_Stat']})</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 4: ISO Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d['SI4_Status']}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 5: PGS Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d['SI5_25']}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 6: Specialty Centers</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['SI6']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 7: Zero Co-Payment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['SI7']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">SI 8: Paperless EMR</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['SI8']:.2f}%</td></tr>
             
             <tr style="background-color: #7B341E; color: white;">
-                <th colspan="2" style="padding: 10px; border: 1px solid #333;">II. CORE QUALITY INDICATORS</th>
+                <th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">II. CORE QUALITY INDICATORS</th>
             </tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 1: ER TAT (<4h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI1']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 2: Discharge TAT (<6h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI2']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 3: Lab TAT (<5h)</td><td style="padding: 8px; border: 1px solid #333;">{d['CI3']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 4: HAI Rate</td><td style="padding: 8px; border: 1px solid #333;">{d['CI4']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 5: Client Experience Survey</td><td style="padding: 8px; border: 1px solid #333;">{d['CI5']:.2f}%</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">CI 6: Disbursement Rate</td><td style="padding: 8px; border: 1px solid #333;">{d['CI6']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 1: ER TAT (<4h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI1']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 2: Discharge TAT (<6h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI2']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 3: Lab TAT (<5h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI3']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 4: HAI Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI4']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 5: Client Experience Survey</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI5']:.2f}%</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">CI 6: Disbursement Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d['CI6']:.2f}%</td></tr>
         </table>
         
         <br><br><br>
@@ -322,9 +332,9 @@ def generate_print_view(d):
         <br><br>
         <center><button onclick="window.print()" style="padding:12px 25px; background:#1A365D; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print to PDF</button></center>
     </div>"""
-    st.components.v1.html(html, height=1000, scrolling=True)
+    st.components.v1.html(html, height=950, scrolling=True)
 
-# --- 6. ROUTING & LOGIN ---
+# --- 6. ROUTING & LOGIN (WITH REGISTRATION FIX) ---
 
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
@@ -334,15 +344,37 @@ def login_screen():
         if c2.button("🔑 EXISTING USER", use_container_width=True, type="primary"): st.session_state.auth_mode = "existing"; st.rerun()
     else:
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
+        
         if st.session_state.auth_mode == "new":
             h_name = st.selectbox("Hospital Name", [""] + sorted(conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List")["Facility_Name"].tolist()))
             h_level = st.selectbox("Level", ["", "Level 1", "Level 2", "Level 3", "Specialty"])
             u_name = st.text_input("Your Name"); u_pos = st.text_input("Your Designation")
+            
             if st.button("Register Profile"):
                 new_id = f"FORT-{uuid.uuid4().hex[:6].upper()}"
+                
+                # --- BUG FIX 1: WRITE TO GOOGLE SHEET ---
+                try:
+                    p_df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
+                    new_profile = pd.DataFrame([{
+                        "User_ID": new_id, 
+                        "Hospital_Name": h_name, 
+                        "Service_Capability": h_level, 
+                        "Encoder_Name": u_name, 
+                        "Position": u_pos,
+                        "Year": datetime.now().year
+                    }])
+                    updated_p_df = pd.concat([p_df, new_profile], ignore_index=True)
+                    conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_p_df)
+                except Exception as e:
+                    st.error(f"Failed to save profile to Google Sheets: {e}")
+                    st.stop()
+                # ----------------------------------------
+                
                 st.session_state.user_id = new_id
                 st.session_state.user_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
-                st.success(f"Profile Created! ID: {new_id}"); time.sleep(1); st.rerun()
+                st.success(f"Profile Created and Saved! ID: {new_id}"); time.sleep(1); st.rerun()
+                
         elif st.session_state.auth_mode == "existing":
             uid = st.text_input("Enter ID Code")
             if st.button("Enter Portal"):
@@ -352,13 +384,14 @@ def login_screen():
                     st.session_state.user_id = uid
                     st.session_state.user_info = {"hosp": r["Hospital_Name"], "level": r["Service_Capability"], "user": r["Encoder_Name"], "pos": r["Position"]}
                     st.rerun()
+                else:
+                    st.error("User ID not found in database.")
 
 def dashboard():
     u = st.session_state.user_info
     st.title("🏥 Project FORT Dashboard")
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
     
-    # New Deadline Display Logic
     deadline_str, locked = get_module_config("Mod1")
     status = "🔒 CLOSED" if locked else "🟢 OPEN"
     
