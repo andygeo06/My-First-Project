@@ -70,35 +70,35 @@ st.markdown(f"""
 
     /* === PASTE THE NEW BUTTON STYLES HERE (BEFORE THE CLOSING STYLE TAG) === */
 
-    /* === MODULE BUTTON STYLING === */
+    /* === THE NUCLEAR OPTION FOR BUTTON COLORS === */
 
-    /* Module 1 - Strategic Blue */
-    div.mod1-btn button {{
+    /* Module 1 - Blue */
+    div.mod1-btn [data-testid="stBaseButton-secondary"] {
         background-color: #1A365D !important;
         color: white !important;
         border: 2px solid #3B82F6 !important;
         font-weight: bold !important;
-        height: 3.5em !important;
-        transition: 0.3s !important;
-    }}
-    div.mod1-btn button:hover {{
+        height: 4em !important;
+        width: 100% !important;
+    }
+    div.mod1-btn [data-testid="stBaseButton-secondary"]:hover {
         background-color: #2563EB !important;
         border-color: #FFFFFF !important;
-    }}
+    }
 
-    /* Module 2 - Core Red/Rust */
-    div.mod2-btn button {{
+    /* Module 2 - Red/Rust */
+    div.mod2-btn [data-testid="stBaseButton-secondary"] {
         background-color: #7B341E !important;
         color: white !important;
         border: 2px solid #EF4444 !important;
         font-weight: bold !important;
-        height: 3.5em !important;
-        transition: 0.3s !important;
-    }}
-    div.mod2-btn button:hover {{
+        height: 4em !important;
+        width: 100% !important;
+    }
+    div.mod2-btn [data-testid="stBaseButton-secondary"]:hover {
         background-color: #991B1B !important;
         border-color: #FFFFFF !important;
-    }}
+    }
     
 </style>
 """, unsafe_allow_html=True)
@@ -719,13 +719,13 @@ def dashboard():
     
     # --- Module 1 Button ---
     st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
-    if st.button("📊 OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_m1"):
+    if st.button("📊 OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_mod1"):
         st.session_state.staged_data = get_previous_entry("Mod1")
         st.session_state.current_module = "Mod1"
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.write("") # Gap
+    st.write("") # Just a small space
 
     # --- MODULE 2 ROW ---
     m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
@@ -735,7 +735,7 @@ def dashboard():
     
     # --- Module 2 Button ---
     st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
-    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_m2"):
+    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
         st.session_state.staged_data = get_previous_entry("Mod2")
         st.session_state.current_module = "Mod2"
         st.rerun()
