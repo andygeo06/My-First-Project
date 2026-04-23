@@ -272,6 +272,171 @@ def module_scorecard():
         "CI4": ci4v, "CI5": ci5v, "CI6": ci6v
     })
 
+    # --- MODULE 2: HOSPITAL CENSUS & HCPN ---
+
+def module_census_data():
+    prev = st.session_state.staged_data
+    # We use a shared Drive link for all modules as per your instruction
+    DRIVE_LINK = "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link"
+    
+    st.markdown('<div class="section-header-strat"><h2>📑 MODULE 2: BASIC INFO, CENSUS & HCPN</h2></div>', unsafe_allow_html=True)
+    
+    # --- HEADER 1: BASIC INFORMATION ---
+    st.header("1️⃣ BASIC INFORMATION")
+    with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=True):
+        # Header Row
+        h1, h2, h3 = st.columns([3, 2, 2])
+        h1.caption("Data Request")
+        h2.caption("Input Field")
+        h3.caption("Remarks")
+
+        # Row 1: Level 2026
+        r1_1, r1_2, r1_3 = st.columns([3, 2, 2])
+        r1_1.markdown("**Service Capability Level (2026):**")
+        lv_26 = r1_2.selectbox("Level 26", ["Level 1", "Level 2", "Level 3"], index=get_idx(pd.Series(["Level 1", "Level 2", "Level 3"]), prev.get("LV_26")), label_visibility="collapsed")
+        rm_lv26 = r1_3.text_input("Remarks", value=prev.get("RM_LV26", ""), key="rm_lv26", label_visibility="collapsed")
+
+        # Row 2: Target Level 2027
+        r2_1, r2_2, r2_3 = st.columns([3, 2, 2])
+        r2_1.markdown("**Target Service Capability (2027):**")
+        lv_27 = r2_2.selectbox("Level 27", ["Level 1", "Level 2", "Level 3"], index=get_idx(pd.Series(["Level 1", "Level 2", "Level 3"]), prev.get("LV_27")), label_visibility="collapsed")
+        rm_lv27 = r2_3.text_input("Remarks", value=prev.get("RM_LV27", ""), key="rm_lv27", label_visibility="collapsed")
+
+        st.divider()
+        # Row 3: LTO Upload
+        r3_1, r3_2, r3_3 = st.columns([3, 2, 2])
+        r3_1.markdown("**Upload LTO (2025 & 2026):**\n\n*Naming: ACRONYM_LTO_2025_2026*")
+        r3_2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+        rm_lto = r3_3.text_input("Remarks", value=prev.get("RM_LTO", ""), key="rm_lto", label_visibility="collapsed")
+
+        st.divider()
+        # Row 4-7: Bed Capacities
+        labels = [
+            ("ABC by Licensing (Dec 31, 2025)", "ABC_25"),
+            ("Target ABC by Licensing (End 2026)", "ABC_26"),
+            ("ABC by Law (2025)", "LAW_25"),
+            ("ABC by Law (2026)", "LAW_26")
+        ]
+        res_beds = {}
+        for label, key in labels:
+            c1, c2, c3 = st.columns([3, 2, 2])
+            c1.markdown(f"**{label}:**")
+            res_beds[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, label_visibility="collapsed", key=key)
+            res_beds[f"RM_{key}"] = c3.text_input("Remarks", value=prev.get(f"RM_{key}", ""), key=f"rm_{key}", label_visibility="collapsed")
+
+        # Row 8: Target 2027 (Detailed)
+        r8_1, r8_2, r8_3 = st.columns([3, 2, 2])
+        r8_1.markdown("**Target ABC by Licensing (2027):**")
+        r8_1.markdown("<small><i>If the same with 2025/2026, please input the same ABC. If increasing, indicate target ABC here and target quarter in Remarks.</i></small>", unsafe_allow_html=True)
+        abc_27 = r8_2.number_input("ABC 27", value=int(float(prev.get("ABC_27", 0))), step=1, label_visibility="collapsed")
+        rm_abc27 = r8_3.text_input("Remarks", value=prev.get("RM_ABC27", ""), key="rm_abc27", label_visibility="collapsed")
+
+        # Row 9: IBC 2025
+        r9_1, r9_2, r9_3 = st.columns([3, 2, 2])
+        r9_1.markdown("**Implementing Bed Capacity (IBC) (2025):**")
+        ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0))), step=1, label_visibility="collapsed")
+        rm_ibc25 = r9_3.text_input("Remarks", value=prev.get("RM_IBC25", ""), key="rm_ibc25", label_visibility="collapsed")
+
+    # --- HEADER 2: HOSPITAL CENSUS DATA ---
+    st.header("2️⃣ HOSPITAL CENSUS DATA")
+    census_data = [
+        ("Bed Occupancy Rate (BOR) (2025)", "BOR_25", "pct"),
+        ("Average Length of Stay (ALOS) (2025)", "ALOS_25", "float"),
+        ("Total Inpatient Days Served (TIDS) (2025)", "TIDS_25", "int"),
+        ("Total Number of Inpatients (2025)", "INP_25", "int"),
+        ("Total Number of Outpatient Visits (2025)", "OUT_25", "int"),
+        ("Total Number of ER Visits (2025)", "ERV_25", "int")
+    ]
+    res_census = {}
+    for label, key, dtype in census_data:
+        c1, c2, c3 = st.columns([3, 2, 2])
+        c1.markdown(f"**{label}:**")
+        if dtype == "pct":
+            res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), label_visibility="collapsed", key=key)
+        elif dtype == "float":
+            res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0)), step=0.1, label_visibility="collapsed", key=key)
+        else:
+            res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, label_visibility="collapsed", key=key)
+        res_census[f"RM_{key}"] = c3.text_input("Remarks", value=prev.get(f"RM_{key}", ""), key=f"rm_{key}", label_visibility="collapsed")
+
+    # --- HEADER 3: HCPN, BUCAS AND COORDINATES ---
+    st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
+    
+    # Apex Hospital
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**Is the hospital identified as Apex or End-Referral?**")
+    apex = c2.selectbox("Apex", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("APEX")), label_visibility="collapsed")
+    rm_apex = c3.text_input("Remarks", value=prev.get("RM_APEX", ""), key="rm_apex", label_visibility="collapsed")
+
+    # MOA Upload
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**Upload Signed/Ongoing MOA/MOU:**\n\n*Naming: ACRONYM_MOA*")
+    c2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+    rm_moa = c3.text_input("Remarks", value=prev.get("RM_MOA", ""), key="rm_moa", label_visibility="collapsed")
+
+    # Linked HCPNs
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**Number of Linked HCPNs/Provinces:**")
+    hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0))), step=1, label_visibility="collapsed")
+    rm_hcpn = c3.text_input("Remarks", value=prev.get("RM_HCPN", ""), key="rm_hcpn", label_visibility="collapsed")
+
+    # BUCAS Section
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**Does the hospital operate a BUCAS Center/s?**")
+    bucas = c2.selectbox("BUCAS", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("BUCAS")), label_visibility="collapsed")
+    rm_bucas = c3.text_input("Remarks", value=prev.get("RM_BUCAS", ""), key="rm_bucas", label_visibility="collapsed")
+    
+    if bucas == "Yes":
+        st.warning("👉 Please update the data in the UHC HSC BUCAS Tracker:")
+        st.link_button("🔗 OPEN BUCAS DASHBOARD", "https://bit.ly/BUCASdashboard", type="primary")
+
+    # Coordinates
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**BUCAS Coordinates (Lat, Long):**\n\n*Format: 14.615, 120.982*")
+    coords = c2.text_input("Coords", value=prev.get("COORDS", ""), label_visibility="collapsed")
+    rm_coords = c3.text_input("Remarks", value=prev.get("RM_COORDS", ""), key="rm_coords", label_visibility="collapsed")
+
+    # BUCAS LTO Upload
+    c1, c2, c3 = st.columns([3, 2, 2])
+    c1.markdown("**Upload BUCAS LTO (If applicable):**\n\n*Naming: ACRONYM_BUCAS*")
+    c2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+    rm_bucas_lto = c3.text_input("Remarks", value=prev.get("RM_BUCAS_LTO", ""), key="rm_bucas_lto", label_visibility="collapsed")
+
+    st.divider()
+    # Facility Head
+    h_col1, h_col2 = st.columns(2)
+    h_name = h_col1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""))
+    h_pos = h_col2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""))
+
+    # --- DATA PACKAGING ---
+    final_data = {
+        "LV_26": lv_26, "RM_LV26": rm_lv26, "LV_27": lv_27, "RM_LV27": rm_lv27, "RM_LTO": rm_lto,
+        "ABC_25": res_beds["ABC_25"], "RM_ABC_25": res_beds["RM_ABC_25"],
+        "ABC_26": res_beds["ABC_26"], "RM_ABC_26": res_beds["RM_ABC_26"],
+        "LAW_25": res_beds["LAW_25"], "RM_LAW_25": res_beds["RM_LAW_25"],
+        "LAW_26": res_beds["LAW_26"], "RM_LAW_26": res_beds["RM_LAW_26"],
+        "ABC_27": abc_27, "RM_ABC27": rm_abc27, "IBC_25": ibc_25, "RM_IBC25": rm_ibc25,
+        "APEX": apex, "RM_APEX": rm_apex, "RM_MOA": rm_moa, "HCPN_COUNT": hcpn_count, "RM_HCPN": rm_hcpn,
+        "BUCAS": bucas, "RM_BUCAS": rm_bucas, "COORDS": coords, "RM_COORDS": rm_coords, "RM_BUCAS_LTO": rm_bucas_lto,
+        "Head_Name": h_name, "Head_Pos": h_pos
+    }
+    final_data.update(res_census) # Merge Census data
+
+    # Buttons
+    btn1, btn2 = st.columns(2)
+    if btn1.button("🖨️ GENERATE CENSUS REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
+        if submit_module_data(final_data, "Mod2"):
+            st.session_state.staged_data.update(final_data)
+            st.session_state.show_print = True
+            st.rerun()
+    if btn2.button("💾 SAVE PROGRESS ONLY", use_container_width=True):
+        if submit_module_data(final_data, "Mod2"):
+            st.session_state.staged_data.update(final_data)
+            st.success("Progress saved!")
+
+    if st.session_state.get("show_print", False):
+        generate_print_view_mod2(final_data)
+
     if not locked:
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
@@ -374,6 +539,55 @@ def generate_print_view(d):
     </div>"""
     st.components.v1.html(html, height=950, scrolling=True)
 
+def generate_print_view_mod2(d):
+    u = st.session_state.user_info
+    html = f"""
+    <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
+        <center>
+            <h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2>
+            <h4 style="margin:5px 0;">{u['hosp']}</h4>
+            <hr style="border:1px solid #111;">
+        </center>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
+            <tr style="background: #eee;">
+                <th style="border: 1px solid #333; padding: 8px; text-align: left; width: 40%;">Data Parameter</th>
+                <th style="border: 1px solid #333; padding: 8px; text-align: center; width: 20%;">Value</th>
+                <th style="border: 1px solid #333; padding: 8px; text-align: left; width: 40%;">Remarks</th>
+            </tr>
+            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['LV_26']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_LV26']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['ABC_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_ABC_25']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">IBC (2025)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['IBC_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_IBC25']}</td></tr>
+            
+            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['BOR_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_BOR_25']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Average Length of Stay (ALOS)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['ALOS_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_ALOS_25']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Total Outpatient Visits</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['OUT_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_OUT_25']}</td></tr>
+            
+            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['APEX']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_APEX']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">Operates BUCAS Center</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['BUCAS']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_BUCAS']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 5px;">BUCAS Coordinates</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['COORDS']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_COORDS']}</td></tr>
+        </table>
+        
+        <br><br><br><br>
+        <table style="width:100%; text-align:center; font-size:14px;">
+            <tr>
+                <td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
+                <td style="width:50%;">__________________________<br><b>{d['Head_Name']}</b><br>{d['Head_Pos']}</td>
+            </tr>
+            <tr>
+                <td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td>
+                <td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td>
+            </tr>
+        </table>
+        
+        <br><br>
+        <center><button onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
+    </div>"""
+    st.components.v1.html(html, height=800, scrolling=True)
+
 # --- 7. ROUTING & LOGIN ---
 
 def login_screen():
@@ -469,16 +683,35 @@ def dashboard():
             st.session_state.staged_data = get_previous_entry("Mod1")
             st.session_state.current_module = "Mod1"
         st.rerun()
+
+    # ... inside dashboard() ...
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1: st.markdown("Hospital Census & HCPN (Mod2)")
+    with col2: st.markdown(f"`{deadline_str}`") # You can set a separate deadline for Mod2 in your Config sheet
+    with col3: st.markdown(f"**{status}**")
+    
+    if st.button("📈 Open Census & HCPN", use_container_width=True):
+        with st.spinner("Loading Module 2..."):
+            st.session_state.staged_data = get_previous_entry("Mod2")
+            st.session_state.current_module = "Mod2"
+        st.rerun()
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
 
-if "user_id" not in st.session_state: login_screen()
+if "user_id" not in st.session_state: 
+    login_screen()
 elif "current_module" in st.session_state:
     if st.button("🏠 Return to Dashboard"): 
         if "show_print" in st.session_state: del st.session_state.show_print
         if "staged_data" in st.session_state: del st.session_state.staged_data
         del st.session_state.current_module
         st.rerun()
-    module_scorecard()
-else: dashboard()
+    
+    # NEW ROUTING LOGIC
+    if st.session_state.current_module == "Mod1":
+        module_scorecard()
+    elif st.session_state.current_module == "Mod2":
+        module_census_data()
+else: 
+    dashboard()
