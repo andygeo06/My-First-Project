@@ -62,6 +62,18 @@ def save_new_profile(user_id, h_name, u_name, pos):
         st.error(f"Sync Error: {e}")
         return False
 
+def get_module_config(mod_key):
+    """Fetches deadline and instructions for a specific module."""
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
+        config = df[df["Module_Key"] == mod_key].iloc[0]
+        return {
+            "deadline": config["Deadline_Date"],
+            "notes": config["Instructions"]
+        }
+    except Exception:
+        return {"deadline": "Not Set", "notes": "No specific instructions."}
+
 # --- 4. UI: LOGIN SCREEN ---
 
 def login_screen():
@@ -164,13 +176,40 @@ def dashboard():
 
 # --- 6. ROUTER ---
 
+# --- 6. UPDATED ROUTER WITH DEADLINE BANNER ---
+
 if "user_id" not in st.session_state:
     login_screen()
 elif "current_module" in st.session_state:
-    st.header(f"{st.session_state.current_module['icon']} {st.session_state.current_module['name']}")
-    if st.button("Back to Dashboard"):
+    # 1. Fetch the deadline info immediately
+    mod_info = st.session_state.current_module
+    config = get_module_config(mod_info['key'])
+    
+    # 2. Header & Navigation
+    c_head, c_back = st.columns([5, 1])
+    c_head.header(f"{mod_info['icon']} {mod_info['name']}")
+    if c_back.button("🏠 Home", use_container_width=True):
         del st.session_state.current_module
         st.rerun()
+    
+    # 3. HIGH-VISIBILITY DEADLINE PROMPT
+    # We use a columns layout to put the deadline right at the top
+    st.divider()
+    d1, d2 = st.columns([1, 2])
+    with d1:
+        st.error(f"🗓️ **DEADLINE:** \n\n {config['deadline']}")
+    with d2:
+        st.warning(f"📝 **INSTRUCTIONS:** \n\n {config['notes']}")
+    st.divider()
+
+    # 4. Route to the specific module function
+    mod_key = mod_info['key']
+    if mod_key == "Mod1":
+        module_scorecard()
+    elif mod_key == "Mod2":
+        module_financial()
+    elif mod_key == "Mod3":
+        module_mooe()
 else:
     dashboard()
 
