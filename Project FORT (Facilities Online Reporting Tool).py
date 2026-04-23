@@ -70,22 +70,34 @@ st.markdown(f"""
 
     /* === PASTE THE NEW BUTTON STYLES HERE (BEFORE THE CLOSING STYLE TAG) === */
 
-    /* Blue Button for Module 1 */
+    /* === MODULE BUTTON STYLING === */
+
+    /* Module 1 - Strategic Blue */
     div.mod1-btn button {{
         background-color: #1A365D !important;
-        border: 1px solid #3B82F6 !important;
         color: white !important;
+        border: 2px solid #3B82F6 !important;
         font-weight: bold !important;
-        height: 4em !important;
+        height: 3.5em !important;
+        transition: 0.3s !important;
     }}
-    
-    /* Red/Brown Button for Module 2 */
+    div.mod1-btn button:hover {{
+        background-color: #2563EB !important;
+        border-color: #FFFFFF !important;
+    }}
+
+    /* Module 2 - Core Red/Rust */
     div.mod2-btn button {{
         background-color: #7B341E !important;
-        border: 1px solid #EF4444 !important;
         color: white !important;
+        border: 2px solid #EF4444 !important;
         font-weight: bold !important;
-        height: 4em !important;
+        height: 3.5em !important;
+        transition: 0.3s !important;
+    }}
+    div.mod2-btn button:hover {{
+        background-color: #991B1B !important;
+        border-color: #FFFFFF !important;
     }}
     
 </style>
@@ -705,15 +717,15 @@ def dashboard():
     m1_col2.markdown(f"`{d1_str}`")
     m1_col3.markdown("🔒 CLOSED" if d1_locked else "🟢 OPEN")
     
-    # We wrap the button in a div to apply the CSS class
+    # --- Module 1 Button ---
     st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
-    if st.button("OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_m1"):
+    if st.button("📊 OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_m1"):
         st.session_state.staged_data = get_previous_entry("Mod1")
         st.session_state.current_module = "Mod1"
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.write("") # Spacer
+    st.write("") # Gap
 
     # --- MODULE 2 ROW ---
     m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
@@ -721,8 +733,9 @@ def dashboard():
     m2_col2.markdown(f"`{d2_str}`")
     m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
     
+    # --- Module 2 Button ---
     st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
-    if st.button("OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_m2"):
+    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_m2"):
         st.session_state.staged_data = get_previous_entry("Mod2")
         st.session_state.current_module = "Mod2"
         st.rerun()
