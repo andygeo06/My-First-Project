@@ -12,7 +12,11 @@ def get_all_profiles():
     return conn.read(worksheet="User_Profiles", ttl="0")
 
 def save_new_profile(user_id, h_name, u_name, pos):
-    new_data = pd.DataFrame([{
+    # 1. Fetch existing profiles first
+    existing_profiles = get_all_profiles()
+    
+    # 2. Create the new row
+    new_row = pd.DataFrame([{
         "User_ID": user_id,
         "Hospital_Name": h_name,
         "Encoder_Name": u_name,
@@ -20,8 +24,15 @@ def save_new_profile(user_id, h_name, u_name, pos):
         "Year": 2026,
         "Created_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }])
-    conn.create(worksheet="User_Profiles", data=new_data)
-    st.cache_data.clear()
+    
+    # 3. Combine them (Stack the new row at the bottom of the old data)
+    updated_df = pd.concat([existing_profiles, new_row], ignore_index=True)
+    
+    # 4. Use .update() instead of .create() 
+    # This writes the updated list back to the specific worksheet
+    conn.update(worksheet="User_Profiles", data=updated_df)
+    
+    st.cache_data.clear() # Clear cache so the app sees the new user immediately
 
 # --- UI: THE NEW AUTHENTICATION GATE ---
 
