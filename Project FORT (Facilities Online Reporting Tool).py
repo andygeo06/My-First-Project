@@ -74,6 +74,15 @@ def get_module_config(mod_key):
     except Exception:
         return {"deadline": "Not Set", "notes": "No specific instructions."}
 
+def get_all_deadlines():
+    """Fetches all deadlines from the Config tab as a dictionary."""
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
+        # Creates a dictionary like: {"Mod1": "2026-05-15", "Mod2": "2026-06-01"}
+        return pd.Series(df.Deadline_Date.values, index=df.Module_Key).to_dict()
+    except:
+        return {}
+
 # --- 4. UI: LOGIN SCREEN ---
 
 def login_screen():
@@ -156,16 +165,31 @@ def dashboard():
     st.title("🏥 Module Selection")
     st.info(f"Facility: **{st.session_state.user_info['hosp']}** | User: **{st.session_state.user_info['user']}**")
     
-    cols = st.columns(3)
+    # 1. Fetch all deadlines at once
+    deadlines = get_all_deadlines()
+    
     modules = [
         {"key": "Mod1", "name": "Hospital Scorecard", "icon": "📊"},
         {"key": "Mod2", "name": "Financial Data", "icon": "💰"},
         {"key": "Mod3", "name": "Hospital MOOE", "icon": "🏥"}
     ]
     
+    cols = st.columns(3)
+    
     for i, mod in enumerate(modules):
+        # 2. Get the specific date for this key
+        date_str = deadlines.get(mod['key'], "TBD")
+        
         with cols[i]:
-            if st.button(f"{mod['icon']} {mod['name']}\n\nStatus: ⚪ Pending", key=mod['key'], use_container_width=True):
+            # 3. Embed the deadline directly into the button text
+            # We use \n\n to create clear separation
+            button_label = (
+                f"{mod['icon']} {mod['name']}\n\n"
+                f"📅 Deadline: {date_str}\n"
+                f"Status: ⚪ Pending"
+            )
+            
+            if st.button(button_label, key=mod['key'], use_container_width=True):
                 st.session_state.current_module = mod
                 st.rerun()
     
