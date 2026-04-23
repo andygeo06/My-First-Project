@@ -63,6 +63,31 @@ st.markdown(f"""
         border-color: #8B949E !important; background-color: #30363D !important;
         transform: translateY(-1px) !important;
     }}
+    button[kind="secondary"]:hover {{
+        border-color: #8B949E !important; background-color: #30363D !important;
+        transform: translateY(-1px) !important;
+    }}
+
+    /* === PASTE THE NEW BUTTON STYLES HERE (BEFORE THE CLOSING STYLE TAG) === */
+
+    /* Blue Button for Module 1 */
+    div.mod1-btn button {{
+        background-color: #1A365D !important;
+        border: 1px solid #3B82F6 !important;
+        color: white !important;
+        font-weight: bold !important;
+        height: 4em !important;
+    }}
+    
+    /* Red/Brown Button for Module 2 */
+    div.mod2-btn button {{
+        background-color: #7B341E !important;
+        border: 1px solid #EF4444 !important;
+        color: white !important;
+        font-weight: bold !important;
+        height: 4em !important;
+    }}
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -662,9 +687,8 @@ def dashboard():
     st.title("🏥 Project FORT Dashboard")
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
     
-    # --- FETCH CONFIGS FOR BOTH MODULES ---
     d1_str, d1_locked = get_module_config("Mod1")
-    d2_str, d2_locked = get_module_config("Mod2") # <--- Added this line
+    d2_str, d2_locked = get_module_config("Mod2")
     
     st.markdown("---")
     st.markdown("### 📋 Available Modules")
@@ -677,29 +701,32 @@ def dashboard():
     
     # --- MODULE 1 ROW ---
     m1_col1, m1_col2, m1_col3 = st.columns([2, 1, 1])
-    m1_col1.markdown("Hospital Scorecard (Mod1)")
+    m1_col1.markdown("#### 📊 Hospital Scorecard")
     m1_col2.markdown(f"`{d1_str}`")
     m1_col3.markdown("🔒 CLOSED" if d1_locked else "🟢 OPEN")
     
-    if st.button("📊 Open Scorecard", use_container_width=True, key="btn_mod1"):
-        with st.spinner("Loading Mod1..."):
-            st.session_state.staged_data = get_previous_entry("Mod1")
-            st.session_state.current_module = "Mod1"
+    # We wrap the button in a div to apply the CSS class
+    st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
+    if st.button("OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_m1"):
+        st.session_state.staged_data = get_previous_entry("Mod1")
+        st.session_state.current_module = "Mod1"
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.write("") # Spacer
 
     # --- MODULE 2 ROW ---
     m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
-    m2_col1.markdown("Hospital Census & HCPN (Mod2)")
-    m2_col2.markdown(f"`{d2_str}`") # <--- Now uses Mod2 date
+    m2_col1.markdown("#### 📈 Census & HCPN")
+    m2_col2.markdown(f"`{d2_str}`")
     m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
     
-    if st.button("📈 Open Census & HCPN", use_container_width=True, key="btn_mod2"):
-        with st.spinner("Loading Mod2..."):
-            st.session_state.staged_data = get_previous_entry("Mod2")
-            st.session_state.current_module = "Mod2"
+    st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
+    if st.button("OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_m2"):
+        st.session_state.staged_data = get_previous_entry("Mod2")
+        st.session_state.current_module = "Mod2"
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
