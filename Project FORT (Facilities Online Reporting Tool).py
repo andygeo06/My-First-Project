@@ -46,7 +46,7 @@ def accountability_header(mod_name):
 
 def home_page():
     st.title("🏥 HFDB Online Data Submission Portal")
-    st.markdown("#### *Clean Slate: 2026 Data Cycle*")
+    st.markdown("#### *2026 Data Cycle*")
     st.divider()
 
     # Dashboard Progress Section
