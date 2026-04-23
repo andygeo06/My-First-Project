@@ -128,6 +128,8 @@ def submit_module_data(res_data, module_name="Mod1"):
                 
             u = st.session_state.user_info
             new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
+            
+            # ONLY sync the raw data (res_data) to the database
             new_record.update(res_data)
             
             if "User_ID" in df.columns:
@@ -152,23 +154,22 @@ def module_scorecard():
     # Use the locally staged data instead of fetching every rerun
     prev = st.session_state.staged_data 
     deadline_str, locked = get_module_config("Mod1")
-    
-    if "expand_all" not in st.session_state: st.session_state.expand_all = False
 
     if locked:
         st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
     st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC PERFORMANCE INDICATORS</h2></div>', unsafe_allow_html=True)
     
-    with st.expander("🔹 SI 1: % Functionality of PHU", expanded=st.session_state.expand_all):
+    # expanded=False forces ALL expanders to snap shut upon ANY rerun (like clicking Submit)
+    with st.expander("🔹 SI 1: % Functionality of PHU", expanded=False):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked, key="si1_in"))
         st.caption(f"Captured: **{s1}%**")
         
-    with st.expander("🔹 SI 2: Green Viability Assessment (GVA)", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 2: Green Viability Assessment (GVA)", expanded=False):
         s2 = clean_pct(st.text_input("GVA Score (e.g., 88%)", value=str(prev.get("SI2", "0%")), disabled=locked, key="si2_in"))
         st.caption(f"Captured: **{s2}%**")
 
-    with st.expander("🔹 SI 3: Capital Formation", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 3: Capital Formation", expanded=False):
         c1, c2 = st.columns(2)
         cat_opts = dd["Indicator 3, DD1"]
         src_opts = dd["Indicator 3, DD2"]
@@ -177,33 +178,33 @@ def module_scorecard():
         stat_opts = dd["Indicator 3, DD3.a"] if "Infrastructure" in str(cat) else dd["Indicator 3, DD3.b"]
         stat = st.selectbox("Status", stat_opts.dropna().unique(), index=get_idx(stat_opts, prev.get("SI3_Stat")), disabled=locked)
 
-    with st.expander("🔹 SI 4: ISO 9001:2015 Accreditation", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 4: ISO 9001:2015 Accreditation", expanded=False):
         c1, c2 = st.columns(2)
         iso1_opts = dd["Indicator 4, DD1"]
         iso2_opts = dd["Indicator 4, DD2"]
         iso1 = c1.selectbox("ISO Status", iso1_opts.dropna().unique(), index=get_idx(iso1_opts, prev.get("SI4_Status")), disabled=locked)
         iso2 = c2.selectbox("Internal Audit", iso2_opts.dropna().unique(), index=get_idx(iso2_opts, prev.get("SI4_Audit")), disabled=locked)
 
-    with st.expander("🔹 SI 5: PGS Accreditation Status", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 5: PGS Accreditation Status", expanded=False):
         c1, c2 = st.columns(2)
         pgs1_opts = dd["Indicator 5, DD1"]
         pgs2_opts = dd["Indicator 5, DD2"]
         pgs1 = c1.selectbox("2024 PGS Status", pgs1_opts.dropna().unique(), index=get_idx(pgs1_opts, prev.get("SI5_24")), disabled=locked)
         pgs2 = c2.selectbox("2025 PGS Status", pgs2_opts.dropna().unique(), index=get_idx(pgs2_opts, prev.get("SI5_25")), disabled=locked)
 
-    with st.expander("🔹 SI 6: Functional Specialty Centers", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 6: Functional Specialty Centers", expanded=False):
         c1, c2 = st.columns(2)
         s6n = c1.number_input("Functional Centers", value=int(float(prev.get("SI6_N", 0))), disabled=locked, key="s6n")
         s6d = c2.number_input("Target Centers", value=int(float(prev.get("SI6_D", 1))), disabled=locked, key="s6d")
         s6v = score_calc(s6n, s6d, "SI 6")
 
-    with st.expander("🔹 SI 7: Zero Co-Payment Patients", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 7: Zero Co-Payment Patients", expanded=False):
         c1, c2 = st.columns(2)
         s7n = c1.number_input("Zero Co-Pay Patients", value=int(float(prev.get("SI7_N", 0))), disabled=locked, key="s7n")
         s7d = c2.number_input("Total Basic Patients", value=int(float(prev.get("SI7_D", 1))), disabled=locked, key="s7d")
         s7v = score_calc(s7n, s7d, "SI 7")
 
-    with st.expander("🔹 SI 8: Paperless EMR Areas", expanded=st.session_state.expand_all):
+    with st.expander("🔹 SI 8: Paperless EMR Areas", expanded=False):
         c1, c2 = st.columns(2)
         s8n = c1.number_input("Paperless Areas", value=int(float(prev.get("SI8_N", 0))), disabled=locked, key="s8n")
         s8d = c2.number_input("Expected Areas", value=int(float(prev.get("SI8_D", 1))), disabled=locked, key="s8d")
@@ -211,37 +212,37 @@ def module_scorecard():
 
     st.markdown('<div class="section-header-core"><h2>🎯 CORE QUALITY INDICATORS</h2></div>', unsafe_allow_html=True)
 
-    with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)", expanded=False):
         c1, c2 = st.columns(2)
         ci1n = c1.number_input("ER <4h Count", value=int(float(prev.get("CI1_N", 0))), disabled=locked, key="ci1n")
         ci1d = c2.number_input("Total ER Patients", value=int(float(prev.get("CI1_D", 1))), disabled=locked, key="ci1d")
         ci1v = score_calc(ci1n, ci1d, "ER TAT")
 
-    with st.expander("🔸 CI 2: Discharge Turnaround (<6 hrs)", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 2: Discharge Turnaround (<6 hrs)", expanded=False):
         c1, c2 = st.columns(2)
         ci2n = c1.number_input("Discharge <6h Count", value=int(float(prev.get("CI2_N", 0))), disabled=locked, key="ci2n")
         ci2d = c2.number_input("Total Discharges", value=int(float(prev.get("CI2_D", 1))), disabled=locked, key="ci2d")
         ci2v = score_calc(ci2n, ci2d, "Discharge TAT")
 
-    with st.expander("🔸 CI 3: Lab Result Turnaround (<5 hrs)", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 3: Lab Result Turnaround (<5 hrs)", expanded=False):
         c1, c2 = st.columns(2)
         ci3n = c1.number_input("Results <5h Count", value=int(float(prev.get("CI3_N", 0))), disabled=locked, key="ci3n")
         ci3d = c2.number_input("Total Lab Tests", value=int(float(prev.get("CI3_D", 1))), disabled=locked, key="ci3d")
         ci3v = score_calc(ci3n, ci3d, "Lab TAT")
 
-    with st.expander("🔸 CI 4: Healthcare Associated Infection Rate", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 4: Healthcare Associated Infection Rate", expanded=False):
         c1, c2 = st.columns(2)
         ci4n = c1.number_input("Total HAI Cases", value=int(float(prev.get("CI4_N", 0))), disabled=locked, key="ci4n")
         ci4d = c2.number_input("Discharges/Deaths >48h", value=int(float(prev.get("CI4_D", 1))), disabled=locked, key="ci4d")
         ci4v = score_calc(ci4n, ci4d, "HAI Rate")
 
-    with st.expander("🔸 CI 5: Client Experience Survey", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 5: Client Experience Survey", expanded=False):
         c1, c2 = st.columns(2)
         ci5n = c1.number_input("Outstanding Ratings", value=int(float(prev.get("CI5_N", 0))), disabled=locked, key="ci5n")
         ci5d = c2.number_input("Total Respondents", value=int(float(prev.get("CI5_D", 1))), disabled=locked, key="ci5d")
         ci5v = score_calc(ci5n, ci5d, "Survey")
 
-    with st.expander("🔸 CI 6: Disbursement Rate", expanded=st.session_state.expand_all):
+    with st.expander("🔸 CI 6: Disbursement Rate", expanded=False):
         c1, c2 = st.columns(2)
         ci6n = c1.number_input("Total Disbursement", value=float(prev.get("CI6_N", 0.0)), disabled=locked, key="ci6n")
         ci6d = c2.number_input("Total Allocation", value=float(prev.get("CI6_D", 1.0)), disabled=locked, key="ci6d")
@@ -252,56 +253,73 @@ def module_scorecard():
     h_name = c1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""), disabled=locked)
     h_pos = c2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
 
-    # Compile the final result dictionary
-    res = {
+    # --- ISOLATING RAW DATA FOR DATABASE ---
+    # We DO NOT include the calculated percentages (SI6, SI7, CI1 etc.) here. 
+    res_db = {
         "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
-        "SI6": s6v, "SI6_N": s6n, "SI6_D": s6d, "SI7": s7v, "SI7_N": s7n, "SI7_D": s7d, "SI8": s8v, "SI8_N": s8n, "SI8_D": s8d,
-        "CI1": ci1v, "CI1_N": ci1n, "CI1_D": ci1d, "CI2": ci2v, "CI2_N": ci2n, "CI2_D": ci2d, "CI3": ci3v, "CI3_N": ci3n, "CI3_D": ci3d,
-        "CI4": ci4v, "CI4_N": ci4n, "CI4_D": ci4d, "CI5": ci5v, "CI5_N": ci5n, "CI5_D": ci5d, "CI6": ci6v, "CI6_N": ci6n, "CI6_D": ci6d,
+        "SI6_N": s6n, "SI6_D": s6d, "SI7_N": s7n, "SI7_D": s7d, "SI8_N": s8n, "SI8_D": s8d,
+        "CI1_N": ci1n, "CI1_D": ci1d, "CI2_N": ci2n, "CI2_D": ci2d, "CI3_N": ci3n, "CI3_D": ci3d,
+        "CI4_N": ci4n, "CI4_D": ci4d, "CI5_N": ci5n, "CI5_D": ci5d, "CI6_N": ci6n, "CI6_D": ci6d,
         "Head_Name": h_name, "Head_Pos": h_pos
     }
+
+    # --- COMPILED DATA FOR PRINT VIEW ONLY ---
+    res_print = res_db.copy()
+    res_print.update({
+        "SI6": s6v, "SI7": s7v, "SI8": s8v,
+        "CI1": ci1v, "CI2": ci2v, "CI3": ci3v,
+        "CI4": ci4v, "CI5": ci5v, "CI6": ci6v
+    })
 
     if not locked:
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
             if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
-                if submit_module_data(res, "Mod1"):
-                    st.session_state.staged_data.update(res) # Update local memory with saved data
+                if submit_module_data(res_db, "Mod1"): # Submits ONLY raw data
+                    st.session_state.staged_data.update(res_db) # Keep local memory updated
                     st.session_state.show_print = True
-                    st.session_state.expand_all = False
-                    st.rerun()
+                    st.rerun() # Rerunning instantly snaps all expanders shut
                 
         with btn_col2:
             if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
-                if submit_module_data(res, "Mod1"):
-                    st.session_state.staged_data.update(res) # Update local memory
-                    st.session_state.expand_all = False
-                    st.rerun()
+                if submit_module_data(res_db, "Mod1"): # Submits ONLY raw data
+                    st.session_state.staged_data.update(res_db) # Keep local memory updated
+                    st.session_state.show_print = False
+                    st.rerun() # Rerunning instantly snaps all expanders shut
 
-    # --- PDF ATTACHMENT SECTION ---
+    # --- PDF ATTACHMENT SECTION & PRINT VIEW ---
     if st.session_state.get("show_print", False):
-        generate_print_view(res)
+        generate_print_view(res_print)
         st.divider()
-        st.markdown("### 📤 Attach Signed PDF Document")
-        st.info("Upload your signed report to Google Drive and paste the shareable link below.")
-        pdf_link = st.text_input("🔗 Paste Google Drive Link Here:")
         
-        if st.button("💾 Attach Link to Submission", type="primary"):
+        # --- NEW UPLOAD GATEWAY BUTTON ---
+        st.markdown("### 📤 Step 1: Upload to Google Drive")
+        st.info("Click the button below to open the official HFDB Drive Folder in a new tab. Upload your printed, signed, and scanned PDF report there.")
+        st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link", type="primary")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        st.markdown("### 🔗 Step 2: Attach Link to Submission")
+        st.info("Once your file is uploaded to the Drive, copy the shareable link of your specific file and paste it below.")
+        pdf_link = st.text_input("Paste Google Drive Link Here:")
+        
+        if st.button("💾 Encode Link", type="secondary"):
             if pdf_link:
-                try:
-                    df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
-                    mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
-                    if mask.any():
-                        df.loc[mask, "Scanned_PDF"] = pdf_link
-                        conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
-                        st.success("✅ PDF Link successfully encoded to your module database!")
-                    else:
-                        st.error("Submission record not found. Please submit data first.")
-                except Exception as e:
-                    st.error(f"Failed to attach link: {e}")
+                with st.spinner("Encoding link to database..."):
+                    try:
+                        df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
+                        mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
+                        if mask.any():
+                            df.loc[mask, "Scanned_PDF"] = pdf_link
+                            conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
+                            st.success("✅ PDF Link successfully encoded to your module database!")
+                        else:
+                            st.error("Submission record not found. Please submit data first.")
+                    except Exception as e:
+                        st.error(f"Failed to attach link: {e}")
             else:
-                st.warning("Please paste a link first.")
+                st.warning("Please paste a link first before encoding.")
 
 # --- 6. PRINT ENGINE ---
 def generate_print_view(d):
@@ -361,7 +379,6 @@ def generate_print_view(d):
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
     
-    # THE "FREEZE" MODAL (Mandatory Confirmation)
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -382,7 +399,7 @@ def login_screen():
             st.success("Access Granted. Redirecting to Dashboard...")
             time.sleep(1)
             st.rerun()
-        st.stop() # Halts all execution. Background stays blank.
+        st.stop() 
 
     if "auth_mode" not in st.session_state:
         c1, c2 = st.columns(2)
@@ -408,7 +425,6 @@ def login_screen():
                         new_profile = pd.DataFrame([{"User_ID": new_id, "Hospital_Name": h_name, "Service_Capability": h_level, "Encoder_Name": u_name, "Position": u_pos, "Year": 2026}])
                         conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=pd.concat([p_df, new_profile], ignore_index=True))
                         
-                        # Trigger Freeze Screen
                         st.session_state.pending_id = new_id
                         st.session_state.pending_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
                         st.rerun()
@@ -449,7 +465,6 @@ def dashboard():
     with col3: st.markdown(f"**{status}**")
     
     if st.button("📊 Open Scorecard", use_container_width=True, type="primary"):
-        # FETCH DATA ONLY ONCE WHEN OPENING THE MODULE
         with st.spinner("Loading your data into memory..."):
             st.session_state.staged_data = get_previous_entry("Mod1")
             st.session_state.current_module = "Mod1"
@@ -462,7 +477,6 @@ if "user_id" not in st.session_state: login_screen()
 elif "current_module" in st.session_state:
     if st.button("🏠 Return to Dashboard"): 
         if "show_print" in st.session_state: del st.session_state.show_print
-        if "expand_all" in st.session_state: del st.session_state.expand_all
         if "staged_data" in st.session_state: del st.session_state.staged_data
         del st.session_state.current_module
         st.rerun()
