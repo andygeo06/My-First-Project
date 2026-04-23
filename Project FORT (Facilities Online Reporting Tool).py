@@ -750,18 +750,19 @@ if "user_id" not in st.session_state:
     login_screen()
     
 elif "current_module" in st.session_state:
-    # 1. This adds the "Back" button so they can leave the module
+    # Navigation bar for all modules
     if st.button("🏠 Return to Dashboard"): 
         if "show_print" in st.session_state: del st.session_state.show_print
+        if "expand_all" in st.session_state: del st.session_state.expand_all
         if "staged_data" in st.session_state: del st.session_state.staged_data
         del st.session_state.current_module
         st.rerun()
     
-    # 2. THIS IS THE KEY PART: It must check for BOTH modules
+    # ROUTING LOGIC
     if st.session_state.current_module == "Mod1":
         module_scorecard()
     elif st.session_state.current_module == "Mod2":
-        module_census_data() # Make sure this matches the function name I gave you!
+        module_census_data() # This calls the new function below
         
 else: 
     dashboard()
