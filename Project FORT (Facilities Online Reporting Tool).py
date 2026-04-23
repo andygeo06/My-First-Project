@@ -73,32 +73,32 @@ st.markdown(f"""
     /* === THE NUCLEAR OPTION FOR BUTTON COLORS === */
 
     /* Module 1 - Blue */
-    div.mod1-btn [data-testid="stBaseButton-secondary"] {
+    div.mod1-btn [data-testid="stBaseButton-secondary"] {{
         background-color: #1A365D !important;
         color: white !important;
         border: 2px solid #3B82F6 !important;
         font-weight: bold !important;
         height: 4em !important;
         width: 100% !important;
-    }
-    div.mod1-btn [data-testid="stBaseButton-secondary"]:hover {
+    }}
+    div.mod1-btn [data-testid="stBaseButton-secondary"]:hover {{
         background-color: #2563EB !important;
         border-color: #FFFFFF !important;
-    }
+    }}
 
     /* Module 2 - Red/Rust */
-    div.mod2-btn [data-testid="stBaseButton-secondary"] {
+    div.mod2-btn [data-testid="stBaseButton-secondary"] {{
         background-color: #7B341E !important;
         color: white !important;
         border: 2px solid #EF4444 !important;
         font-weight: bold !important;
         height: 4em !important;
         width: 100% !important;
-    }
-    div.mod2-btn [data-testid="stBaseButton-secondary"]:hover {
+    }}
+    div.mod2-btn [data-testid="stBaseButton-secondary"]:hover {{
         background-color: #991B1B !important;
         border-color: #FFFFFF !important;
-    }
+    }}
     
 </style>
 """, unsafe_allow_html=True)
