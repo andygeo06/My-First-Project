@@ -319,98 +319,127 @@ def module_census_data():
 
     st.markdown('<div class="section-header-core"><h2>📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h2></div>', unsafe_allow_html=True)
     
+    # -------------------------------------------------------------------------
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
-        h1, h2, h3 = st.columns([3, 2, 2])
+        # We use [5, 2, 2] to give the long text more room to breathe
+        h1, h2, h3 = st.columns([5, 2, 2])
         h1.caption("Data Request"); h2.caption("Input Field"); h3.caption("Remarks")
 
         lv_opts = ["Level 1", "Level 2", "Level 3"]
-        r1_1, r1_2, r1_3 = st.columns([3, 2, 2])
-        r1_1.markdown("**Service Capability Level (2026):**")
+        
+        r1_1, r1_2, r1_3 = st.columns([5, 2, 2])
+        r1_1.markdown("**Health Facility Service Capability Level (2026, Current Year):**")
         lv_26 = r1_2.selectbox("Level 26", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_26")), disabled=locked, label_visibility="collapsed")
         rm_lv26 = r1_3.text_input("Remarks LV26", value=prev.get("RM_LV26", ""), disabled=locked, label_visibility="collapsed")
 
-        r2_1, r2_2, r2_3 = st.columns([3, 2, 2])
-        r2_1.markdown("**Target Service Capability (2027):**")
+        r2_1, r2_2, r2_3 = st.columns([5, 2, 2])
+        r2_1.markdown("**Target Health Facility Service Capability Level in 2027 (Next Year):**")
         lv_27 = r2_2.selectbox("Level 27", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_27")), disabled=locked, label_visibility="collapsed")
         rm_lv27 = r2_3.text_input("Remarks LV27", value=prev.get("RM_LV27", ""), disabled=locked, label_visibility="collapsed")
 
-        r3_1, r3_2, r3_3 = st.columns([3, 2, 2])
-        r3_1.markdown("**Upload LTO (2025 & 2026):**\n\n*Naming: ACRONYM_LTO_2025_2026*")
-        r3_2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+        r3_1, r3_2, r3_3 = st.columns([5, 2, 2])
+        r3_1.markdown("""
+        **Please upload the LTO (2025) and LTO (2026) using this link:**<br>
+        <small><i>Note: Please make sure you FOLLOW the proper naming of the file provided:<br>
+        <b>HOSPITAL ACRONYM_LTO_2025_2026 (e.g. SOGHMC_LTO_2025_2026)</b><br>
+        Failing to comply will make your submission INVALID</i></small>
+        """, unsafe_allow_html=True)
+        r3_2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
         rm_lto = r3_3.text_input("Remarks LTO", value=prev.get("RM_LTO", ""), disabled=locked, label_visibility="collapsed")
 
         st.divider()
-        labels = [("ABC by Licensing (Dec 31, 2025)", "ABC_25"), ("Target ABC by Licensing (End 2026)", "ABC_26"), ("ABC by Law (2025)", "LAW_25"), ("ABC by Law (2026)", "LAW_26")]
+        
+        labels = [
+            ("Authorized Bed Capacity (ABC) by Licensing as of December 31, 2025:", "ABC_25"), 
+            ("Target Authorized Bed Capacity (ABC) by Licensing by the end of 2026:", "ABC_26"), 
+            ("Authorized Bed Capacity (ABC) by Law (2025):", "LAW_25"), 
+            ("Authorized Bed Capacity (ABC) by Law (2026):", "LAW_26")
+        ]
         res_beds = {}
         for label, key in labels:
-            c1, c2, c3 = st.columns([3, 2, 2])
-            c1.markdown(f"**{label}:**")
+            c1, c2, c3 = st.columns([5, 2, 2])
+            c1.markdown(f"**{label}**")
             res_beds[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, disabled=locked, label_visibility="collapsed")
             res_beds[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=prev.get(f"RM_{key}", ""), disabled=locked, label_visibility="collapsed")
 
-        r8_1, r8_2, r8_3 = st.columns([3, 2, 2])
-        r8_1.markdown("**Target ABC by Licensing (2027):**\n\n<small><i>If the same with 2025/2026, please input the same ABC.</i></small>", unsafe_allow_html=True)
+        r8_1, r8_2, r8_3 = st.columns([5, 2, 2])
+        r8_1.markdown("""
+        **Target Authorized Bed Capacity (ABC) by Licensing in 2027:**<br>
+        <small><i>(If the same with 2025/2026, please input the same ABC in the cell. If the ABC would increase in 2026, kindly indicate in the cell the target ABC and the target quarter for which it will be implemented in the REMARKS column)</i></small>
+        """, unsafe_allow_html=True)
         abc_27 = r8_2.number_input("ABC 27", value=int(float(prev.get("ABC_27", 0))), step=1, disabled=locked, label_visibility="collapsed")
         rm_abc27 = r8_3.text_input("Remarks ABC27", value=prev.get("RM_ABC27", ""), disabled=locked, label_visibility="collapsed")
 
-        r9_1, r9_2, r9_3 = st.columns([3, 2, 2])
+        r9_1, r9_2, r9_3 = st.columns([5, 2, 2])
         r9_1.markdown("**Implementing Bed Capacity (IBC) (2025):**")
         ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0))), step=1, disabled=locked, label_visibility="collapsed")
         rm_ibc25 = r9_3.text_input("Remarks IBC25", value=prev.get("RM_IBC25", ""), disabled=locked, label_visibility="collapsed")
 
+    # -------------------------------------------------------------------------
     st.header("2️⃣ HOSPITAL CENSUS DATA")
     with st.expander("Expand to fill out Census Data", expanded=False):
         census_data = [
-            ("Bed Occupancy Rate (BOR) (2025)", "BOR_25", "pct"),
-            ("Average Length of Stay (ALOS) (2025)", "ALOS_25", "float"),
-            ("Total Inpatient Days Served (TIDS) (2025)", "TIDS_25", "int"),
-            ("Total Number of Inpatients (2025)", "INP_25", "int"),
-            ("Total Number of Outpatient Visits (2025)", "OUT_25", "int"),
-            ("Total Number of ER Visits (2025)", "ERV_25", "int")
+            ("Bed Occupancy Rate (BOR) (2025):", "BOR_25", "pct"),
+            ("Average Length of Stay (ALOS) (2025):", "ALOS_25", "float"),
+            ("Total Inpatient Days Served (TIDS) (2025):", "TIDS_25", "int"),
+            ("Total Number of Inpatients (2025):", "INP_25", "int"),
+            ("Total Number of Outpatient Visits (2025):", "OUT_25", "int"),
+            ("Total Number of Emergency Room (ER) Visits (2025):", "ERV_25", "int")
         ]
         res_census = {}
         for label, key, dtype in census_data:
-            c1, c2, c3 = st.columns([3, 2, 2])
-            c1.markdown(f"**{label}:**")
+            c1, c2, c3 = st.columns([5, 2, 2])
+            c1.markdown(f"**{label}**")
             if dtype == "pct": res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
             elif dtype == "float": res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0)), step=0.1, disabled=locked, label_visibility="collapsed")
             else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, disabled=locked, label_visibility="collapsed")
             res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=prev.get(f"RM_{key}", ""), disabled=locked, label_visibility="collapsed")
 
+    # -------------------------------------------------------------------------
     st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
     with st.expander("Expand to fill out HCPN & BUCAS Data", expanded=False):
-        c1, c2, c3 = st.columns([3, 2, 2])
-        c1.markdown("**Is the hospital identified as Apex or End-Referral?**")
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**Based on DC No. 2025-0554, is the hospital identified as Apex or End-Referral Hospital?**")
         apex = c2.selectbox("Apex", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("APEX")), disabled=locked, label_visibility="collapsed")
         rm_apex = c3.text_input("Remarks Apex", value=prev.get("RM_APEX", ""), disabled=locked, label_visibility="collapsed")
 
-        c1, c2, c3 = st.columns([3, 2, 2])
-        c1.markdown("**Upload Signed/Ongoing MOA/MOU:**\n\n*Naming: ACRONYM_MOA*")
-        c2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("""
+        **For those who already have a signed or on-going review MOA/MOU with a HCPN or province (not with other hospitals and other health facilities), kindly upload a scanned copy or picture of the signed or on-going review MOA/MOU on the link provided**<br>
+        <small><i>Note: Please make sure you FOLLOW the proper naming of the file provided:<br>
+        <b>HOSPITAL ACRONYM_MOA (e.g. SOGHMC_MOA)</b><br>
+        Failing to comply will make your submission INVALID</i></small>
+        """, unsafe_allow_html=True)
+        c2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
         rm_moa = c3.text_input("Remarks MOA", value=prev.get("RM_MOA", ""), disabled=locked, label_visibility="collapsed")
 
-        c1, c2, c3 = st.columns([3, 2, 2])
-        c1.markdown("**Number of Linked HCPNs/Provinces:**")
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**If the hospital already has MOA/MOU with a HCPN/province, how many HCPNs or provinces are they linked with?**")
         hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0))), step=1, disabled=locked, label_visibility="collapsed")
         rm_hcpn = c3.text_input("Remarks HCPN", value=prev.get("RM_HCPN", ""), disabled=locked, label_visibility="collapsed")
 
-        c1, c2, c3 = st.columns([3, 2, 2])
+        c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("**Does the hospital operate a BUCAS Center/s?**")
         bucas = c2.selectbox("BUCAS", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("BUCAS")), disabled=locked, label_visibility="collapsed")
         rm_bucas = c3.text_input("Remarks BUCAS", value=prev.get("RM_BUCAS", ""), disabled=locked, label_visibility="collapsed")
         if bucas == "Yes":
-            st.warning("👉 Please update the data in the UHC HSC BUCAS Tracker:")
+            st.warning("**If yes, kindly update the data in the UHC HSC BUCAS Tracker:**")
             st.link_button("🔗 OPEN BUCAS DASHBOARD", "https://bit.ly/BUCASdashboard", type="primary")
 
-        c1, c2, c3 = st.columns([3, 2, 2])
-        c1.markdown("**BUCAS Coordinates (Lat, Long):**\n\n*Format: 14.615, 120.982*")
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**Kindly provide the exact coordinates of the BUCAS Center using the format Latitude, Longitude (e.g. 14.6156280516298, 120.982498127343) (Can be acquired via Google Maps)**")
         coords = c2.text_input("Coords", value=prev.get("COORDS", ""), disabled=locked, label_visibility="collapsed")
         rm_coords = c3.text_input("Remarks Coords", value=prev.get("RM_COORDS", ""), disabled=locked, label_visibility="collapsed")
 
-        c1, c2, c3 = st.columns([3, 2, 2])
-        c1.markdown("**Upload BUCAS LTO (If applicable):**\n\n*Naming: ACRONYM_BUCAS*")
-        c2.link_button("📂 OPEN DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("""
+        **If applicable, please provide a copy of the BUCAS Center's license to operate in this folder**<br>
+        <small><i>Note: Please make sure you FOLLOW the proper naming of the file provided:<br>
+        <b>HOSPITAL ACRONYM_BUCAS (e.g. SOGHMC_BUCAS)</b><br>
+        Failing to comply will make your submission INVALID</i></small>
+        """, unsafe_allow_html=True)
+        c2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
         rm_bucas_lto = c3.text_input("Remarks BUCAS LTO", value=prev.get("RM_BUCAS_LTO", ""), disabled=locked, label_visibility="collapsed")
 
     st.divider()
