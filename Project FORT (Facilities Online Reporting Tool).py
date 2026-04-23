@@ -22,8 +22,8 @@ st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     
-    /* Reduce Top Header Space */
-    .block-container {{ padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }}
+    /* Fixed Top Header Space (Not too aggressive now!) */
+    .block-container {{ padding-top: 3rem !important; padding-bottom: 3rem !important; }}
     
     .section-header-strat {{
         background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0;
@@ -289,7 +289,6 @@ def module_scorecard():
                     st.session_state.show_print = False
                     st.rerun()
     else:
-        # READ-ONLY PRINT BUTTON
         if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
             st.session_state.show_print = True
             st.rerun()
@@ -474,7 +473,6 @@ def module_census_data():
                 st.session_state.staged_data.update(final_data)
                 st.success("Progress saved!")
     else:
-        # READ-ONLY PRINT BUTTON
         if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
             st.session_state.show_print = True
             st.rerun()
@@ -594,7 +592,7 @@ def get_row_html(title, deadline, is_locked):
     """
 
 def login_screen():
-    st.markdown("<h2 style='text-align: center; margin-top: -20px;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -660,7 +658,7 @@ def login_screen():
 
 def dashboard():
     u = st.session_state.user_info
-    st.markdown("<h2 style='text-align: center; margin-top: -20px;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
     
     d1_str, d1_locked = get_module_config("Mod1")
