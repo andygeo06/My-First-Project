@@ -108,17 +108,23 @@ def login_screen():
                     st.rerun()
 
         elif st.session_state.auth_mode == "existing":
-            st.subheader("🔓 Access Your Existing Profile")
-            input_id = st.text_input("Enter User Identification Code:")
-            if st.button("Verify & Enter Portal", type="primary"):
-                profiles = get_all_profiles()
-                if input_id in profiles["User_ID"].values():
-                    row = profiles[profiles["User_ID"] == input_id].iloc[0]
-                    st.session_state.user_id = input_id
-                    st.session_state.user_info = {"hosp": row["Hospital_Name"], "user": row["Encoder_Name"]}
-                    st.rerun()
-                else:
-                    st.error("Code not found. Please check your spelling or register as new.")
+    st.subheader("🔓 Access Your Existing Profile")
+    input_id = st.text_input("Enter User Identification Code:")
+    
+    if st.button("Verify & Enter Portal", type="primary"):
+        profiles = get_all_profiles()
+        
+        # Cleaner check: Convert the column to a list for a direct 'in' check
+        if input_id in profiles["User_ID"].astype(str).tolist():
+            row = profiles[profiles["User_ID"] == input_id].iloc[0]
+            st.session_state.user_id = input_id
+            st.session_state.user_info = {
+                "hosp": row["Hospital_Name"], 
+                "user": row["Encoder_Name"]
+            }
+            st.rerun()
+        else:
+            st.error("Code not found. Please check your spelling or register as new.")
 
 # --- 5. DASHBOARD ---
 
