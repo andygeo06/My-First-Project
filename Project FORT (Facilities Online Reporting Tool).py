@@ -1,134 +1,120 @@
 import streamlit as st
-import pandas as pd
 import uuid
+import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 
-# --- 1. INITIAL CONFIGURATION ---
-st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide", initial_sidebar_state="collapsed")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide")
 
-# Connection to Google Sheets (Project FORT)
-# Note: Ensure secrets are set in Streamlit Cloud for GSheets
-conn = st.connection("gsheets", type=GSheetsConnection)
+def generate_user_id():
+    """Generates the HFDB-YEAR-RANDOMCODE format."""
+    year = datetime.now().year
+    random_part = uuid.uuid4().hex[:8].upper()
+    return f"HFDB-{year}-{random_part}"
 
-# Module Mapping
-MODULES = {
-    "Mod1": {"name": "Hospital Scorecard", "icon": "📊", "sheet": "Mod1"},
-    "Mod2": {"name": "Financial Data", "icon": "💰", "sheet": "Mod2"},
-    "Mod3": {"name": "Hospital MOOE", "icon": "🏥", "sheet": "Mod3"}
-}
+# --- STAGE 1: THE LOGIN GATEKEEPER ---
 
-# --- 2. SHARED FUNCTIONS (ACCOUNTABILITY & UTILITIES) ---
-
-def generate_edit_code():
-    return f"HFDB-{uuid.uuid4().hex[:6].upper()}"
-
-def get_status_color(status):
-    if status == "Submitted": return "🟢"
-    if status == "In Progress": return "🟡"
-    return "⚪"
-
-def accountability_header(mod_name):
-    """Reusable header for all modules to ensure accountability."""
-    st.markdown(f"### 🔐 {mod_name}: Verification")
-    with st.container(border=True):
-        c1, c2, c3 = st.columns(3)
-        hosp = c1.text_input("Hospital Name", value=st.session_state.get('hosp_name', ""))
-        enc = c2.text_input("Encoder Name", value=st.session_state.get('encoder', ""))
-        pos = c3.text_input("Position", value=st.session_state.get('position', ""))
-        
-        # Save to session state for persistence across modules
-        st.session_state.hosp_name, st.session_state.encoder, st.session_state.position = hosp, enc, pos
-    
-    return hosp and enc and pos
-
-# --- 3. PAGE: HOME DASHBOARD ---
-
-def home_page():
+def login_screen():
     st.title("🏥 HFDB Online Data Submission Portal")
-    st.markdown("#### *2026 Data Cycle*")
-    st.divider()
+    st.markdown("### Welcome. Please identify yourself to proceed.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🆕 New User", use_container_width=True, type="primary"):
+            st.session_state.auth_mode = "new"
+            
+    with col2:
+        if st.button("🔑 Existing User", use_container_width=True):
+            st.session_state.auth_mode = "existing"
 
-    # Dashboard Progress Section
-    st.subheader("Your Submission Modules")
-    
-    # Grid Layout for Mobile-Friendly Cards
-    cols = st.columns(len(MODULES))
-    
-    for i, (key, info) in enumerate(MODULES.items()):
-        # Mock status check - in production, this reads 'Status' from the GSheet
-        status = st.session_state.get(f"status_{key}", "Pending")
-        indicator = get_status_color(status)
+    # --- Mode: New User Registration ---
+    if st.session_state.get("auth_mode") == "new":
+        st.divider()
+        st.subheader("Create New Submitter Profile")
+        h_name = st.text_input("Hospital Name:")
+        u_name = st.text_input("User Name:")
+        pos = st.text_input("Position:")
         
+        if st.button("Generate My Access Code"):
+            # Validation: No blanks, No "N/A"
+            invalid_terms = ["N/A", "NA", "NONE", ".", " "]
+            if not h_name or not u_name or not pos:
+                st.error("Fields cannot be blank.")
+            elif any(term == h_name.upper().strip() for term in invalid_terms) or \
+                 any(term == u_name.upper().strip() for term in invalid_terms):
+                st.error("Please provide valid information. 'N/A' is not accepted.")
+            else:
+                # Success Logic
+                new_id = generate_user_id()
+                st.session_state.temp_id = new_id
+                st.session_state.user_profile = {"hosp": h_name, "user": u_name, "pos": pos}
+                st.success("Profile Validated!")
+                
+                # Solid Prompt for Code
+                st.warning("⚠️ **IMPORTANT: SAVE THIS CODE.** You will need it to return to your work.")
+                st.code(new_id, language="text")
+                st.info("You can copy the code above. Store it in a Notepad or on a sheet of paper.")
+                
+                if st.button("OK - Proceed to Modules"):
+                    st.session_state.user_id = new_id
+                    st.session_state.authenticated = True
+                    st.rerun()
+
+    # --- Mode: Existing User Login ---
+    elif st.session_state.get("auth_mode") == "existing":
+        st.divider()
+        st.subheader("Return to Your Work")
+        input_id = st.text_input("Enter User Identification Code:", placeholder="Format: HFDB-2026-XXXXXXXX")
+        
+        if st.button("Submit"):
+            if input_id.startswith("HFDB-2026-") and len(input_id) > 12:
+                # In production: Check Google Sheets if ID exists
+                st.session_state.user_id = input_id
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid Code Format. Please check your code and try again.")
+
+# --- STAGE 2: THE DASHBOARD ---
+
+def home_dashboard():
+    st.title("🏥 Module Selection Screen")
+    st.write(f"Logged in as: `{st.session_state.user_id}`")
+    
+    # Large Card Buttons
+    modules = [
+        {"id": "Mod1", "name": "Hospital Scorecard", "icon": "📊"},
+        {"id": "Mod2", "name": "Financial Data", "icon": "💰"},
+        {"id": "Mod3", "name": "Hospital MOOE", "icon": "🏥"}
+    ]
+    
+    cols = st.columns(3)
+    for i, mod in enumerate(modules):
         with cols[i]:
-            # The Card Component (Styled Button)
-            card_label = f"{info['icon']} {info['name']}\n\n{indicator} {status}"
-            if st.button(card_label, key=key, use_container_width=True):
-                st.session_state.current_mod = key
-                st.session_state.page = "Module_Entry"
+            # Pull status from sheet (mocked here)
+            if st.button(f"{mod['icon']} {mod['name']}\n\nStatus: ⚪ Pending", key=mod['id'], use_container_width=True):
+                st.session_state.current_page = mod['id']
                 st.rerun()
 
-# --- 4. PAGE: UNIVERSAL MODULE ENTRY ---
+# --- APP ROUTER ---
+if "authenticated" not in st.session_state:
+    login_screen()
+elif st.session_state.get("current_page"):
+    # Module Detail Page
+    st.header(f"Editing: {st.session_state.current_page}")
+    if st.button("Back to Modules"):
+        del st.session_state.current_page
+        st.rerun()
+else:
+    home_dashboard()
 
-def module_entry_page():
-    mod_key = st.session_state.current_mod
-    mod_info = MODULES[mod_key]
-    
-    st.button("⬅️ Back to Dashboard", on_click=lambda: st.session_state.update({"page": "Home"}))
-    st.header(f"{mod_info['icon']} {mod_info['name']}")
-    
-    # A. EDIT CODE BLOCK
-    with st.expander("🔑 Have an Edit Code? Click here to load previous data"):
-        edit_code_input = st.text_input("Enter 8-digit Code")
-        if st.button("Retrieve Submission"):
-            st.info("Searching Project FORT for your record...")
-            # Logic: conn.read() where Code == edit_code_input
-
-    # B. ACCOUNTABILITY HEADER
-    is_valid = accountability_header(mod_info['name'])
-    
-    # C. DYNAMIC DATA FIELDS (Sample Fields)
-    st.markdown("---")
-    st.subheader("Entry Form")
-    with st.container():
-        # Example fields - these will change per module in the future
-        data_a = st.number_input("Numerical Data Point", min_value=0)
-        data_b = st.text_area("Narrative/Remarks")
-
-    # D. SUBMISSION ACTIONS
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        if st.button("💾 Save as Temporary Draft"):
-            # Update Status to In Progress and Sync to Sheet
-            st.session_state[f"status_{mod_key}"] = "In Progress"
-            st.toast("Draft saved to Google Sheets.")
-            
-    with c2:
-        if st.button("✅ Finalize Submission", type="primary", disabled=not is_valid):
-            new_code = generate_edit_code()
-            # Logic to write to GSheets 'ModX' sheet
-            st.session_state[f"status_{mod_key}"] = "Submitted"
-            st.success(f"Successfully Submitted! **Edit Code: {new_code}**")
-            st.balloons()
-
-# --- 5. APP ROUTER ---
-
-if 'page' not in st.session_state:
-    st.session_state.page = "Home"
-
-if st.session_state.page == "Home":
-    home_page()
-elif st.session_state.page == "Module_Entry":
-    module_entry_page()
-
-# --- CSS FOR CUSTOM BUTTON HEIGHTS (MOBILE OPTIMIZATION) ---
+# --- STYLING ---
 st.markdown("""
 <style>
     div.stButton > button {
-        height: 150px;
-        border-radius: 15px;
-        font-size: 18px;
+        height: 120px;
+        border-radius: 12px;
         font-weight: bold;
     }
 </style>
