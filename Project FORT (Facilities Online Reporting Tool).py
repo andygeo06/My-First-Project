@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- 1. CORE CONFIG & FIXED DARK THEME ---
+# --- 1. CORE CONFIG & COMPACT THEME ---
 st.set_page_config(
     page_title="Project FORT", 
     layout="wide", 
@@ -17,55 +17,64 @@ st.set_page_config(
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. PREMIUM CSS ENGINE ---
+# --- 2. PREMIUM COMPACT CSS ENGINE ---
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     
+    /* Reduce Top Header Space */
+    .block-container {{ padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }}
+    
     .section-header-strat {{
-        background-color: #1A365D; padding: 15px; border-radius: 10px 10px 0 0;
-        text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 15px;
+        background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0;
+        text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 10px;
     }}
     .section-header-core {{
-        background-color: #7B341E; padding: 15px; border-radius: 10px 10px 0 0;
-        text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 15px;
+        background-color: #7B341E; padding: 10px; border-radius: 8px 8px 0 0;
+        text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 10px;
     }}
 
     div[data-testid="stExpander"] {{
         background-color: #161B22 !important; border: 1px solid #30363D !important;
-        border-radius: 8px !important; margin-bottom: 12px; transition: 0.3s;
+        border-radius: 6px !important; margin-bottom: 8px; transition: 0.3s;
     }}
     div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
     
     div[data-testid="stExpander"] div[role="region"] {{
-        background-color: #0D1117 !important; padding: 25px !important;
+        background-color: #0D1117 !important; padding: 15px !important;
         border-top: 1px solid #30363D;
     }}
 
-    /* === BUTTON COLOR OVERRIDES === */
+    /* === BUTTON COLOR OVERRIDES (COMPACT HEIGHTS) === */
     /* Module 1 - Strategic Blue */
     div.mod1-btn button {{
-        background-color: #1A365D !important;
-        color: white !important;
-        border: 1px solid #3B82F6 !important;
-        font-weight: bold !important;
-        height: 3.5em !important;
-        width: 100% !important;
-        transition: 0.3s !important;
+        background-color: #1A365D !important; color: white !important;
+        border: 1px solid #3B82F6 !important; font-weight: bold !important;
+        height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
     div.mod1-btn button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
 
     /* Module 2 - Core Red/Rust */
     div.mod2-btn button {{
-        background-color: #7B341E !important;
-        color: white !important;
-        border: 1px solid #EF4444 !important;
-        font-weight: bold !important;
-        height: 3.5em !important;
-        width: 100% !important;
-        transition: 0.3s !important;
+        background-color: #7B341E !important; color: white !important;
+        border: 1px solid #EF4444 !important; font-weight: bold !important;
+        height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
     div.mod2-btn button:hover {{ background-color: #991B1B !important; border-color: #FFFFFF !important; }}
+    
+    /* New User - Green */
+    div.new-user-btn button {{
+        background-color: #15803d !important; color: white !important;
+        border: 1px solid #22c55e !important; font-weight: bold !important;
+    }}
+    div.new-user-btn button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
+
+    /* Logout - Red */
+    div.logout-btn button {{
+        background-color: #dc2626 !important; color: white !important;
+        border: 1px solid #ef4444 !important; font-weight: bold !important;
+    }}
+    div.logout-btn button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -158,7 +167,7 @@ def module_scorecard():
     if locked:
         st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC PERFORMANCE INDICATORS</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-strat"><h3 style="margin:0;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>', unsafe_allow_html=True)
     
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=False):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked, key="si1_in"))
@@ -209,7 +218,7 @@ def module_scorecard():
         s8d = c2.number_input("Expected Areas", value=int(float(prev.get("SI8_D", 1))), disabled=locked, key="s8d")
         s8v = score_calc(s8n, s8d, "SI 8")
 
-    st.markdown('<div class="section-header-core"><h2>🎯 CORE QUALITY INDICATORS</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-core"><h3 style="margin:0;">🎯 CORE QUALITY INDICATORS</h3></div>', unsafe_allow_html=True)
 
     with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)", expanded=False):
         c1, c2 = st.columns(2)
@@ -279,24 +288,30 @@ def module_scorecard():
                     st.session_state.staged_data.update(res_db)
                     st.session_state.show_print = False
                     st.rerun()
+    else:
+        # READ-ONLY PRINT BUTTON
+        if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
+            st.session_state.show_print = True
+            st.rerun()
 
     if st.session_state.get("show_print", False):
         generate_print_view(res_print)
-        st.divider()
-        st.markdown("### 📤 Step 1: Upload to Google Drive")
-        st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link", type="primary")
-        st.markdown("### 🔗 Step 2: Attach Link to Submission")
-        pdf_link = st.text_input("Paste Google Drive Link Here:")
-        if st.button("💾 Encode Link", type="secondary"):
-            if pdf_link:
-                try:
-                    df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
-                    mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
-                    if mask.any():
-                        df.loc[mask, "Scanned_PDF"] = pdf_link
-                        conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
-                        st.success("✅ PDF Link successfully encoded!")
-                except Exception as e: st.error(f"Failed to attach link: {e}")
+        if not locked:
+            st.divider()
+            st.markdown("### 📤 Step 1: Upload to Google Drive")
+            st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link", type="primary")
+            st.markdown("### 🔗 Step 2: Attach Link to Submission")
+            pdf_link = st.text_input("Paste Google Drive Link Here:")
+            if st.button("💾 Encode Link", type="secondary"):
+                if pdf_link:
+                    try:
+                        df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
+                        mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
+                        if mask.any():
+                            df.loc[mask, "Scanned_PDF"] = pdf_link
+                            conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
+                            st.success("✅ PDF Link successfully encoded!")
+                    except Exception as e: st.error(f"Failed to attach link: {e}")
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
 
@@ -310,7 +325,7 @@ def module_census_data():
     
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    st.markdown('<div class="section-header-core"><h2>📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
     
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
@@ -458,6 +473,11 @@ def module_census_data():
             if submit_module_data(final_data, "Mod2"):
                 st.session_state.staged_data.update(final_data)
                 st.success("Progress saved!")
+    else:
+        # READ-ONLY PRINT BUTTON
+        if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
+            st.session_state.show_print = True
+            st.rerun()
 
     if st.session_state.get("show_print", False):
         generate_print_view_mod2(final_data)
@@ -557,10 +577,24 @@ def generate_print_view_mod2(d):
     </div>"""
     st.components.v1.html(html, height=800, scrolling=True)
 
-# --- 7. ROUTING & LOGIN ---
+# --- 7. ROUTING, LOGIN, & DASHBOARD ---
+
+def get_row_html(title, deadline, is_locked):
+    """Generates a dynamic HTML row that changes color based on lock status."""
+    bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
+    border_color = "#EF4444" if is_locked else "#22C55E"
+    status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
+    
+    return f"""
+    <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div>
+        <div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div>
+        <div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div>
+    </div>
+    """
 
 def login_screen():
-    st.title("🏥 HFDB Reporting Portal")
+    st.markdown("<h2 style='text-align: center; margin-top: -20px;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -582,8 +616,12 @@ def login_screen():
 
     if "auth_mode" not in st.session_state:
         c1, c2 = st.columns(2)
-        if c1.button("🆕 NEW USER", use_container_width=True): st.session_state.auth_mode = "new"; st.rerun()
-        if c2.button("🔑 EXISTING USER", use_container_width=True, type="primary"): st.session_state.auth_mode = "existing"; st.rerun()
+        with c1:
+            st.markdown('<div class="new-user-btn">', unsafe_allow_html=True)
+            if st.button("🆕 NEW USER", use_container_width=True): st.session_state.auth_mode = "new"; st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        with c2:
+            if st.button("🔑 EXISTING USER", use_container_width=True, type="primary"): st.session_state.auth_mode = "existing"; st.rerun()
     else:
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
@@ -620,52 +658,53 @@ def login_screen():
                     st.rerun()
                 else: st.error("User ID not found in database. Check for typos.")
 
-# --- THE DYNAMIC DASHBOARD ENGINE ---
-def get_row_html(title, deadline, is_locked):
-    """Generates a dynamic HTML row that changes color based on lock status."""
-    bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
-    border_color = "#EF4444" if is_locked else "#22C55E"
-    status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    
-    return f"""
-    <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div>
-        <div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div>
-        <div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div>
-    </div>
-    """
-
 def dashboard():
     u = st.session_state.user_info
-    st.title("🏥 Project FORT Dashboard")
+    st.markdown("<h2 style='text-align: center; margin-top: -20px;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
     
     d1_str, d1_locked = get_module_config("Mod1")
     d2_str, d2_locked = get_module_config("Mod2")
     
-    st.markdown("---")
-    st.markdown("### 📋 Available Modules")
+    modules = [
+        {"id": "Mod1", "title": "📊 Hospital Scorecard", "date": d1_str, "locked": d1_locked, "btn_class": "mod1-btn"},
+        {"id": "Mod2", "title": "📈 Hospital Census & HCPN", "date": d2_str, "locked": d2_locked, "btn_class": "mod2-btn"}
+    ]
     
-    # --- MODULE 1 ---
-    st.markdown(get_row_html("📊 Hospital Scorecard (Mod1)", d1_str, d1_locked), unsafe_allow_html=True)
-    st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
-    if st.button("OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_mod1"):
-        st.session_state.current_module = "Mod1"
-        st.rerun()
-    st.markdown('</div><br>', unsafe_allow_html=True)
+    ongoing = [m for m in modules if not m["locked"]]
+    lapsed = [m for m in modules if m["locked"]]
 
-    # --- MODULE 2 ---
-    st.markdown(get_row_html("📈 Hospital Census & HCPN (Mod2)", d2_str, d2_locked), unsafe_allow_html=True)
-    st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
-    if st.button("OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
-        st.session_state.current_module = "Mod2"
+    # --- ONGOING MODULES ---
+    if ongoing:
+        st.markdown("### 🟢 Ongoing Data Submission Modules")
+        for m in ongoing:
+            st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
+            st.markdown(f'<div class="{m["btn_class"]}">', unsafe_allow_html=True)
+            if st.button(f"OPEN {m['id'].upper()}", use_container_width=True, key=f"btn_on_{m['id']}"):
+                st.session_state.current_module = m['id']
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+
+    # --- LAPSED MODULES ---
+    if lapsed:
+        st.markdown("### 🔴 Lapsed Data Submission Modules")
+        for m in lapsed:
+            st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
+            st.markdown(f'<div class="{m["btn_class"]}">', unsafe_allow_html=True)
+            if st.button(f"VIEW {m['id'].upper()} (READ-ONLY)", use_container_width=True, key=f"btn_lap_{m['id']}"):
+                st.session_state.current_module = m['id']
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        
+    st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
+    if st.button("Logout", use_container_width=True): 
+        st.session_state.clear()
         st.rerun()
-    st.markdown('</div><br>', unsafe_allow_html=True)
-        
-    st.markdown("---")
-    if st.button("Logout"): st.session_state.clear(); st.rerun()
-        
-# --- 8. THE TRAFFIC CONTROLLER ---
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- 8. TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
     login_screen()
     
