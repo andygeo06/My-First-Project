@@ -627,6 +627,27 @@ def generate_print_view_mod2(d):
 
 # --- 7. ROUTING & LOGIN ---
 
+def module_census_data():
+    st.markdown('<div class="section-header-core"><h2>📈 MODULE 2: CENSUS & HCPN</h2></div>', unsafe_allow_html=True)
+    
+    # Fetch existing data if any
+    prev = get_previous_entry("Mod2")
+    deadline_str, locked = get_module_config("Mod2")
+    
+    if locked:
+        st.error(f"⚠️ READ-ONLY: Deadline ({deadline_str}) has passed.")
+
+    with st.expander("📊 Hospital Bed Capacity", expanded=True):
+        abc = st.number_input("Authorized Bed Capacity", value=int(float(prev.get("ABC", 0))), disabled=locked)
+        bor = st.number_input("Bed Occupancy Rate (%)", value=float(prev.get("BOR", 0.0)), disabled=locked)
+    
+    st.info("Module 2 logic is now active. You can build out the rest of your census fields here!")
+    
+    if not locked:
+        if st.button("💾 Save Census Data", type="primary"):
+            res = {"ABC": abc, "BOR": bor}
+            submit_module_data(res, "Mod2")
+
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
     
@@ -735,13 +756,12 @@ def dashboard():
     m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
     
     # MODULE 2 - RED BOX
-    st.markdown("""
-        <a href="?module=Mod2" target="_self" style="text-decoration: none;">
-            <div style="background-color: #7B341E; color: white; padding: 15px; border-radius: 10px; border: 2px solid #EF4444; text-align: center; font-weight: bold;">
-                📈 OPEN MODULE 2: CENSUS DATA
-            </div>
-        </a>
-    """, unsafe_allow_html=True)
+    # Inside dashboard()
+    st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
+    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
+        st.session_state.current_module = "Mod2" # Must match the elif above
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
