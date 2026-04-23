@@ -72,6 +72,8 @@ def score_calc(n, d, label):
 
 # --- 4. MODULE 1: THE SCORECARD ---
 
+# --- [UPDATE: Individual Umbrellas for SI 6, 7, 8] ---
+
 def module_scorecard():
     try:
         dd = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1_DD", ttl=0)
@@ -108,47 +110,56 @@ def module_scorecard():
         p24 = c1.selectbox("2024 PGS Status", dd["Indicator 5, DD1"].dropna().unique())
         p25 = c2.selectbox("2025 PGS Status", dd["Indicator 5, DD2"].dropna().unique())
 
-    with st.expander("🔹 SI 6-8: Specialty, Zero Co-Pay, & EMR"):
-        st.write("**SI 6: Functional Specialty Centers**")
-        s6n, s6d = st.columns(2)
-        s6_v = score_calc(s6n.number_input("Functional Centers", 0), s6d.number_input("Target Centers", 1), "SI 6")
+    # --- NOW FULLY SEPARATED ---
+    with st.expander("🔹 SI 6: Functional Specialty Centers"):
+        c1, c2 = st.columns(2)
+        s6_v = score_calc(c1.number_input("No. of Specialty Centers (Functional)", 0, key="s6n"), 
+                          c2.number_input("Total Designated Specialty Centers", 1, key="s6d"), "SI 6")
         
-        st.divider()
-        st.write("**SI 7: Zero Co-Payment Patients**")
-        s7n, s7d = st.columns(2)
-        s7_v = score_calc(s7n.number_input("Zero Co-Pay Count", 0), s7d.number_input("Total Basic Patients", 1), "SI 7")
+    with st.expander("🔹 SI 7: Zero Co-Payment Patients"):
+        c1, c2 = st.columns(2)
+        s7_v = score_calc(c1.number_input("No. of Zero Co-Pay Patients", 0, key="s7n"), 
+                          c2.number_input("Total Basic Accommodation Patients", 1, key="s7d"), "SI 7")
 
-        st.divider()
-        st.write("**SI 8: Paperless EMR Areas**")
-        s8n, s8d = st.columns(2)
-        s8_v = score_calc(s8n.number_input("Paperless Areas", 0), s8d.number_input("Expected Areas", 1), "SI 8")
+    with st.expander("🔹 SI 8: Paperless EMR Areas"):
+        c1, c2 = st.columns(2)
+        s8_v = score_calc(c1.number_input("Areas with Paperless EMR", 0, key="s8n"), 
+                          c2.number_input("Total Expected EMR Areas", 1, key="s8d"), "SI 8")
 
     # --- CORE SECTION ---
     section_header("🎯 CORE QUALITY INDICATORS", THEME["core_bg"])
 
     with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)"):
         c1, c2 = st.columns(2)
-        ci1_v = score_calc(c1.number_input("ER Patients <4hrs", 0), c2.number_input("Total ER Patients", 1), "ER TAT")
+        ci1_v = score_calc(c1.number_input("ER Patients <4hrs", 0, key="ci1n"), 
+                           c2.number_input("Total ER Patients", 1, key="ci1d"), "ER TAT")
 
     with st.expander("🔸 CI 2: Discharge Turnaround (<6 hrs)"):
         c1, c2 = st.columns(2)
-        ci2_v = score_calc(c1.number_input("Discharged <6hrs", 0), c2.number_input("Total Discharges", 1), "Discharge TAT")
+        ci2_v = score_calc(c1.number_input("Discharged <6hrs", 0, key="ci2n"), 
+                           c2.number_input("Total Discharges", 1, key="ci2d"), "Discharge TAT")
 
     with st.expander("🔸 CI 3: Lab Result Turnaround (<5 hrs)"):
         c1, c2 = st.columns(2)
-        ci3_v = score_calc(c1.number_input("Lab Results <5hrs", 0), c2.number_input("Total Lab Tests", 1), "Lab TAT")
+        ci3_v = score_calc(c1.number_input("Lab Results <5hrs", 0, key="ci3n"), 
+                           c2.number_input("Total Lab Tests", 1, key="ci3d"), "Lab TAT")
 
     with st.expander("🔸 CI 4: Healthcare Associated Infection Rate"):
         c1, c2 = st.columns(2)
-        ci4_v = score_calc(c1.number_input("Total HAI Cases", 0), c2.number_input("Total Discharges/Deaths (>48h)", 1), "HAI Rate")
+        ci4_v = score_calc(c1.number_input("Total HAI Cases", 0, key="ci4n"), 
+                           c2.number_input("Total Discharges/Deaths (>48h)", 1, key="ci4d"), "HAI Rate")
 
     with st.expander("🔸 CI 5: Client Experience Survey"):
         c1, c2 = st.columns(2)
-        ci5_v = score_calc(c1.number_input("Outstanding Ratings", 0), c2.number_input("Total Respondents", 1), "Survey Score")
+        ci5_v = score_calc(c1.number_input("Outstanding Ratings", 0, key="ci5n"), 
+                           c2.number_input("Total Respondents", 1, key="ci5d"), "Survey Score")
 
     with st.expander("🔸 CI 6: Disbursement Rate"):
         c1, c2 = st.columns(2)
-        ci6_v = score_calc(c1.number_input("Total Disbursement", 0.0), c2.number_input("Total Allocation (NCA+NTCA)", 1.0), "Disbursement")
+        ci6_v = score_calc(c1.number_input("Total Disbursement", 0.0, key="ci6n"), 
+                           c2.number_input("Total Allocation (NCA+NTCA)", 1.0, key="ci6d"), "Disbursement")
+
+    # ... [Rest of the Signature and Print logic remains the same] ...
 
     # --- VALIDATION & PRINT ---
     section_header("✍️ FINAL CERTIFICATION", "#2D3748")
