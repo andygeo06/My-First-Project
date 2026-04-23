@@ -135,7 +135,7 @@ def module_scorecard():
 
     if st.session_state.get("show_print", False): generate_print_view(res)
 
-    def generate_print_view(d):
+def generate_print_view(d):
     u = st.session_state.user_info
     html = f"""
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 800px; margin: 0 auto;">
