@@ -290,7 +290,7 @@ def dashboard():
     u = st.session_state.user_info
     st.title("🏥 Project FORT Dashboard")
     st.info(f"Connected: **{u['hosp']}** | User: **{u['user']}**")
-    if st.button("📊 Enter Hospital Scorecard (Module 1)", use_container_width=True):
+    if st.button("📊 Hospital Scorecard", use_container_width=True):
         st.session_state.current_module = "Mod1"
         st.session_state.expand_all = True
         st.rerun()
