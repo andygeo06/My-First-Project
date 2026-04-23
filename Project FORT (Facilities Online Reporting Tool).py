@@ -42,37 +42,30 @@ st.markdown(f"""
         border-top: 1px solid #30363D;
     }}
 
-    /* === THE NUCLEAR OPTION FOR BUTTON COLORS === */
-
+    /* === BUTTON COLOR OVERRIDES === */
     /* Module 1 - Strategic Blue */
-    div.mod1-btn [data-testid="stBaseButton-secondary"] {{
+    div.mod1-btn button {{
         background-color: #1A365D !important;
         color: white !important;
-        border: 2px solid #3B82F6 !important;
+        border: 1px solid #3B82F6 !important;
         font-weight: bold !important;
-        height: 4em !important;
+        height: 3.5em !important;
         width: 100% !important;
         transition: 0.3s !important;
     }}
-    div.mod1-btn [data-testid="stBaseButton-secondary"]:hover {{
-        background-color: #2563EB !important;
-        border-color: #FFFFFF !important;
-    }}
+    div.mod1-btn button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
 
     /* Module 2 - Core Red/Rust */
-    div.mod2-btn [data-testid="stBaseButton-secondary"] {{
+    div.mod2-btn button {{
         background-color: #7B341E !important;
         color: white !important;
-        border: 2px solid #EF4444 !important;
+        border: 1px solid #EF4444 !important;
         font-weight: bold !important;
-        height: 4em !important;
+        height: 3.5em !important;
         width: 100% !important;
         transition: 0.3s !important;
     }}
-    div.mod2-btn [data-testid="stBaseButton-secondary"]:hover {{
-        background-color: #991B1B !important;
-        border-color: #FFFFFF !important;
-    }}
+    div.mod2-btn button:hover {{ background-color: #991B1B !important; border-color: #FFFFFF !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,7 +141,7 @@ def submit_module_data(res_data, module_name="Mod1"):
             st.error(f"Submission failed: {e}")
             return False
 
-# --- 4. MODULE 1: HOSPITAL SCORECARD (FULLY RESTORED) ---
+# --- 4. MODULE 1: HOSPITAL SCORECARD ---
 
 def module_scorecard():
     dd = get_dropdown_data()
@@ -319,10 +312,8 @@ def module_census_data():
 
     st.markdown('<div class="section-header-core"><h2>📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h2></div>', unsafe_allow_html=True)
     
-    # -------------------------------------------------------------------------
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
-        # We use [5, 2, 2] to give the long text more room to breathe
         h1, h2, h3 = st.columns([5, 2, 2])
         h1.caption("Data Request"); h2.caption("Input Field"); h3.caption("Remarks")
 
@@ -376,7 +367,6 @@ def module_census_data():
         ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0))), step=1, disabled=locked, label_visibility="collapsed")
         rm_ibc25 = r9_3.text_input("Remarks IBC25", value=prev.get("RM_IBC25", ""), disabled=locked, label_visibility="collapsed")
 
-    # -------------------------------------------------------------------------
     st.header("2️⃣ HOSPITAL CENSUS DATA")
     with st.expander("Expand to fill out Census Data", expanded=False):
         census_data = [
@@ -396,7 +386,6 @@ def module_census_data():
             else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, disabled=locked, label_visibility="collapsed")
             res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=prev.get(f"RM_{key}", ""), disabled=locked, label_visibility="collapsed")
 
-    # -------------------------------------------------------------------------
     st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
     with st.expander("Expand to fill out HCPN & BUCAS Data", expanded=False):
         c1, c2, c3 = st.columns([5, 2, 2])
@@ -568,7 +557,7 @@ def generate_print_view_mod2(d):
     </div>"""
     st.components.v1.html(html, height=800, scrolling=True)
 
-# --- 7. ROUTING, LOGIN, & DASHBOARD ---
+# --- 7. ROUTING & LOGIN ---
 
 def login_screen():
     st.title("🏥 HFDB Reporting Portal")
@@ -631,6 +620,21 @@ def login_screen():
                     st.rerun()
                 else: st.error("User ID not found in database. Check for typos.")
 
+# --- THE DYNAMIC DASHBOARD ENGINE ---
+def get_row_html(title, deadline, is_locked):
+    """Generates a dynamic HTML row that changes color based on lock status."""
+    bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
+    border_color = "#EF4444" if is_locked else "#22C55E"
+    status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
+    
+    return f"""
+    <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div>
+        <div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div>
+        <div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div>
+    </div>
+    """
+
 def dashboard():
     u = st.session_state.user_info
     st.title("🏥 Project FORT Dashboard")
@@ -642,42 +646,26 @@ def dashboard():
     st.markdown("---")
     st.markdown("### 📋 Available Modules")
     
-    # Headers
-    h_col1, h_col2, h_col3 = st.columns([2, 1, 1])
-    h_col1.markdown("**Module**")
-    h_col2.markdown("**Deadline**")
-    h_col3.markdown("**Status**")
-    
-    # --- MODULE 1 ROW ---
-    m1_col1, m1_col2, m1_col3 = st.columns([2, 1, 1])
-    m1_col1.markdown("#### 📊 Hospital Scorecard")
-    m1_col2.markdown(f"`{d1_str}`")
-    m1_col3.markdown("🔒 CLOSED" if d1_locked else "🟢 OPEN")
-    
+    # --- MODULE 1 ---
+    st.markdown(get_row_html("📊 Hospital Scorecard (Mod1)", d1_str, d1_locked), unsafe_allow_html=True)
     st.markdown('<div class="mod1-btn">', unsafe_allow_html=True)
-    if st.button("📊 OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_mod1"):
+    if st.button("OPEN MODULE 1: SCORECARD", use_container_width=True, key="btn_mod1"):
         st.session_state.current_module = "Mod1"
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div><br>', unsafe_allow_html=True)
 
-    st.write("")
-
-    # --- MODULE 2 ROW ---
-    m2_col1, m2_col2, m2_col3 = st.columns([2, 1, 1])
-    m2_col1.markdown("#### 📈 Census & HCPN")
-    m2_col2.markdown(f"`{d2_str}`")
-    m2_col3.markdown("🔒 CLOSED" if d2_locked else "🟢 OPEN")
-    
+    # --- MODULE 2 ---
+    st.markdown(get_row_html("📈 Hospital Census & HCPN (Mod2)", d2_str, d2_locked), unsafe_allow_html=True)
     st.markdown('<div class="mod2-btn">', unsafe_allow_html=True)
-    if st.button("📈 OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
+    if st.button("OPEN MODULE 2: CENSUS DATA", use_container_width=True, key="btn_mod2"):
         st.session_state.current_module = "Mod2"
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div><br>', unsafe_allow_html=True)
         
     st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
-
-# --- 8. TRAFFIC CONTROLLER ---
+        
+# --- 8. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
     login_screen()
     
