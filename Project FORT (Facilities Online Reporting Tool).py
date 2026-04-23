@@ -17,12 +17,11 @@ st.set_page_config(
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET ALIGNMENT) ---
+# --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET) ---
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     
-    /* Comfortable Top Space (Fixes cut-off titles) */
     .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
     
     .section-header-strat {{
@@ -45,46 +44,40 @@ st.markdown(f"""
         border-top: 1px solid #30363D;
     }}
 
-    /* === SILVER BULLET BUTTON COLORING (No Alignment Issues) === */
-    
-    /* 1. Completely hide the marker container so it adds ZERO spacing */
-    div.element-container:has(.marker) {{
-        display: none !important;
-    }}
+    /* === SILVER BULLET BUTTON COLORING === */
+    div.element-container:has(.marker) {{ display: none !important; }}
 
-    /* 2. Green Button (New User) */
     div.element-container:has(.marker-green) + div.element-container button {{
-        background-color: #15803d !important; color: white !important;
-        border: 1px solid #22c55e !important; font-weight: bold !important;
-        height: 3em !important; width: 100% !important; transition: 0.3s !important;
+        background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; 
+        font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
-    div.element-container:has(.marker-green) + div.element-container button:hover {{
-        background-color: #166534 !important; border-color: #FFFFFF !important;
-    }}
+    div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
 
-    /* 3. Blue Button (Module 1) */
     div.element-container:has(.marker-blue) + div.element-container button {{
-        background-color: #1A365D !important; color: white !important;
-        border: 1px solid #3B82F6 !important; font-weight: bold !important;
-        height: 3em !important; width: 100% !important; transition: 0.3s !important;
+        background-color: #1A365D !important; color: white !important; border: 1px solid #3B82F6 !important; 
+        font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
-    div.element-container:has(.marker-blue) + div.element-container button:hover {{
-        background-color: #2563EB !important; border-color: #FFFFFF !important;
-    }}
+    div.element-container:has(.marker-blue) + div.element-container button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
 
-    /* 4. Red Button (Module 2, Logout, Existing User) */
     div.element-container:has(.marker-red) + div.element-container button {{
-        background-color: #dc2626 !important; color: white !important;
-        border: 1px solid #ef4444 !important; font-weight: bold !important;
-        height: 3em !important; width: 100% !important; transition: 0.3s !important;
+        background-color: #dc2626 !important; color: white !important; border: 1px solid #ef4444 !important; 
+        font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
-    div.element-container:has(.marker-red) + div.element-container button:hover {{
-        background-color: #991b1b !important; border-color: #FFFFFF !important;
-    }}
+    div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. HELPER FUNCTIONS & DATA FETCHING ---
+# --- 3. SMART MEMORY CACHE (FIXES THE 15-SECOND LAG) ---
+
+@st.cache_data(ttl="10m")
+def get_static_sheet(sheet_name):
+    """Loads a sheet once and remembers it for 10 minutes for instant speed."""
+    try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl=0)
+    except: return pd.DataFrame()
+
+def clear_app_memory():
+    """Forces the app to download fresh data on the next click."""
+    get_static_sheet.clear()
 
 def generate_custom_id():
     year = 2026
@@ -106,28 +99,19 @@ def get_idx(opts_series, val):
     opts_list = list(opts_series.dropna().unique())
     return opts_list.index(val) if val in opts_list else 0
 
-@st.cache_data(ttl="1h")
-def get_dropdown_data():
-    try:
-        dd = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1_DD", ttl=0)
-        dd.columns = dd.columns.str.strip()
-        return dd
-    except: return None
-
-@st.cache_data(ttl="10m")
 def get_module_config(module_name="Mod1"):
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
+    df = get_static_sheet("Config")
+    if not df.empty:
         row = df[df.iloc[:, 0] == module_name]
         if not row.empty:
             deadline_str = str(row.iloc[0, 1]).strip()
             deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
             return deadline_str, datetime.now() > deadline_date
-    except: pass
     return "Not Set", False
 
 def get_previous_entry(module_name="Mod1"):
     try:
+        # We always want fresh data when pulling user inputs, so we skip the 10m cache here.
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
@@ -159,10 +143,11 @@ def submit_module_data(res_data, module_name="Mod1"):
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 
 def module_scorecard():
-    dd = get_dropdown_data()
-    if dd is None:
+    dd = get_static_sheet("Mod1_DD")
+    if dd.empty:
         st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
         return
+    dd.columns = dd.columns.str.strip()
 
     if "staged_data" not in st.session_state or st.session_state.staged_data is None:
         st.session_state.staged_data = get_previous_entry("Mod1")
@@ -310,6 +295,7 @@ def module_scorecard():
             if st.button("💾 Encode Link", type="secondary"):
                 if pdf_link:
                     try:
+                        # Direct un-cached fetch specifically for saving link
                         df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
                         mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
                         if mask.any():
@@ -584,7 +570,6 @@ def generate_print_view_mod2(d):
 # --- 7. ROUTING, LOGIN, & DASHBOARD ---
 
 def get_row_html(title, deadline, is_locked):
-    """Generates a dynamic HTML row that changes color based on lock status."""
     bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
@@ -630,9 +615,8 @@ def login_screen():
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
         if st.session_state.auth_mode == "new":
-            try:
-                h_list = conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List", ttl=0)["Facility_Name"].tolist()
-            except: h_list = []
+            h_df = get_static_sheet("Facility_List")
+            h_list = h_df["Facility_Name"].tolist() if not h_df.empty else []
             h_name = st.selectbox("Hospital Name", [""] + sorted(h_list))
             h_level = st.selectbox("Level", ["", "Level 1", "Level 2", "Level 3", "Specialty"])
             u_name = st.text_input("Your Name")
@@ -643,9 +627,10 @@ def login_screen():
                 else:
                     new_id = generate_custom_id()
                     try:
-                        p_df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
+                        p_df = get_static_sheet("User_Profiles")
                         new_profile = pd.DataFrame([{"User_ID": new_id, "Hospital_Name": h_name, "Service_Capability": h_level, "Encoder_Name": u_name, "Position": u_pos, "Year": 2026}])
                         conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=pd.concat([p_df, new_profile], ignore_index=True))
+                        clear_app_memory() # Clear cache so next login sees the new profile
                         st.session_state.pending_id = new_id
                         st.session_state.pending_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
                         st.rerun()
@@ -654,7 +639,7 @@ def login_screen():
         elif st.session_state.auth_mode == "existing":
             uid = st.text_input("Enter HFDB-2026 ID Code")
             if st.button("Enter Portal", type="primary"):
-                p = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
+                p = get_static_sheet("User_Profiles")
                 if uid in p["User_ID"].astype(str).values:
                     r = p[p["User_ID"].astype(str) == uid].iloc[0]
                     st.session_state.user_id = uid
