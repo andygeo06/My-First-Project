@@ -64,39 +64,51 @@ def get_all_profiles():
     try: return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
     except: return pd.DataFrame(columns=["User_ID", "Hospital_Name", "Service_Capability", "Encoder_Name", "Position", "Year"])
 
-# --- UPDATED: MODULAR SUBMIT LOGIC ---
-def submit_module_data(res_data, module_name="Mod1"):
-    """Saves data to a module-specific sheet (e.g., Mod1) and overrides old entries for that user."""
+def get_previous_entry(module_name="Mod1"):
+    """Fetches the user's previously submitted data for editing."""
     try:
-        # 1. Pull current data from the specific module worksheet
-        try:
-            df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
-        except:
-            # If sheet doesn't exist, start with basic headers
-            df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder"])
+        df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+        if df is not None and "User_ID" in df.columns:
+            user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
+            if not user_data.empty: return user_data.iloc[-1].to_dict()
+    except: pass
+    return {}
+
+def get_module_config(module_name="Mod1"):
+    """Fetches deadline from Config sheet. Assumes Col A = Module, Col B = Deadline Date."""
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
+        row = df[df.iloc[:, 0] == module_name]
+        if not row.empty:
+            deadline_str = str(row.iloc[0, 1]).strip()
+            # Check if past deadline
+            deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
+            is_locked = datetime.now() > deadline_date
+            return deadline_str, is_locked
+    except: pass
+    return "Not Set", False
+
+def get_idx(opts_series, val):
+    """Helper to safely find the index for selectboxes."""
+    opts_list = list(opts_series.dropna().unique())
+    return opts_list.index(val) if val in opts_list else 0
+
+# --- MODULAR SUBMIT LOGIC ---
+def submit_module_data(res_data, module_name="Mod1"):
+    try:
+        try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+        except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder"])
             
         u = st.session_state.user_info
-        
-        # 2. Prep the new record
-        new_record = {
-            "User_ID": st.session_state.user_id,
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Hospital": u["hosp"],
-            "Encoder": u["user"]
-        }
-        # Add the scorecard values
+        new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
         new_record.update(res_data)
-            
         new_df = pd.DataFrame([new_record])
         
-        # 3. Handle Override (Remove old entry for this User_ID in this specific module)
         if "User_ID" in df.columns:
             df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
             
-        # 4. Merge and push back to the module worksheet
         updated_df = pd.concat([df, new_df], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
-        
         st.toast(f"Data successfully synced to {module_name}!", icon="✅")
         return True
     except Exception as e:
@@ -113,100 +125,147 @@ def module_scorecard():
         st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
         return
 
+    # Load Previous Data & Config
+    prev = get_previous_entry("Mod1")
+    deadline_str, locked = get_module_config("Mod1")
+    
+    if "expand_all" not in st.session_state: 
+        st.session_state.expand_all = False
+
+    if locked:
+        st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
+
     # --- STRATEGIC SECTION ---
     st.markdown('<div class="section-header-strat"><h2>📊 STRATEGIC PERFORMANCE INDICATORS</h2></div>', unsafe_allow_html=True)
     
-    with st.expander("🔹 SI 1: % Functionality of PHU", expanded=True):
-        s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value="0%", key="si1_in"))
+    with st.expander("🔹 SI 1: % Functionality of PHU", expanded=st.session_state.expand_all):
+        s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked, key="si1_in"))
         st.caption(f"Captured: **{s1}%**")
         
-    with st.expander("🔹 SI 2: Green Viability Assessment (GVA)"):
-        s2 = clean_pct(st.text_input("GVA Score (e.g., 88%)", value="0%", key="si2_in"))
+    with st.expander("🔹 SI 2: Green Viability Assessment (GVA)", expanded=st.session_state.expand_all):
+        s2 = clean_pct(st.text_input("GVA Score (e.g., 88%)", value=str(prev.get("SI2", "0%")), disabled=locked, key="si2_in"))
         st.caption(f"Captured: **{s2}%**")
 
-    with st.expander("🔹 SI 3: Capital Formation"):
+    with st.expander("🔹 SI 3: Capital Formation", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        cat = c1.selectbox("Category", dd["Indicator 3, DD1"].dropna().unique())
-        src = c2.selectbox("Fund Source", dd["Indicator 3, DD2"].dropna().unique())
-        if "Infrastructure" in str(cat):
-            stat = st.selectbox("Status", dd["Indicator 3, DD3.a"].dropna().unique())
-        else:
-            stat = st.selectbox("Status", dd["Indicator 3, DD3.b"].dropna().unique())
+        cat_opts = dd["Indicator 3, DD1"]
+        src_opts = dd["Indicator 3, DD2"]
+        cat = c1.selectbox("Category", cat_opts.dropna().unique(), index=get_idx(cat_opts, prev.get("SI3_Cat")), disabled=locked)
+        src = c2.selectbox("Fund Source", src_opts.dropna().unique(), index=get_idx(src_opts, prev.get("SI3_Src")), disabled=locked)
+        
+        stat_opts = dd["Indicator 3, DD3.a"] if "Infrastructure" in str(cat) else dd["Indicator 3, DD3.b"]
+        stat = st.selectbox("Status", stat_opts.dropna().unique(), index=get_idx(stat_opts, prev.get("SI3_Stat")), disabled=locked)
 
-    with st.expander("🔹 SI 4: ISO 9001:2015 Accreditation"):
+    with st.expander("🔹 SI 4: ISO 9001:2015 Accreditation", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        iso1 = c1.selectbox("ISO Status", dd["Indicator 4, DD1"].dropna().unique())
-        iso2 = c2.selectbox("Internal Audit", dd["Indicator 4, DD2"].dropna().unique())
+        iso1_opts = dd["Indicator 4, DD1"]
+        iso2_opts = dd["Indicator 4, DD2"]
+        iso1 = c1.selectbox("ISO Status", iso1_opts.dropna().unique(), index=get_idx(iso1_opts, prev.get("SI4_Status")), disabled=locked)
+        iso2 = c2.selectbox("Internal Audit", iso2_opts.dropna().unique(), index=get_idx(iso2_opts, prev.get("SI4_Audit")), disabled=locked)
 
-    with st.expander("🔹 SI 5: PGS Accreditation Status"):
+    with st.expander("🔹 SI 5: PGS Accreditation Status", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        pgs1 = c1.selectbox("2024 PGS Status", dd["Indicator 5, DD1"].dropna().unique())
-        pgs2 = c2.selectbox("2025 PGS Status", dd["Indicator 5, DD2"].dropna().unique())
+        pgs1_opts = dd["Indicator 5, DD1"]
+        pgs2_opts = dd["Indicator 5, DD2"]
+        pgs1 = c1.selectbox("2024 PGS Status", pgs1_opts.dropna().unique(), index=get_idx(pgs1_opts, prev.get("SI5_24")), disabled=locked)
+        pgs2 = c2.selectbox("2025 PGS Status", pgs2_opts.dropna().unique(), index=get_idx(pgs2_opts, prev.get("SI5_25")), disabled=locked)
 
-    with st.expander("🔹 SI 6: Functional Specialty Centers"):
+    with st.expander("🔹 SI 6: Functional Specialty Centers", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        s6v = score_calc(c1.number_input("Functional Centers", 0, key="s6n"), c2.number_input("Target Centers", 1, key="s6d"), "SI 6")
+        s6n = c1.number_input("Functional Centers", value=int(float(prev.get("SI6_N", 0))), disabled=locked, key="s6n")
+        s6d = c2.number_input("Target Centers", value=int(float(prev.get("SI6_D", 1))), disabled=locked, key="s6d")
+        s6v = score_calc(s6n, s6d, "SI 6")
 
-    with st.expander("🔹 SI 7: Zero Co-Payment Patients"):
+    with st.expander("🔹 SI 7: Zero Co-Payment Patients", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        s7v = score_calc(c1.number_input("Zero Co-Pay Patients", 0, key="s7n"), c2.number_input("Total Basic Patients", 1, key="s7d"), "SI 7")
+        s7n = c1.number_input("Zero Co-Pay Patients", value=int(float(prev.get("SI7_N", 0))), disabled=locked, key="s7n")
+        s7d = c2.number_input("Total Basic Patients", value=int(float(prev.get("SI7_D", 1))), disabled=locked, key="s7d")
+        s7v = score_calc(s7n, s7d, "SI 7")
 
-    with st.expander("🔹 SI 8: Paperless EMR Areas"):
+    with st.expander("🔹 SI 8: Paperless EMR Areas", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        s8v = score_calc(c1.number_input("Paperless Areas", 0, key="s8n"), c2.number_input("Expected Areas", 1, key="s8d"), "SI 8")
+        s8n = c1.number_input("Paperless Areas", value=int(float(prev.get("SI8_N", 0))), disabled=locked, key="s8n")
+        s8d = c2.number_input("Expected Areas", value=int(float(prev.get("SI8_D", 1))), disabled=locked, key="s8d")
+        s8v = score_calc(s8n, s8d, "SI 8")
 
     # --- CORE SECTION ---
     st.markdown('<div class="section-header-core"><h2>🎯 CORE QUALITY INDICATORS</h2></div>', unsafe_allow_html=True)
 
-    with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)"):
+    with st.expander("🔸 CI 1: ER Turnaround Time (<4 hrs)", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci1v = score_calc(c1.number_input("ER <4h Count", 0, key="ci1n"), c2.number_input("Total ER Patients", 1, key="ci1d"), "ER TAT")
+        ci1n = c1.number_input("ER <4h Count", value=int(float(prev.get("CI1_N", 0))), disabled=locked, key="ci1n")
+        ci1d = c2.number_input("Total ER Patients", value=int(float(prev.get("CI1_D", 1))), disabled=locked, key="ci1d")
+        ci1v = score_calc(ci1n, ci1d, "ER TAT")
 
-    with st.expander("🔸 CI 2: Discharge Turnaround (<6 hrs)"):
+    with st.expander("🔸 CI 2: Discharge Turnaround (<6 hrs)", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci2v = score_calc(c1.number_input("Discharge <6h Count", 0, key="ci2n"), c2.number_input("Total Discharges", 1, key="ci2d"), "Discharge TAT")
+        ci2n = c1.number_input("Discharge <6h Count", value=int(float(prev.get("CI2_N", 0))), disabled=locked, key="ci2n")
+        ci2d = c2.number_input("Total Discharges", value=int(float(prev.get("CI2_D", 1))), disabled=locked, key="ci2d")
+        ci2v = score_calc(ci2n, ci2d, "Discharge TAT")
 
-    with st.expander("🔸 CI 3: Lab Result Turnaround (<5 hrs)"):
+    with st.expander("🔸 CI 3: Lab Result Turnaround (<5 hrs)", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci3v = score_calc(c1.number_input("Results <5h Count", 0, key="ci3n"), c2.number_input("Total Lab Tests", 1, key="ci3d"), "Lab TAT")
+        ci3n = c1.number_input("Results <5h Count", value=int(float(prev.get("CI3_N", 0))), disabled=locked, key="ci3n")
+        ci3d = c2.number_input("Total Lab Tests", value=int(float(prev.get("CI3_D", 1))), disabled=locked, key="ci3d")
+        ci3v = score_calc(ci3n, ci3d, "Lab TAT")
 
-    with st.expander("🔸 CI 4: Healthcare Associated Infection Rate"):
+    with st.expander("🔸 CI 4: Healthcare Associated Infection Rate", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci4v = score_calc(c1.number_input("Total HAI Cases", 0, key="ci4n"), c2.number_input("Discharges/Deaths >48h", 1, key="ci4d"), "HAI Rate")
+        ci4n = c1.number_input("Total HAI Cases", value=int(float(prev.get("CI4_N", 0))), disabled=locked, key="ci4n")
+        ci4d = c2.number_input("Discharges/Deaths >48h", value=int(float(prev.get("CI4_D", 1))), disabled=locked, key="ci4d")
+        ci4v = score_calc(ci4n, ci4d, "HAI Rate")
 
-    with st.expander("🔸 CI 5: Client Experience Survey"):
+    with st.expander("🔸 CI 5: Client Experience Survey", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci5v = score_calc(c1.number_input("Outstanding Ratings", 0, key="ci5n"), c2.number_input("Total Respondents", 1, key="ci5d"), "Survey")
+        ci5n = c1.number_input("Outstanding Ratings", value=int(float(prev.get("CI5_N", 0))), disabled=locked, key="ci5n")
+        ci5d = c2.number_input("Total Respondents", value=int(float(prev.get("CI5_D", 1))), disabled=locked, key="ci5d")
+        ci5v = score_calc(ci5n, ci5d, "Survey")
 
-    with st.expander("🔸 CI 6: Disbursement Rate"):
+    with st.expander("🔸 CI 6: Disbursement Rate", expanded=st.session_state.expand_all):
         c1, c2 = st.columns(2)
-        ci6v = score_calc(c1.number_input("Total Disbursement", 0.0, key="ci6n"), c2.number_input("Total Allocation", 1.0, key="ci6d"), "Disbursement")
+        ci6n = c1.number_input("Total Disbursement", value=float(prev.get("CI6_N", 0.0)), disabled=locked, key="ci6n")
+        ci6d = c2.number_input("Total Allocation", value=float(prev.get("CI6_D", 1.0)), disabled=locked, key="ci6d")
+        ci6v = score_calc(ci6n, ci6d, "Disbursement")
 
     st.divider()
     c1, c2 = st.columns(2)
-    h_name = c1.text_input("Name of Head of Facility:")
-    h_pos = c2.text_input("Designation of Head of Facility:")
+    h_name = c1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""), disabled=locked)
+    h_pos = c2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
 
-    # Prep the dictionary for submission
+    # Added _N and _D to res so the script remembers them on reload!
     res = {
         "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
-        "SI6": s6v, "SI7": s7v, "SI8": s8v,
-        "CI1": ci1v, "CI2": ci2v, "CI3": ci3v, "CI4": ci4v, "CI5": ci5v, "CI6": ci6v,
+        "SI6": s6v, "SI6_N": s6n, "SI6_D": s6d,
+        "SI7": s7v, "SI7_N": s7n, "SI7_D": s7d,
+        "SI8": s8v, "SI8_N": s8n, "SI8_D": s8d,
+        "CI1": ci1v, "CI1_N": ci1n, "CI1_D": ci1d,
+        "CI2": ci2v, "CI2_N": ci2n, "CI2_D": ci2d,
+        "CI3": ci3v, "CI3_N": ci3n, "CI3_D": ci3d,
+        "CI4": ci4v, "CI4_N": ci4n, "CI4_D": ci4d,
+        "CI5": ci5v, "CI5_N": ci5n, "CI5_D": ci5d,
+        "CI6": ci6v, "CI6_N": ci6n, "CI6_D": ci6d,
         "Head_Name": h_name, "Head_Pos": h_pos
     }
 
     # --- ACTION BUTTONS ---
-    btn_col1, btn_col2 = st.columns(2)
-    
-    with btn_col1:
-        if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
-            submit_module_data(res, "Mod1")
-            st.session_state.show_print = True
-            
-    with btn_col2:
-        if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
-            submit_module_data(res, "Mod1")
+    if not locked:
+        btn_col1, btn_col2 = st.columns(2)
+        
+        with btn_col1:
+            if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
+                submit_module_data(res, "Mod1")
+                st.session_state.show_print = True
+                st.session_state.expand_all = True
+                st.rerun()
+                
+        with btn_col2:
+            if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
+                submit_module_data(res, "Mod1")
+                st.session_state.expand_all = True
+                st.rerun()
+    else:
+        st.warning("🔒 Submissions are disabled because the deadline has passed. Data can be viewed but not altered or printed.")
 
     if st.session_state.get("show_print", False):
         generate_print_view(res)
@@ -298,14 +357,36 @@ def dashboard():
     u = st.session_state.user_info
     st.title("🏥 Project FORT Dashboard")
     st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
-    if st.button("📊 Hospital Scorecard", use_container_width=True):
-        st.session_state.current_module = "Mod1"; st.rerun()
+    
+    # New Deadline Display Logic
+    deadline_str, locked = get_module_config("Mod1")
+    status = "🔒 CLOSED" if locked else "🟢 OPEN"
+    
+    st.markdown("---")
+    st.markdown("### 📋 Available Modules")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1: st.markdown("**Module**")
+    with col2: st.markdown("**Deadline**")
+    with col3: st.markdown("**Status**")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1: st.markdown("Hospital Scorecard (Mod1)")
+    with col2: st.markdown(f"`{deadline_str}`")
+    with col3: st.markdown(f"**{status}**")
+    
+    if st.button("📊 Open Scorecard", use_container_width=True):
+        st.session_state.current_module = "Mod1"
+        st.rerun()
+        
+    st.markdown("---")
     if st.button("Logout"): st.session_state.clear(); st.rerun()
 
 if "user_id" not in st.session_state: login_screen()
 elif "current_module" in st.session_state:
     if st.button("🏠 Home"): 
         if "show_print" in st.session_state: del st.session_state.show_print
+        if "expand_all" in st.session_state: del st.session_state.expand_all
         del st.session_state.current_module
         st.rerun()
     module_scorecard()
