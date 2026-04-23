@@ -26,6 +26,17 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- 3. DATABASE FUNCTIONS ---
 
+def get_facility_list():
+    """Fetches the master list of authorized facilities."""
+    try:
+        # Pulls from the new 'Facility_List' tab
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Facility_List", ttl=0)
+        # Convert the column to a sorted list, removing any empty rows
+        return sorted(df["Facility_Name"].dropna().unique().tolist())
+    except Exception as e:
+        st.error(f"Error loading Facility List: {e}")
+        return ["Error loading list..."]
+
 def get_all_profiles():
     try:
         return conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl=0)
@@ -58,6 +69,7 @@ def login_screen():
     st.divider()
 
     if "auth_mode" not in st.session_state:
+        # ... (keep your Mode Selection buttons here) ...
         st.subheader("Please choose an option to begin:")
         c1, c2 = st.columns(2)
         if c1.button("🆕\n\nNEW USER\n\nCreate a Profile", use_container_width=True, key="gate_new"):
@@ -73,39 +85,38 @@ def login_screen():
 
         if st.session_state.auth_mode == "new":
             st.subheader("📝 Register New Submitter Profile")
-            h_name = st.text_input("Full Hospital Name:")
+            
+            # --- NEW DROPDOWN LOGIC ---
+            authorized_facilities = get_facility_list()
+            h_name = st.selectbox("Select Your Hospital/Facility:", options=[""] + authorized_facilities, help="Start typing to search")
+            
             u_name = st.text_input("Name of Encoder:")
             pos = st.text_input("Official Position:")
             
             if st.button("🚀 Register & Generate Code", type="secondary"):
                 if not h_name or not u_name or not pos:
-                    st.error("Fields cannot be blank.")
+                    st.error("Please select a hospital and fill in all fields.")
                 else:
-                    # 1. Fetch latest data to check for duplicates
                     profiles = get_all_profiles()
-                    
-                    # 2. Check if Hospital Name already exists (Case-insensitive)
                     existing_hospitals = profiles["Hospital_Name"].str.upper().str.strip().tolist()
                     current_h_input = h_name.upper().strip()
 
                     if current_h_input in existing_hospitals:
                         st.error(f"🛑 Error: {h_name} already has an existing account.")
-                        st.info("Redirecting you to the Login screen...")
-                        
-                        # Wait 2 seconds so they can read the error, then redirect
+                        st.info("Redirecting to Login screen...")
                         import time
                         time.sleep(2.5)
                         st.session_state.auth_mode = "existing"
                         st.rerun()
                     else:
-                        # 3. Proceed with Registration if no duplicate found
                         new_id = f"HFDB-2026-{uuid.uuid4().hex[:8].upper()}"
                         if save_new_profile(new_id, h_name, u_name, pos):
                             st.session_state.generated_id = new_id
                             st.session_state.reg_success = True
                             st.session_state.temp_info = {"hosp": h_name, "user": u_name}
-                            
+
             if st.session_state.get("reg_success"):
+                # ... (keep your success and Enter Dashboard code) ...
                 st.success("✅ Profile Registered!")
                 st.code(st.session_state.generated_id)
                 if st.button("Enter Dashboard", type="primary"):
@@ -113,6 +124,7 @@ def login_screen():
                     st.session_state.user_info = st.session_state.temp_info
                     st.rerun()
 
+        # ... (keep your Existing User elif block) ...
         elif st.session_state.auth_mode == "existing":
             st.subheader("🔓 Access Your Existing Profile")
             input_id = st.text_input("Enter User Identification Code:")
@@ -125,7 +137,7 @@ def login_screen():
                     st.rerun()
                 else:
                     st.error("Code not found.")
-
+                    
 # --- 5. UI: DASHBOARD ---
 
 def dashboard():
