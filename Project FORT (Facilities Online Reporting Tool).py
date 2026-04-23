@@ -1,136 +1,135 @@
 import streamlit as st
-import uuid
 import pandas as pd
+import uuid
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide")
+# --- 1. INITIAL CONFIGURATION ---
+st.set_page_config(page_title="HFDB Online Data Submission Portal", layout="wide", initial_sidebar_state="collapsed")
 
-# Mock function to simulate Google Sheets connection
-def get_submission_by_code(code, hospital_id, module_sheet):
-    # In reality, this would be: conn.read(query=f"SELECT * FROM {module_sheet} WHERE Code='{code}'")
-    return None # Returns None if new, or a Dict if editing
+# Connection to Google Sheets (Project FORT)
+# Note: Ensure secrets are set in Streamlit Cloud for GSheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-import streamlit as st
+# Module Mapping
+MODULES = {
+    "Mod1": {"name": "Hospital Scorecard", "icon": "📊", "sheet": "Mod1"},
+    "Mod2": {"name": "Financial Data", "icon": "💰", "sheet": "Mod2"},
+    "Mod3": {"name": "Hospital MOOE", "icon": "🏥", "sheet": "Mod3"}
+}
 
-# --- CUSTOM CSS FOR INTERACTIVE CARDS ---
-st.markdown("""
-<style>
-    .module-card {
-        background-color: #f0f2f6;
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid #d1d5db;
-        transition: transform 0.2s;
-        cursor: pointer;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    .module-card:hover {
-        transform: scale(1.02);
-        border-color: #2e7d32;
-        background-color: #e8f5e9;
-    }
-</style>
-""", unsafe_allow_html=True)
+# --- 2. SHARED FUNCTIONS (ACCOUNTABILITY & UTILITIES) ---
+
+def generate_edit_code():
+    return f"HFDB-{uuid.uuid4().hex[:6].upper()}"
+
+def get_status_color(status):
+    if status == "Submitted": return "🟢"
+    if status == "In Progress": return "🟡"
+    return "⚪"
+
+def accountability_header(mod_name):
+    """Reusable header for all modules to ensure accountability."""
+    st.markdown(f"### 🔐 {mod_name}: Verification")
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        hosp = c1.text_input("Hospital Name", value=st.session_state.get('hosp_name', ""))
+        enc = c2.text_input("Encoder Name", value=st.session_state.get('encoder', ""))
+        pos = c3.text_input("Position", value=st.session_state.get('position', ""))
+        
+        # Save to session state for persistence across modules
+        st.session_state.hosp_name, st.session_state.encoder, st.session_state.position = hosp, enc, pos
+    
+    return hosp and enc and pos
+
+# --- 3. PAGE: HOME DASHBOARD ---
 
 def home_page():
     st.title("🏥 HFDB Online Data Submission Portal")
-    st.markdown("---")
-    
-    # Header for progress
-    st.subheader("Your Submission Progress")
-    
-    # The Modules Data Structure
-    modules = [
-        {"id": "Mod1", "name": "Hospital Scorecard", "status": "Submitted", "icon": "📊"},
-        {"id": "Mod2", "name": "Financial Data", "status": "In Progress", "icon": "💰"},
-        {"id": "Mod3", "name": "Hospital MOOE", "status": "Pending", "icon": "🏥"}
-    ]
+    st.markdown("#### *Clean Slate: 2026 Data Cycle*")
+    st.divider()
 
-    # Create Responsive Columns (1 column on mobile, 3 on desktop)
-    cols = st.columns(3)
-
-    for i, mod in enumerate(modules):
+    # Dashboard Progress Section
+    st.subheader("Your Submission Modules")
+    
+    # Grid Layout for Mobile-Friendly Cards
+    cols = st.columns(len(MODULES))
+    
+    for i, (key, info) in enumerate(MODULES.items()):
+        # Mock status check - in production, this reads 'Status' from the GSheet
+        status = st.session_state.get(f"status_{key}", "Pending")
+        indicator = get_status_color(status)
+        
         with cols[i]:
-            # Status Indicator Logic
-            indicator = "🟢" if mod['status'] == "Submitted" else "🟡" if mod['status'] == "In Progress" else "⚪"
-            
-            # THE CARD (Wrapped in a button to make it interactive)
-            if st.button(f"{mod['icon']} {mod['name']}\n\nStatus: {indicator} {mod['status']}", 
-                         key=mod['id'], 
-                         use_container_width=True):
-                st.session_state.page = mod['id']
+            # The Card Component (Styled Button)
+            card_label = f"{info['icon']} {info['name']}\n\n{indicator} {status}"
+            if st.button(card_label, key=key, use_container_width=True):
+                st.session_state.current_mod = key
+                st.session_state.page = "Module_Entry"
                 st.rerun()
 
+# --- 4. PAGE: UNIVERSAL MODULE ENTRY ---
 
-# --- SHARED COMPONENTS ---
-def accountability_header(module_name):
-    st.info(f"📍 Module: {module_name}")
-    with st.expander("🔐 Accountability & Edit Access", expanded=True):
-        c1, c2 = st.columns(2)
-        edit_code = c1.text_input("Enter Edit Code (Leave blank for New Submission)", help="Enter a previous code to load your data.")
-        
-        st.divider()
-        
-        c3, c4, c5 = st.columns(3)
-        hosp_name = c3.text_input("Hospital Name", value=st.session_state.get('hosp_name', ""))
-        encoder = c4.text_input("Encoder Name", value=st.session_state.get('encoder', ""))
-        position = c5.text_input("Position", value=st.session_state.get('pos', ""))
-        
-        # Persistence
-        st.session_state.hosp_name, st.session_state.encoder, st.session_state.pos = hosp_name, encoder, position
-        
-    return edit_code, (hosp_name and encoder and position)
-
-# --- HOME PAGE ---
-def home_page():
-    st.title("🏥 HFDB Online Data Submission Portal (2026)")
+def module_entry_page():
+    mod_key = st.session_state.current_mod
+    mod_info = MODULES[mod_key]
     
-    # Dashboard Section
-    st.subheader("Your Submission Progress")
-    # Mock data for demonstration
-    modules = {"Mod1: Scorecard": "Submitted", "Mod2: Financial": "In Progress", "Mod3: MOOE": "Pending"}
+    st.button("⬅️ Back to Dashboard", on_click=lambda: st.session_state.update({"page": "Home"}))
+    st.header(f"{mod_info['icon']} {mod_info['name']}")
     
-    cols = st.columns(len(modules))
-    for i, (name, status) in enumerate(modules.items()):
-        color = "🟢" if status == "Submitted" else "🟡" if status == "In Progress" else "⚪"
-        cols[i].metric(label=name, value=status, delta=color, delta_color="normal")
+    # A. EDIT CODE BLOCK
+    with st.expander("🔑 Have an Edit Code? Click here to load previous data"):
+        edit_code_input = st.text_input("Enter 8-digit Code")
+        if st.button("Retrieve Submission"):
+            st.info("Searching Project FORT for your record...")
+            # Logic: conn.read() where Code == edit_code_input
 
-    st.divider()
-    if st.button("🚀 Enter Hospital MOOE Module (Mod3)", use_container_width=True):
-        st.session_state.page = "MOOE"
-        st.rerun()
-
-# --- MODULE: MOOE ---
-def module_mooe():
-    st.header("📊 Hospital MOOE Entry")
-    edit_code, is_valid = accountability_header("Hospital MOOE")
+    # B. ACCOUNTABILITY HEADER
+    is_valid = accountability_header(mod_info['name'])
     
-    # Logic to load previous data if edit_code is provided
-    if edit_code:
-        st.warning(f"Attempting to load data for code: {edit_code}...")
-        # (Insert code here to fetch from Google Sheets and fill session_state)
+    # C. DYNAMIC DATA FIELDS (Sample Fields)
+    st.markdown("---")
+    st.subheader("Entry Form")
+    with st.container():
+        # Example fields - these will change per module in the future
+        data_a = st.number_input("Numerical Data Point", min_value=0)
+        data_b = st.text_area("Narrative/Remarks")
 
-    st.subheader("Financial Reporting")
-    ps_value = st.number_input("Personnel Services (PS)", value=0)
-    mooe_value = st.number_input("Maintenance and Other Operating Expenses", value=0)
+    # D. SUBMISSION ACTIONS
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        if st.button("💾 Save as Temporary Draft"):
+            # Update Status to In Progress and Sync to Sheet
+            st.session_state[f"status_{mod_key}"] = "In Progress"
+            st.toast("Draft saved to Google Sheets.")
+            
+    with c2:
+        if st.button("✅ Finalize Submission", type="primary", disabled=not is_valid):
+            new_code = generate_edit_code()
+            # Logic to write to GSheets 'ModX' sheet
+            st.session_state[f"status_{mod_key}"] = "Submitted"
+            st.success(f"Successfully Submitted! **Edit Code: {new_code}**")
+            st.balloons()
 
-    if st.button("Finalize & Get Submission Code", disabled=not is_valid):
-        # Generate Code
-        new_code = f"HFDB-{uuid.uuid4().hex[:6].upper()}"
-        
-        # ACTION: Save to Google Sheet (Hospital_ID, Code, Data, etc.)
-        st.success(f"Successfully Submitted! Your Edit Code is: **{new_code}**")
-        st.code(new_code)
-        st.info("Keep this code safe. You will need it to edit this submission later.")
-        
-        if st.button("Return Home"):
-            st.session_state.page = "Home"
-            st.rerun()
+# --- 5. APP ROUTER ---
 
-# --- ROUTER ---
-if 'page' not in st.session_state: st.session_state.page = "Home"
+if 'page' not in st.session_state:
+    st.session_state.page = "Home"
 
-if st.session_state.page == "Home": home_page()
-elif st.session_state.page == "MOOE": module_mooe()
+if st.session_state.page == "Home":
+    home_page()
+elif st.session_state.page == "Module_Entry":
+    module_entry_page()
+
+# --- CSS FOR CUSTOM BUTTON HEIGHTS (MOBILE OPTIMIZATION) ---
+st.markdown("""
+<style>
+    div.stButton > button {
+        height: 150px;
+        border-radius: 15px;
+        font-size: 18px;
+        font-weight: bold;
+    }
+</style>
+""", unsafe_allow_html=True)
