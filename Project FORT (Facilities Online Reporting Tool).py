@@ -17,13 +17,13 @@ st.set_page_config(
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. PREMIUM COMPACT CSS ENGINE ---
+# --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET ALIGNMENT) ---
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     
-    /* Fixed Top Header Space (Not too aggressive now!) */
-    .block-container {{ padding-top: 3rem !important; padding-bottom: 3rem !important; }}
+    /* Comfortable Top Space (Fixes cut-off titles) */
+    .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
     
     .section-header-strat {{
         background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0;
@@ -45,36 +45,42 @@ st.markdown(f"""
         border-top: 1px solid #30363D;
     }}
 
-    /* === BUTTON COLOR OVERRIDES (COMPACT HEIGHTS) === */
-    /* Module 1 - Strategic Blue */
-    div.mod1-btn button {{
+    /* === SILVER BULLET BUTTON COLORING (No Alignment Issues) === */
+    
+    /* 1. Completely hide the marker container so it adds ZERO spacing */
+    div.element-container:has(.marker) {{
+        display: none !important;
+    }}
+
+    /* 2. Green Button (New User) */
+    div.element-container:has(.marker-green) + div.element-container button {{
+        background-color: #15803d !important; color: white !important;
+        border: 1px solid #22c55e !important; font-weight: bold !important;
+        height: 3em !important; width: 100% !important; transition: 0.3s !important;
+    }}
+    div.element-container:has(.marker-green) + div.element-container button:hover {{
+        background-color: #166534 !important; border-color: #FFFFFF !important;
+    }}
+
+    /* 3. Blue Button (Module 1) */
+    div.element-container:has(.marker-blue) + div.element-container button {{
         background-color: #1A365D !important; color: white !important;
         border: 1px solid #3B82F6 !important; font-weight: bold !important;
         height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
-    div.mod1-btn button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
-
-    /* Module 2 - Core Red/Rust */
-    div.mod2-btn button {{
-        background-color: #7B341E !important; color: white !important;
-        border: 1px solid #EF4444 !important; font-weight: bold !important;
-        height: 3em !important; width: 100% !important; transition: 0.3s !important;
+    div.element-container:has(.marker-blue) + div.element-container button:hover {{
+        background-color: #2563EB !important; border-color: #FFFFFF !important;
     }}
-    div.mod2-btn button:hover {{ background-color: #991B1B !important; border-color: #FFFFFF !important; }}
-    
-    /* New User - Green */
-    div.new-user-btn button {{
-        background-color: #15803d !important; color: white !important;
-        border: 1px solid #22c55e !important; font-weight: bold !important;
-    }}
-    div.new-user-btn button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
 
-    /* Logout - Red */
-    div.logout-btn button {{
+    /* 4. Red Button (Module 2, Logout, Existing User) */
+    div.element-container:has(.marker-red) + div.element-container button {{
         background-color: #dc2626 !important; color: white !important;
         border: 1px solid #ef4444 !important; font-weight: bold !important;
+        height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
-    div.logout-btn button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
+    div.element-container:has(.marker-red) + div.element-container button:hover {{
+        background-color: #991b1b !important; border-color: #FFFFFF !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -615,11 +621,11 @@ def login_screen():
     if "auth_mode" not in st.session_state:
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown('<div class="new-user-btn">', unsafe_allow_html=True)
+            st.markdown('<div class="marker marker-green"></div>', unsafe_allow_html=True)
             if st.button("🆕 NEW USER", use_container_width=True): st.session_state.auth_mode = "new"; st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
         with c2:
-            if st.button("🔑 EXISTING USER", use_container_width=True, type="primary"): st.session_state.auth_mode = "existing"; st.rerun()
+            st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
+            if st.button("🔑 EXISTING USER", use_container_width=True): st.session_state.auth_mode = "existing"; st.rerun()
     else:
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
@@ -665,8 +671,8 @@ def dashboard():
     d2_str, d2_locked = get_module_config("Mod2")
     
     modules = [
-        {"id": "Mod1", "title": "📊 Hospital Scorecard", "date": d1_str, "locked": d1_locked, "btn_class": "mod1-btn"},
-        {"id": "Mod2", "title": "📈 Hospital Census & HCPN", "date": d2_str, "locked": d2_locked, "btn_class": "mod2-btn"}
+        {"id": "Mod1", "title": "📊 Hospital Scorecard", "date": d1_str, "locked": d1_locked, "marker": "marker-blue"},
+        {"id": "Mod2", "title": "📈 Hospital Census & HCPN", "date": d2_str, "locked": d2_locked, "marker": "marker-red"}
     ]
     
     ongoing = [m for m in modules if not m["locked"]]
@@ -677,11 +683,10 @@ def dashboard():
         st.markdown("### 🟢 Ongoing Data Submission Modules")
         for m in ongoing:
             st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
-            st.markdown(f'<div class="{m["btn_class"]}">', unsafe_allow_html=True)
+            st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"OPEN {m['id'].upper()}", use_container_width=True, key=f"btn_on_{m['id']}"):
                 st.session_state.current_module = m['id']
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
             st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
 
     # --- LAPSED MODULES ---
@@ -689,18 +694,16 @@ def dashboard():
         st.markdown("### 🔴 Lapsed Data Submission Modules")
         for m in lapsed:
             st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
-            st.markdown(f'<div class="{m["btn_class"]}">', unsafe_allow_html=True)
+            st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"VIEW {m['id'].upper()} (READ-ONLY)", use_container_width=True, key=f"btn_lap_{m['id']}"):
                 st.session_state.current_module = m['id']
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
             st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
         
-    st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
+    st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): 
         st.session_state.clear()
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 8. TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
