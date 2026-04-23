@@ -4,19 +4,19 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- 1. THE PAINT PALETTE (Dark Mode Compact) ---
+# --- 1. THE PAINT PALETTE (Centralized Styles) ---
 COLORS = {
-    "main_background": "#0E1117",      # Deep Midnight Background
-    "sidebar_content": "#161B22",      # Secondary background
-    "card_background": "#21262D",      # Dark Slate for Module Cards
-    "card_text": "#C9D1D9",            # Off-white text
-    "card_hover": "#30363D",           # Lighter gray for hover
-    "new_user_btn": "#1F6FEB",         # Bright Blue
-    "existing_user_btn": "#238636",    # Forest Green
-    "border_color": "#30363D",         # Subtle border
-    "button_height": "auto",           # Compact height
-    "button_padding": "15px 10px",     # Reduced padding for sleeker look
-    "font_size": "1.1rem"              # Text size
+    "main_background": "#0E1117",      # Global background
+    "sidebar_content": "#161B22",      
+    "card_background": "#21262D",      # Module card color
+    "card_text": "#C9D1D9",            # Font color
+    "card_hover": "#30363D",           
+    "new_user_btn": "#1F6FEB",         # Blue for New User
+    "existing_user_btn": "#238636",    # Green for Existing User
+    "border_color": "#30363D",
+    "button_height": "auto",           # Compact setting
+    "button_padding": "15px 10px",     # Tight padding around text
+    "font_size": "1.1rem"
 }
 
 # --- 2. CONFIG & CONNECTION ---
@@ -51,29 +51,21 @@ def save_new_profile(user_id, h_name, u_name, pos):
         st.error(f"Sync Error: {e}")
         return False
 
-# --- 4. UI COMPONENTS ---
+# --- 4. UI: LOGIN SCREEN ---
 
 def login_screen():
     st.title("🏥 HFDB Online Data Submission Portal")
-    st.markdown("### National Health Facility Data Entry (2026)")
     st.divider()
 
-    # STEP 1: MODE SELECTION
     if "auth_mode" not in st.session_state:
         st.subheader("Please choose an option to begin:")
         c1, c2 = st.columns(2)
-        
-        with c1:
-            if st.button("🆕\n\nNEW USER\n\nCreate a Profile", use_container_width=True, key="btn_mode_new"):
-                st.session_state.auth_mode = "new"
-                st.rerun()
-        with c2:
-            # We use type="primary" to link to our custom Green CSS later
-            if st.button("🔑\n\nEXISTING USER\n\nContinue Work", use_container_width=True, type="primary", key="btn_mode_exist"):
-                st.session_state.auth_mode = "existing"
-                st.rerun()
-
-    # STEP 2: INPUTS
+        if c1.button("🆕\n\nNEW USER\n\nCreate a Profile", use_container_width=True, key="gate_new"):
+            st.session_state.auth_mode = "new"
+            st.rerun()
+        if c2.button("🔑\n\nEXISTING USER\n\nContinue Work", use_container_width=True, type="primary", key="gate_exist"):
+            st.session_state.auth_mode = "existing"
+            st.rerun()
     else:
         if st.button("⬅️ Back to Selection"):
             del st.session_state.auth_mode
@@ -95,13 +87,10 @@ def login_screen():
                         st.session_state.reg_success = True
                         st.session_state.temp_info = {"hosp": h_name, "user": u_name}
 
-            # If registered successfully, show code and the 'Enter' button
             if st.session_state.get("reg_success"):
-                st.success("✅ Profile Registered in Project FORT!")
+                st.success("✅ Profile Registered!")
                 st.code(st.session_state.generated_id)
-                st.warning("⚠️ **SAVE THIS CODE.** You cannot log back in without it.")
-                
-                if st.button("Proceed to Dashboard", type="primary"):
+                if st.button("Enter Dashboard", type="primary"):
                     st.session_state.user_id = st.session_state.generated_id
                     st.session_state.user_info = st.session_state.temp_info
                     st.rerun()
@@ -109,35 +98,29 @@ def login_screen():
         elif st.session_state.auth_mode == "existing":
             st.subheader("🔓 Access Your Existing Profile")
             input_id = st.text_input("Enter User Identification Code:")
-    
             if st.button("Verify & Enter Portal", type="primary"):
                 profiles = get_all_profiles()
-        
-        # Cleaner check: Convert the column to a list for a direct 'in' check
                 if input_id in profiles["User_ID"].astype(str).tolist():
                     row = profiles[profiles["User_ID"] == input_id].iloc[0]
                     st.session_state.user_id = input_id
-                    st.session_state.user_info = {
-                        "hosp": row["Hospital_Name"], 
-                        "user": row["Encoder_Name"]
-                    }
+                    st.session_state.user_info = {"hosp": row["Hospital_Name"], "user": row["Encoder_Name"]}
                     st.rerun()
                 else:
-                    st.error("Code not found. Please check your spelling or register as new.")
+                    st.error("Code not found.")
 
-# --- 5. DASHBOARD ---
+# --- 5. UI: DASHBOARD ---
 
 def dashboard():
     st.title("🏥 Module Selection")
     st.info(f"Facility: **{st.session_state.user_info['hosp']}** | User: **{st.session_state.user_info['user']}**")
     
+    cols = st.columns(3)
     modules = [
         {"key": "Mod1", "name": "Hospital Scorecard", "icon": "📊"},
         {"key": "Mod2", "name": "Financial Data", "icon": "💰"},
         {"key": "Mod3", "name": "Hospital MOOE", "icon": "🏥"}
     ]
     
-    cols = st.columns(3)
     for i, mod in enumerate(modules):
         with cols[i]:
             if st.button(f"{mod['icon']} {mod['name']}\n\nStatus: ⚪ Pending", key=mod['key'], use_container_width=True):
@@ -145,7 +128,7 @@ def dashboard():
                 st.rerun()
     
     st.divider()
-    if st.button("Logout / Switch User"):
+    if st.button("Logout"):
         st.session_state.clear()
         st.rerun()
 
@@ -155,31 +138,19 @@ if "user_id" not in st.session_state:
     login_screen()
 elif "current_module" in st.session_state:
     st.header(f"{st.session_state.current_module['icon']} {st.session_state.current_module['name']}")
-    st.write("Form fields will be added here next.")
     if st.button("Back to Dashboard"):
         del st.session_state.current_module
         st.rerun()
 else:
     dashboard()
 
-# --- 1. THE PAINT PALETTE (Updated with Spacing) ---
-COLORS = {
-    # ... keep your other colors same ...
-    "button_height": "auto",           # Changed from 140px to 'auto'
-    "button_padding": "20px 10px",     # Top/Bottom: 20px, Left/Right: 10px
-    "font_size": "1.1rem"              # Balanced size
-}
-
 # --- 7. CSS ENGINE ---
 st.markdown(f"""
 <style>
-    /* Global App Background */
     .stApp {{
         background-color: {COLORS['main_background']};
         color: {COLORS['card_text']};
     }}
-
-    /* Balanced Card Buttons */
     div.stButton > button {{
         height: {COLORS['button_height']};
         padding: {COLORS['button_padding']} !important;
@@ -189,17 +160,12 @@ st.markdown(f"""
         background-color: {COLORS['card_background']};
         color: {COLORS['card_text']};
         border: 1px solid {COLORS['border_color']};
-        transition: all 0.2s ease;
+        transition: 0.3s;
     }}
-
-    /* Hover effect */
     div.stButton > button:hover {{
         background-color: {COLORS['card_hover']} !important;
         border-color: {COLORS['new_user_btn']} !important;
-        transform: translateY(-2px);
     }}
-
-    /* Existing User / Primary Button styling */
     button[kind="primary"] {{
         background-color: {COLORS['existing_user_btn']} !important;
         color: white !important;
