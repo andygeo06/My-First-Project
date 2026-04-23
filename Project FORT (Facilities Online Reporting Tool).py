@@ -87,7 +87,7 @@ def login_screen():
             st.subheader("📝 Register New Submitter Profile")
             facility_list = get_facility_list()
             h_name = st.selectbox("Select Your Hospital:", options=[""] + facility_list)
-            h_level = st.selectbox("Service Capability (Hospital Level):", options=["", "Level 1", "Level 2", "Level 3", "Specialty Hospital"])
+            h_level = st.selectbox("Service Capability (Hospital Level):", options=["", "Level 1", "Level 2", "Level 3"])
             u_name = st.text_input("Name of Encoder:")
             pos = st.text_input("Official Designation/Position:")
             
