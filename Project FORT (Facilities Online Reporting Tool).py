@@ -237,52 +237,28 @@ elif "current_module" in st.session_state:
 else:
     dashboard()
 
-# --- 7. CSS ENGINE (Tiered Font Sizes) ---
+# --- 7. CSS ENGINE ---
 st.markdown(f"""
 <style>
-    /* Global App Background */
     .stApp {{
         background-color: {COLORS['main_background']};
         color: {COLORS['card_text']};
     }}
-
-    /* Balanced Card Buttons */
     div.stButton > button {{
-        height: auto;
-        padding: 25px 15px !important;
+        height: {COLORS['button_height']};
+        padding: {COLORS['button_padding']} !important;
         border-radius: 12px;
+        font-weight: 600;
+        font-size: {COLORS['font_size']};
         background-color: {COLORS['card_background']};
         color: {COLORS['card_text']};
         border: 1px solid {COLORS['border_color']};
-        transition: all 0.2s ease;
-        
-        /* This is the key: it treats the text as a block */
-        display: block; 
-        text-align: center;
-        line-height: 1.6;
+        transition: 0.3s;
     }}
-
-    /* Targeting the first line (Module Name) */
-    div.stButton > button::first-line {{
-        font-size: 1.4rem !important;
-        font-weight: bold !important;
-        color: #FFFFFF !important;
-    }}
-
-    /* Targeting everything after the first line (Deadline & Status) */
-    div.stButton > button {{
-        font-size: 0.9rem;
-        font-weight: 400;
-    }}
-
-    /* Hover effect */
     div.stButton > button:hover {{
         background-color: {COLORS['card_hover']} !important;
         border-color: {COLORS['new_user_btn']} !important;
-        transform: translateY(-2px);
     }}
-
-    /* Existing User / Primary Button styling */
     button[kind="primary"] {{
         background-color: {COLORS['existing_user_btn']} !important;
         color: white !important;
