@@ -583,22 +583,41 @@ def module_gva():
         if st.button("🖨️ Print General Information for Signature", use_container_width=True):
             def fmt_char(checked, dist): return f"Yes ({dist})" if checked and dist else "Yes" if checked else "No"
             html = f"""
-            <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Facility:</b> {u['hosp']}</td><td style="border: 1px solid #333; padding: 6px;"><b>Level:</b> {u.get('level','Level 1')}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc} Beds</td><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Gross Floor Area (TGFA):</b> {tgfa} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Latitude:</b> {final_lat}</td><td style="border: 1px solid #333; padding: 6px;"><b>Longitude:</b> {final_long}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px; background:#f0f0f0;" colspan="2"><b>Facility Characteristics</b></td></tr>
+            <table style="width:100%; border-collapse: collapse; font-size: 12px;">
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px; background:#e0e0e0;"><b>Facility Overview</b></td></tr>
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px;"><b>Facility Name:</b> {u['hosp']}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Type:</b> {h_type}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own} ({h_subown})</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Province/Muni:</b> {h_prov}, {h_muni}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc}</td><td style="border: 1px solid #333; padding: 6px;"><b>IBC:</b> {ibc}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td><td style="border: 1px solid #333; padding: 6px;"><b>BOR (%):</b> {bor}</td></tr>
+                
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px; background:#e0e0e0;"><b>Personnel & Officers</b></td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>EECO:</b> {eeco_name} <br>({eeco_num} | {eeco_email})</td><td style="border: 1px solid #333; padding: 6px;"><b>PCO:</b> {pco_name} <br>({pco_num} | {pco_email})</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Clinical / Non-Clinical:</b> {clin_staff} / {non_clin}</td><td style="border: 1px solid #333; padding: 6px;"><b>Admin / Janitorial:</b> {admin_staff} / {jan_sec}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Security / Coterminous:</b> {sec_staff} / {coterm_staff}</td><td style="border: 1px solid #333; padding: 6px;"></td></tr>
+                
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px; background:#e0e0e0;"><b>Geographical & Testing</b></td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>TGFA:</b> {tgfa} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Lot Area:</b> {lot_area} sq.m</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Green Space:</b> {green_space} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Coords (Lat, Long):</b> {final_lat}, {final_long}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Hammer Test:</b> {hammer_test} <br><i>{hammer_details}</i></td><td style="border: 1px solid #333; padding: 6px;"><b>HSI Test:</b> {hsi_test} <br><i>{hsi_details}</i></td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Soil Test:</b> {soil_test} ({soil_date})</td><td style="border: 1px solid #333; padding: 6px;"></td></tr>
+                
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px; background:#e0e0e0;"><b>Facility Characteristics</b></td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Coastal Area:</b> {fmt_char(c_coast, d_coast)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Mountainous:</b> {fmt_char(c_mount, d_mount)}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Low Lying:</b> {fmt_char(c_low, d_low)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Deep Well:</b> {fmt_char(c_deep, d_deep)}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Landslide Prone:</b> {fmt_char(c_land, d_land)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Low Flood Suscep.:</b> {fmt_char(c_flood, d_flood)}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px; background:#f0f0f0;" colspan="2"><b>Hazard Distances</b></td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Fault Line Dist:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Volcano Dist:</b> {dist_volc} km</td></tr>
+                
+                <tr><td colspan="2" style="border: 1px solid #333; padding: 6px; background:#e0e0e0;"><b>Hazard Distances</b></td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Fault Line:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Volcano:</b> {dist_volc} km</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Sea:</b> {dist_sea} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Major Highway:</b> {dist_hw} km</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Railroad:</b> {dist_rail} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Hazardous Activity:</b> {dist_haz} km</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Oil Deposit:</b> {dist_oil} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Industrial Est.:</b> {dist_ind} km</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>River Bank:</b> {dist_river} m</td><td style="border: 1px solid #333; padding: 6px;"><b>Creeks:</b> {dist_creek} m</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Lake:</b> {dist_lake} m</td><td style="border: 1px solid #333; padding: 6px;"><b>Other ({dist_other_desc}):</b> {dist_other_val}</td></tr>
             </table>
             """
             render_modular_print("GENERAL INFORMATION", html, sign_name, sign_pos)
-
+            
     # --- PART 2: CONSUMPTION DATA ---
     st.header("2️⃣ MULTI-YEAR CONSUMPTION DATA")
     years = [str(y) for y in range(2022, 2029)]
