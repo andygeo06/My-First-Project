@@ -24,25 +24,23 @@ st.markdown(f"""
     
     .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
     
-    .section-header-strat {{
-        background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0;
-        text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 10px;
+    /* Sticky Hospital Header */
+    .sticky-header {{
+        position: -webkit-sticky; position: sticky; top: 2.8rem;
+        background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
+        padding: 12px 20px; border-radius: 8px; border: 1px solid #3B82F6;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999;
+        margin-bottom: 25px; text-align: center;
     }}
-    .section-header-core {{
-        background-color: #7B341E; padding: 10px; border-radius: 8px 8px 0 0;
-        text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 10px;
-    }}
+    .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.3rem; font-weight: bold; }}
+    .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }}
 
-    div[data-testid="stExpander"] {{
-        background-color: #161B22 !important; border: 1px solid #30363D !important;
-        border-radius: 6px !important; margin-bottom: 8px; transition: 0.3s;
-    }}
+    .section-header-strat {{ background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 10px; }}
+    .section-header-core {{ background-color: #7B341E; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 10px; }}
+
+    div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 8px; transition: 0.3s; }}
     div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
-    
-    div[data-testid="stExpander"] div[role="region"] {{
-        background-color: #0D1117 !important; padding: 15px !important;
-        border-top: 1px solid #30363D;
-    }}
+    div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 15px !important; border-top: 1px solid #30363D; }}
 
     /* === SILVER BULLET BUTTON COLORING === */
     div.element-container:has(.marker) {{ display: none !important; }}
@@ -64,30 +62,30 @@ st.markdown(f"""
         font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important;
     }}
     div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
+
+    /* Amber/Orange Button (Logout & Admin) */
+    div.element-container:has(.marker-amber) + div.element-container button {{
+        background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; 
+        font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important;
+    }}
+    div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. SMART MEMORY CACHE (FIXES THE 15-SECOND LAG) ---
-
+# --- 3. SMART MEMORY CACHE ---
 @st.cache_data(ttl="10m")
 def get_static_sheet(sheet_name):
-    """Loads a sheet once and remembers it for 10 minutes for instant speed."""
     try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl=0)
     except: return pd.DataFrame()
 
 def clear_app_memory():
-    """Forces the app to download fresh data on the next click."""
     get_static_sheet.clear()
 
 def generate_custom_id():
-    year = 2026
-    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-    return f"HFDB-{year}-{random_str}"
+    return f"HFDB-2026-{''.join(random.choices(string.ascii_uppercase + string.digits, k=10))}"
 
 def clean_pct(input_str):
-    try:
-        if not input_str: return 0.0
-        return float(str(input_str).replace('%', '').strip())
+    try: return float(str(input_str).replace('%', '').strip()) if input_str else 0.0
     except ValueError: return 0.0
 
 def score_calc(n, d, label):
@@ -105,20 +103,16 @@ def get_module_config(module_name="Mod1"):
         row = df[df.iloc[:, 0] == module_name]
         if not row.empty:
             deadline_str = str(row.iloc[0, 1]).strip()
-            deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d")
-            return deadline_str, datetime.now() > deadline_date
+            return deadline_str, datetime.now() > datetime.strptime(deadline_str, "%Y-%m-%d")
     return "Not Set", False
 
 def get_previous_entry(module_name="Mod1"):
     try:
-        # We always want fresh data when pulling user inputs, so we skip the 10m cache here.
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
             if not user_data.empty: 
-                # --- THE FIX: Tell pandas to replace 'NaN' with completely blank strings ---
-                clean_data = user_data.fillna("") 
-                return clean_data.iloc[-1].to_dict()
+                return user_data.fillna("").iloc[-1].to_dict()
     except: pass
     return {}
 
@@ -126,10 +120,10 @@ def submit_module_data(res_data, module_name="Mod1"):
     with st.spinner(f"Syncing data to {module_name}..."):
         try:
             try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
-            except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Encoder", "Scanned_PDF"])
+            except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Department", "Encoder"])
                 
             u = st.session_state.user_info
-            new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Encoder": u["user"]}
+            new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Department": u["dept"], "Encoder": u["user"]}
             new_record.update(res_data)
             
             if "User_ID" in df.columns:
@@ -143,13 +137,38 @@ def submit_module_data(res_data, module_name="Mod1"):
             st.error(f"Submission failed: {e}")
             return False
 
-# --- 4. MODULE 1: HOSPITAL SCORECARD ---
+def display_sticky_header():
+    u = st.session_state.user_info
+    st.markdown(f"""
+        <div class="sticky-header">
+            <p class="sticky-title">🏥 {u['hosp']}</p>
+            <p class="sticky-sub">{u['dept']} Department</p>
+        </div>
+    """, unsafe_allow_html=True)
 
+def render_upload_section(module_name):
+    st.divider()
+    st.markdown("### 📤 FINAL STEP: Upload Signed PDF Submission")
+    st.info("Please print the document previewed above, secure the required signatures, and upload the scanned PDF.")
+    st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER (PLACEHOLDER LINK)", "https://drive.google.com/drive/", type="primary")
+    
+    pdf_link = st.text_input("Paste Google Drive File Link Here:", placeholder="https://drive.google.com/file/d/...")
+    if st.button("💾 Save Drive Link", type="secondary"):
+        if pdf_link:
+            try:
+                df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+                mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
+                if mask.any():
+                    df.loc[mask, "Scanned_PDF"] = pdf_link
+                    conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=df)
+                    st.success("✅ PDF Link successfully securely encoded to database!")
+            except Exception as e: st.error(f"Failed to attach link: {e}")
+
+# --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
+    display_sticky_header()
     dd = get_static_sheet("Mod1_DD")
-    if dd.empty:
-        st.error("Sheet 'Mod1_DD' not found. Please check your Google Sheet tabs.")
-        return
+    if dd.empty: st.error("Sheet 'Mod1_DD' not found."); return
     dd.columns = dd.columns.str.strip()
 
     if "staged_data" not in st.session_state or st.session_state.staged_data is None:
@@ -158,11 +177,14 @@ def module_scorecard():
     prev = st.session_state.staged_data 
     deadline_str, locked = get_module_config("Mod1")
 
-    if locked:
-        st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
+    if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
     st.markdown('<div class="section-header-strat"><h3 style="margin:0;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>', unsafe_allow_html=True)
     
+    with st.expander("🔹 Basic Setup: Service Capability", expanded=True):
+        lvl_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
+        h_level = st.selectbox("Current Health Facility Service Capability Level:", lvl_opts, index=get_idx(pd.Series(lvl_opts), prev.get("Level")), disabled=locked)
+
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=False):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked, key="si1_in"))
         st.caption(f"Captured: **{s1}%**")
@@ -256,7 +278,7 @@ def module_scorecard():
     h_pos = c2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
 
     res_db = {
-        "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
+        "Level": h_level, "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
         "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
         "SI6_N": s6n, "SI6_D": s6d, "SI7_N": s7n, "SI7_D": s7d, "SI8_N": s8n, "SI8_D": s8d,
         "CI1_N": ci1n, "CI1_D": ci1d, "CI2_N": ci2n, "CI2_D": ci2d, "CI3_N": ci3n, "CI3_D": ci3d,
@@ -275,7 +297,6 @@ def module_scorecard():
                     st.session_state.staged_data.update(res_db)
                     st.session_state.show_print = True
                     st.rerun()
-                
         with btn_col2:
             if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
                 if submit_module_data(res_db, "Mod1"):
@@ -289,33 +310,17 @@ def module_scorecard():
 
     if st.session_state.get("show_print", False):
         generate_print_view(res_print)
-        if not locked:
-            st.divider()
-            st.markdown("### 📤 Step 1: Upload to Google Drive")
-            st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link", type="primary")
-            st.markdown("### 🔗 Step 2: Attach Link to Submission")
-            pdf_link = st.text_input("Paste Google Drive Link Here:")
-            if st.button("💾 Encode Link", type="secondary"):
-                if pdf_link:
-                    try:
-                        # Direct un-cached fetch specifically for saving link
-                        df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
-                        mask = df["User_ID"].astype(str) == str(st.session_state.user_id)
-                        if mask.any():
-                            df.loc[mask, "Scanned_PDF"] = pdf_link
-                            conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=df)
-                            st.success("✅ PDF Link successfully encoded!")
-                    except Exception as e: st.error(f"Failed to attach link: {e}")
+        render_upload_section("Mod1")
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
-
 def module_census_data():
+    display_sticky_header()
     if "staged_data" not in st.session_state or st.session_state.staged_data is None:
         st.session_state.staged_data = get_previous_entry("Mod2")
         
     prev = st.session_state.staged_data
     deadline_str, locked = get_module_config("Mod2")
-    DRIVE_LINK = "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link"
+    DRIVE_LINK = "https://drive.google.com/drive/folders/placeholder"
     
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
@@ -326,17 +331,17 @@ def module_census_data():
         h1, h2, h3 = st.columns([5, 2, 2])
         h1.caption("Data Request"); h2.caption("Input Field"); h3.caption("Remarks")
 
-        lv_opts = ["Level 1", "Level 2", "Level 3"]
+        lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
         
         r1_1, r1_2, r1_3 = st.columns([5, 2, 2])
         r1_1.markdown("**Health Facility Service Capability Level (2026, Current Year):**")
         lv_26 = r1_2.selectbox("Level 26", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_26")), disabled=locked, label_visibility="collapsed")
-        rm_lv26 = r1_3.text_input("Remarks LV26", value=prev.get("RM_LV26", ""), disabled=locked, label_visibility="collapsed")
+        rm_lv26 = r1_3.text_input("Remarks LV26", value=str(prev.get("RM_LV26", "")), disabled=locked, label_visibility="collapsed")
 
         r2_1, r2_2, r2_3 = st.columns([5, 2, 2])
         r2_1.markdown("**Target Health Facility Service Capability Level in 2027 (Next Year):**")
         lv_27 = r2_2.selectbox("Level 27", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_27")), disabled=locked, label_visibility="collapsed")
-        rm_lv27 = r2_3.text_input("Remarks LV27", value=prev.get("RM_LV27", ""), disabled=locked, label_visibility="collapsed")
+        rm_lv27 = r2_3.text_input("Remarks LV27", value=str(prev.get("RM_LV27", "")), disabled=locked, label_visibility="collapsed")
 
         r3_1, r3_2, r3_3 = st.columns([5, 2, 2])
         r3_1.markdown("""
@@ -346,10 +351,9 @@ def module_census_data():
         Failing to comply will make your submission INVALID</i></small>
         """, unsafe_allow_html=True)
         r3_2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
-        rm_lto = r3_3.text_input("Remarks LTO", value=prev.get("RM_LTO", ""), disabled=locked, label_visibility="collapsed")
+        rm_lto = r3_3.text_input("Remarks LTO", value=str(prev.get("RM_LTO", "")), disabled=locked, label_visibility="collapsed")
 
         st.divider()
-        
         labels = [
             ("Authorized Bed Capacity (ABC) by Licensing as of December 31, 2025:", "ABC_25"), 
             ("Target Authorized Bed Capacity (ABC) by Licensing by the end of 2026:", "ABC_26"), 
@@ -360,21 +364,21 @@ def module_census_data():
         for label, key in labels:
             c1, c2, c3 = st.columns([5, 2, 2])
             c1.markdown(f"**{label}**")
-            res_beds[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, disabled=locked, label_visibility="collapsed")
-            res_beds[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=prev.get(f"RM_{key}", ""), disabled=locked, label_visibility="collapsed")
+            res_beds[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            res_beds[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=str(prev.get(f"RM_{key}", "")), disabled=locked, label_visibility="collapsed")
 
         r8_1, r8_2, r8_3 = st.columns([5, 2, 2])
         r8_1.markdown("""
         **Target Authorized Bed Capacity (ABC) by Licensing in 2027:**<br>
         <small><i>(If the same with 2025/2026, please input the same ABC in the cell. If the ABC would increase in 2026, kindly indicate in the cell the target ABC and the target quarter for which it will be implemented in the REMARKS column)</i></small>
         """, unsafe_allow_html=True)
-        abc_27 = r8_2.number_input("ABC 27", value=int(float(prev.get("ABC_27", 0))), step=1, disabled=locked, label_visibility="collapsed")
-        rm_abc27 = r8_3.text_input("Remarks ABC27", value=prev.get("RM_ABC27", ""), disabled=locked, label_visibility="collapsed")
+        abc_27 = r8_2.number_input("ABC 27", value=int(float(prev.get("ABC_27", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_abc27 = r8_3.text_input("Remarks ABC27", value=str(prev.get("RM_ABC27", "")), disabled=locked, label_visibility="collapsed")
 
         r9_1, r9_2, r9_3 = st.columns([5, 2, 2])
         r9_1.markdown("**Implementing Bed Capacity (IBC) (2025):**")
-        ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0))), step=1, disabled=locked, label_visibility="collapsed")
-        rm_ibc25 = r9_3.text_input("Remarks IBC25", value=prev.get("RM_IBC25", ""), disabled=locked, label_visibility="collapsed")
+        ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_ibc25 = r9_3.text_input("Remarks IBC25", value=str(prev.get("RM_IBC25", "")), disabled=locked, label_visibility="collapsed")
 
     st.header("2️⃣ HOSPITAL CENSUS DATA")
     with st.expander("Expand to fill out Census Data", expanded=False):
@@ -391,16 +395,16 @@ def module_census_data():
             c1, c2, c3 = st.columns([5, 2, 2])
             c1.markdown(f"**{label}**")
             if dtype == "pct": res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
-            elif dtype == "float": res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0)), step=0.1, disabled=locked, label_visibility="collapsed")
-            else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0))), step=1, disabled=locked, label_visibility="collapsed")
-            res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=prev.get(f"RM_{key}", ""), disabled=locked, label_visibility="collapsed")
+            elif dtype == "float": res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0) or 0.0), step=0.1, disabled=locked, label_visibility="collapsed")
+            else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=str(prev.get(f"RM_{key}", "")), disabled=locked, label_visibility="collapsed")
 
     st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
     with st.expander("Expand to fill out HCPN & BUCAS Data", expanded=False):
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("**Based on DC No. 2025-0554, is the hospital identified as Apex or End-Referral Hospital?**")
         apex = c2.selectbox("Apex", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("APEX")), disabled=locked, label_visibility="collapsed")
-        rm_apex = c3.text_input("Remarks Apex", value=prev.get("RM_APEX", ""), disabled=locked, label_visibility="collapsed")
+        rm_apex = c3.text_input("Remarks Apex", value=str(prev.get("RM_APEX", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("""
@@ -410,25 +414,22 @@ def module_census_data():
         Failing to comply will make your submission INVALID</i></small>
         """, unsafe_allow_html=True)
         c2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
-        rm_moa = c3.text_input("Remarks MOA", value=prev.get("RM_MOA", ""), disabled=locked, label_visibility="collapsed")
+        rm_moa = c3.text_input("Remarks MOA", value=str(prev.get("RM_MOA", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("**If the hospital already has MOA/MOU with a HCPN/province, how many HCPNs or provinces are they linked with?**")
-        hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0))), step=1, disabled=locked, label_visibility="collapsed")
-        rm_hcpn = c3.text_input("Remarks HCPN", value=prev.get("RM_HCPN", ""), disabled=locked, label_visibility="collapsed")
+        hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_hcpn = c3.text_input("Remarks HCPN", value=str(prev.get("RM_HCPN", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("**Does the hospital operate a BUCAS Center/s?**")
         bucas = c2.selectbox("BUCAS", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("BUCAS")), disabled=locked, label_visibility="collapsed")
-        rm_bucas = c3.text_input("Remarks BUCAS", value=prev.get("RM_BUCAS", ""), disabled=locked, label_visibility="collapsed")
-        if bucas == "Yes":
-            st.warning("**If yes, kindly update the data in the UHC HSC BUCAS Tracker:**")
-            st.link_button("🔗 OPEN BUCAS DASHBOARD", "https://bit.ly/BUCASdashboard", type="primary")
+        rm_bucas = c3.text_input("Remarks BUCAS", value=str(prev.get("RM_BUCAS", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("**Kindly provide the exact coordinates of the BUCAS Center using the format Latitude, Longitude (e.g. 14.6156280516298, 120.982498127343) (Can be acquired via Google Maps)**")
-        coords = c2.text_input("Coords", value=prev.get("COORDS", ""), disabled=locked, label_visibility="collapsed")
-        rm_coords = c3.text_input("Remarks Coords", value=prev.get("RM_COORDS", ""), disabled=locked, label_visibility="collapsed")
+        coords = c2.text_input("Coords", value=str(prev.get("COORDS", "")), disabled=locked, label_visibility="collapsed")
+        rm_coords = c3.text_input("Remarks Coords", value=str(prev.get("RM_COORDS", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
         c1.markdown("""
@@ -438,12 +439,12 @@ def module_census_data():
         Failing to comply will make your submission INVALID</i></small>
         """, unsafe_allow_html=True)
         c2.link_button("📂 OPEN GOOGLE DRIVE FOLDER", DRIVE_LINK, use_container_width=True)
-        rm_bucas_lto = c3.text_input("Remarks BUCAS LTO", value=prev.get("RM_BUCAS_LTO", ""), disabled=locked, label_visibility="collapsed")
+        rm_bucas_lto = c3.text_input("Remarks BUCAS LTO", value=str(prev.get("RM_BUCAS_LTO", "")), disabled=locked, label_visibility="collapsed")
 
     st.divider()
     h_col1, h_col2 = st.columns(2)
-    h_name = h_col1.text_input("Name of Head of Facility:", value=prev.get("Head_Name", ""), disabled=locked)
-    h_pos = h_col2.text_input("Designation of Head of Facility:", value=prev.get("Head_Pos", ""), disabled=locked)
+    h_name = h_col1.text_input("Name of Head of Facility:", value=str(prev.get("Head_Name", "")), disabled=locked)
+    h_pos = h_col2.text_input("Designation of Head of Facility:", value=str(prev.get("Head_Pos", "")), disabled=locked)
 
     final_data = {
         "LV_26": lv_26, "RM_LV26": rm_lv26, "LV_27": lv_27, "RM_LV27": rm_lv27, "RM_LTO": rm_lto,
@@ -474,21 +475,17 @@ def module_census_data():
 
     if st.session_state.get("show_print", False):
         generate_print_view_mod2(final_data)
+        render_upload_section("Mod2")
 
 # --- 6. PRINT ENGINES ---
 def generate_print_view(d):
     u = st.session_state.user_info
     html = f"""
-    <style>
-        /* This hides the button only when printing! */
-        @media print {{
-            .no-print {{ display: none !important; }}
-        }}
-    </style>
+    <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 800px; margin: 0 auto;">
         <center>
             <h1 style="margin:0; color:#111;">2025 DOH HOSPITAL SCORECARD</h1>
-            <h3 style="margin:5px 0; color:#444;">{u['hosp']} — {u['level']}</h3>
+            <h3 style="margin:5px 0; color:#444;">{u['hosp']} — {u['dept']} Department</h3>
             <hr style="border:1px solid #111;">
         </center>
         <br>
@@ -500,6 +497,7 @@ def generate_print_view(d):
                 <th style="padding: 8px; border: 1px solid #333; width: 65%;">Indicator</th>
                 <th style="padding: 8px; border: 1px solid #333; width: 35%; text-align: center;">Performance / Status</th>
             </tr>
+            <tr><td style="padding: 8px; border: 1px solid #333;">Service Capability Level</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('Level', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI1', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI2', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d.get('SI3_Cat', '')} ({d.get('SI3_Stat', '')})</td></tr>
@@ -534,16 +532,11 @@ def generate_print_view(d):
 def generate_print_view_mod2(d):
     u = st.session_state.user_info
     html = f"""
-    <style>
-        /* This hides the button only when printing! */
-        @media print {{
-            .no-print {{ display: none !important; }}
-        }}
-    </style>
+    <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
         <center>
             <h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2>
-            <h4 style="margin:5px 0;">{u['hosp']}</h4>
+            <h4 style="margin:5px 0;">{u['hosp']} — {u['dept']} Department</h4>
             <hr style="border:1px solid #111;">
         </center>
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
@@ -593,21 +586,51 @@ def generate_print_view_mod2(d):
         <center><br><button class="no-print" onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
     </div>"""
     st.components.v1.html(html, height=1000, scrolling=True)
-    
-# --- 7. ROUTING, LOGIN, & DASHBOARD ---
 
+# --- 7. ADMIN DATA ANALYSIS MODE ---
+def admin_dashboard():
+    st.markdown("<h2 style='text-align: center;'>👑 Data Analysis Portal (Admin)</h2>", unsafe_allow_html=True)
+    st.info("Welcome to the Admin View. Select a module below to view live aggregated statistics.")
+    
+    st.markdown('<div class="marker marker-blue"></div>', unsafe_allow_html=True)
+    if st.button("📊 Analyze Module 1: Scorecard Data", use_container_width=True):
+        st.session_state.current_module = "Admin_Mod1"; st.rerun()
+        
+    st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
+    if st.button("📈 Analyze Module 2: Census Data", use_container_width=True):
+        st.session_state.current_module = "Admin_Mod2"; st.rerun()
+
+    st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
+    if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
+
+def admin_analysis_view(module_name, title):
+    st.markdown(f"<h2>{title}</h2>", unsafe_allow_html=True)
+    with st.spinner("Fetching live database..."):
+        try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl="1m")
+        except: df = pd.DataFrame()
+        
+    if df.empty:
+        st.warning("No data has been submitted yet.")
+    else:
+        st.metric("Total Submissions", len(df))
+        st.markdown("### Raw Data Overview")
+        st.dataframe(df, use_container_width=True)
+        # Note: Add st.bar_chart or data visualizations here in the future!
+        
+    if st.button("⬅️ Back to Admin Dashboard"):
+        del st.session_state.current_module; st.rerun()
+
+# --- 8. ROUTING, LOGIN, & DASHBOARD ---
 def get_row_html(title, deadline, is_locked):
     bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    
     return f"""
     <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div>
         <div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div>
         <div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div>
-    </div>
-    """
+    </div>"""
 
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
@@ -617,17 +640,15 @@ def login_screen():
             <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
                 <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
                 <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
-                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later. We do not store passwords, and the system will not show this again.</p>
+                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
             </div>
         """, unsafe_allow_html=True)
         if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
             st.session_state.user_id = st.session_state.pending_id
             st.session_state.user_info = st.session_state.pending_info
-            del st.session_state.pending_id
-            del st.session_state.pending_info
+            del st.session_state.pending_id; del st.session_state.pending_info
             st.success("Access Granted. Redirecting to Dashboard...")
-            time.sleep(1)
-            st.rerun()
+            time.sleep(1); st.rerun()
         st.stop() 
 
     if "auth_mode" not in st.session_state:
@@ -645,39 +666,45 @@ def login_screen():
             h_df = get_static_sheet("Facility_List")
             h_list = h_df["Facility_Name"].tolist() if not h_df.empty else []
             h_name = st.selectbox("Hospital Name", [""] + sorted(h_list))
-            h_level = st.selectbox("Level", ["", "Level 1", "Level 2", "Level 3", "Specialty"])
-            u_name = st.text_input("Your Name")
-            u_pos = st.text_input("Your Designation")
+            u_dept = st.text_input("Department/Unit (e.g., ER, PHU, Management)")
+            u_name = st.text_input("Encoder Name")
+            u_pos = st.text_input("Designation")
             
             if st.button("Register Profile", type="primary"):
-                if not h_name or not u_name: st.error("Please fill in all fields.")
+                if not h_name or not u_name or not u_dept: st.error("Please fill in all fields.")
                 else:
                     new_id = generate_custom_id()
                     try:
                         p_df = get_static_sheet("User_Profiles")
-                        new_profile = pd.DataFrame([{"User_ID": new_id, "Hospital_Name": h_name, "Service_Capability": h_level, "Encoder_Name": u_name, "Position": u_pos, "Year": 2026}])
+                        new_profile = pd.DataFrame([{"User_ID": new_id, "Hospital_Name": h_name, "Department": u_dept, "Encoder_Name": u_name, "Position": u_pos, "Year": 2026}])
                         conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=pd.concat([p_df, new_profile], ignore_index=True))
-                        clear_app_memory() # Clear cache so next login sees the new profile
+                        clear_app_memory() 
                         st.session_state.pending_id = new_id
-                        st.session_state.pending_info = {"hosp": h_name, "level": h_level, "user": u_name, "pos": u_pos}
+                        st.session_state.pending_info = {"hosp": h_name, "dept": u_dept, "user": u_name, "pos": u_pos, "role": "user"}
                         st.rerun()
                     except Exception as e: st.error(f"Could not save to database. {e}")
                         
         elif st.session_state.auth_mode == "existing":
             uid = st.text_input("Enter HFDB-2026 ID Code")
             if st.button("Enter Portal", type="primary"):
+                # SECRET ADMIN LOGIN BYPASS
+                if uid == "ADMIN-2026":
+                    st.session_state.user_id = uid
+                    st.session_state.user_info = {"hosp": "DOH Central", "dept": "System Admin", "user": "Administrator", "pos": "Admin", "role": "admin"}
+                    st.rerun()
+                    
                 p = get_static_sheet("User_Profiles")
                 if uid in p["User_ID"].astype(str).values:
                     r = p[p["User_ID"].astype(str) == uid].iloc[0]
                     st.session_state.user_id = uid
-                    st.session_state.user_info = {"hosp": r["Hospital_Name"], "level": r["Service_Capability"], "user": r["Encoder_Name"], "pos": r["Position"]}
+                    st.session_state.user_info = {"hosp": r["Hospital_Name"], "dept": r.get("Department", "General"), "user": r["Encoder_Name"], "pos": r["Position"], "role": "user"}
                     st.rerun()
                 else: st.error("User ID not found in database. Check for typos.")
 
 def dashboard():
     u = st.session_state.user_info
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
-    st.info(f"Facility: **{u['hosp']}** ({u['level']}) | Encoder: **{u['user']}**")
+    st.info(f"Facility: **{u['hosp']}** | Department: **{u['dept']}** | Encoder: **{u['user']}**")
     
     d1_str, d1_locked = get_module_config("Mod1")
     d2_str, d2_locked = get_module_config("Mod2")
@@ -690,49 +717,44 @@ def dashboard():
     ongoing = [m for m in modules if not m["locked"]]
     lapsed = [m for m in modules if m["locked"]]
 
-    # --- ONGOING MODULES ---
     if ongoing:
         st.markdown("### 🟢 Ongoing Data Submission Modules")
         for m in ongoing:
             st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
             st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"OPEN {m['id'].upper()}", use_container_width=True, key=f"btn_on_{m['id']}"):
-                st.session_state.current_module = m['id']
-                st.rerun()
+                st.session_state.current_module = m['id']; st.rerun()
             st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
 
-    # --- LAPSED MODULES ---
     if lapsed:
         st.markdown("### 🔴 Lapsed Data Submission Modules")
         for m in lapsed:
             st.markdown(get_row_html(m["title"], m["date"], m["locked"]), unsafe_allow_html=True)
             st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"VIEW {m['id'].upper()} (READ-ONLY)", use_container_width=True, key=f"btn_lap_{m['id']}"):
-                st.session_state.current_module = m['id']
-                st.rerun()
+                st.session_state.current_module = m['id']; st.rerun()
             st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
         
-    st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
-    if st.button("Logout", use_container_width=True): 
-        st.session_state.clear()
-        st.rerun()
+    st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
+    if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
-# --- 8. TRAFFIC CONTROLLER ---
+# --- 9. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
     login_screen()
     
 elif "current_module" in st.session_state:
     if st.button("🏠 Return to Dashboard"): 
         if "show_print" in st.session_state: del st.session_state.show_print
-        if "expand_all" in st.session_state: del st.session_state.expand_all
         if "staged_data" in st.session_state: del st.session_state.staged_data
         del st.session_state.current_module
         st.rerun()
     
-    if st.session_state.current_module == "Mod1":
-        module_scorecard()
-    elif st.session_state.current_module == "Mod2":
-        module_census_data()
+    mod = st.session_state.current_module
+    if mod == "Mod1": module_scorecard()
+    elif mod == "Mod2": module_census_data()
+    elif mod == "Admin_Mod1": admin_analysis_view("Mod1", "📊 Scorecard Data Analysis")
+    elif mod == "Admin_Mod2": admin_analysis_view("Mod2", "📈 Census Data Analysis")
         
 else: 
-    dashboard()
+    if st.session_state.user_info.get("role") == "admin": admin_dashboard()
+    else: dashboard()
