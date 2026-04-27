@@ -122,8 +122,12 @@ def render_upload_section(module_name):
             except Exception as e: st.error(f"Failed to attach link: {e}")
 
 # --- UNIVERSAL MODULAR PRINT ENGINE ---
-def render_modular_print(title, content_html):
+def render_modular_print(title, content_html, head_name="Authorized Signatory", head_pos="Head of Facility"):
     u = st.session_state.user_info
+    # Fallbacks in case inputs are totally blank
+    h_name = head_name if head_name else 'Authorized Signatory'
+    h_pos = head_pos if head_pos else 'Head of Facility'
+    
     html = f"""
     <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
@@ -140,7 +144,7 @@ def render_modular_print(title, content_html):
         <table style="width:100%; text-align:center; font-size:14px; margin-top: 40px;">
             <tr>
                 <td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
-                <td style="width:50%;">__________________________<br><b>Authorized Signatory</b><br>Head of Facility</td>
+                <td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td>
             </tr>
             <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
@@ -384,7 +388,7 @@ def module_census_data():
         generate_print_view_mod2(final_data)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 3 - FINAL EXCEL MAGIC) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 4 - COMPLETE) ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
@@ -393,20 +397,17 @@ def module_gva():
     display_sticky_header()
     u = st.session_state.user_info
     
-    # Block rendering if in Print Isolation Mode
     if st.session_state.get("isolated_print_html"):
         st.components.v1.html(st.session_state.isolated_print_html, height=1200, scrolling=True)
         if st.button("⬅️ Back to Assessment Form", type="primary"):
             del st.session_state.isolated_print_html; st.rerun()
         return
 
-    # Data Fetch & Smart Locks
     mod2_data = get_previous_entry("Mod2")
     prev = get_previous_entry("Mod3")
     
     auto_abc = mod2_data.get("ABC_25", prev.get("LTO_ABC", ""))
     auto_coords = mod2_data.get("COORDS", prev.get("Coordinates", ""))
-    
     abc_locked = True if str(auto_abc).strip() not in ["", "0", "0.0", "nan"] else False
     coords_locked = True if str(auto_coords).strip() not in ["", "0", "0.0", "nan"] else False
     
@@ -415,7 +416,7 @@ def module_gva():
 
     st.markdown('<div class="section-header-green"><h3 style="margin:0;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h3></div>', unsafe_allow_html=True)
     
-    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE) ---
+    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE & ACCURATE) ---
     st.header("1️⃣ GENERAL INFORMATION")
     with st.expander("Expand to fill General & Geographical Info", expanded=True):
         st.markdown("**Facility Overview**")
@@ -439,12 +440,6 @@ def module_gva():
         ibc = b2.number_input("Implementing Bed Cap:", value=int(float(prev.get("IBC", 0) or 0)), step=1, disabled=locked)
         icu = b3.number_input("ICU Beds:", value=int(float(prev.get("ICU_Beds", 0) or 0)), step=1, disabled=locked)
         bor = b4.text_input("Bed Occupancy Rate (%):", value=str(prev.get("BOR_Pct", "")), disabled=locked)
-        
-        st.markdown("**Facility Leadership & Contact**")
-        l1, l2, l3 = st.columns(3)
-        chief_name = l1.text_input("Hospital Chief:", value=str(prev.get("Chief_Name", "")), disabled=locked)
-        h_email = l2.text_input("Official Email:", value=str(prev.get("H_Email", "")), disabled=locked)
-        h_contact = l3.text_input("Contact Number:", value=str(prev.get("H_Contact", "")), disabled=locked)
         
         st.markdown("**Green Initiative Officers**")
         g1, g2, g3 = st.columns(3)
@@ -470,42 +465,76 @@ def module_gva():
         coterm_staff = p6.number_input("Coterminous Personnel:", value=int(float(prev.get("Coterm_Staff", 0) or 0)), step=1, disabled=locked)
 
         st.divider()
-        st.markdown("**Physical Distribution (Dynamic Building List)**")
+        st.markdown("**Physical Distribution**")
+        tgfa = st.number_input("Total Gross Floor Area (TGFA) (sq.m):", value=float(prev.get("TGFA", 0.0) or 0.0), disabled=locked)
+        st.caption("Building Breakdown (Click the '+' to add more buildings)")
         if "bldg_df" not in st.session_state: st.session_state.bldg_df = pd.DataFrame([{"Building Name": "Main Hospital", "Floor Area (sq.m)": 0.0}])
         bldg_res = st.data_editor(st.session_state.bldg_df, num_rows="dynamic", use_container_width=True, disabled=locked, key="bldg_grid")
 
         st.divider()
-        st.markdown("**Geographical Description**")
+        st.markdown("**Geographical Description & Testing**")
         d1, d2, d3 = st.columns(3)
         lot_area = d1.number_input("Total Lot Area (sq.m):", value=float(prev.get("Lot_Area", 0.0) or 0.0), disabled=locked)
         green_space = d2.number_input("Green Space Area (sq.m):", value=float(prev.get("Green_Space", 0.0) or 0.0), disabled=locked)
         final_coords = d3.text_input("Coordinates (Lat, Long):", value=auto_coords, disabled=(locked or coords_locked))
 
-        st.markdown("**Hazards & Distances**")
+        test1, test2 = st.columns(2)
+        soil_test = test1.selectbox("Conducted soil testing in premise?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Soil_Test")), disabled=locked)
+        soil_date = test2.text_input("If yes, when?", value=str(prev.get("Soil_Date", "")), disabled=locked)
+        hsi_test = test1.selectbox("Conducted Hospital Safety Index?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("HSI_Test")), disabled=locked)
+        hsi_date = test2.text_input("If yes, date & buildings?", value=str(prev.get("HSI_Date", "")), disabled=locked)
+
+        st.divider()
+        st.markdown("**Hazard Susceptibility (Check all that apply or add Others)**")
         haz1, haz2, haz3, haz4 = st.columns(4)
         c_coast = haz1.checkbox("Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
         c_low = haz2.checkbox("Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
         c_land = haz3.checkbox("Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
         c_mount = haz4.checkbox("Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+        
+        hz_o1, hz_o2 = st.columns(2)
+        haz_other1 = hz_o1.text_input("Other Characteristic 1 (e.g. Deep well source):", value=str(prev.get("Haz_Other1", "")), disabled=locked)
+        haz_other2 = hz_o2.text_input("Other Characteristic 2 (e.g. Low Flood Susceptibility):", value=str(prev.get("Haz_Other2", "")), disabled=locked)
 
-        dist1, dist2, dist3 = st.columns(3)
+        st.markdown("**Location / Distances**")
+        dist1, dist2, dist3, dist4 = st.columns(4)
         dist_fault = dist1.number_input("Dist from Fault Line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
         dist_volc = dist2.number_input("Dist from Volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
         dist_sea = dist3.number_input("Dist from Sea (km):", value=float(prev.get("Dist_Sea", 0.0) or 0.0), disabled=locked)
+        dist_hw = dist4.number_input("Dist from Major Highway (km):", value=float(prev.get("Dist_HW", 0.0) or 0.0), disabled=locked)
         
+        dist5, dist6, dist7, dist8 = st.columns(4)
+        dist_rail = dist5.number_input("Dist from Railroad (km):", value=float(prev.get("Dist_Rail", 0.0) or 0.0), disabled=locked)
+        dist_haz = dist6.number_input("Dist from Haz Activity (km):", value=float(prev.get("Dist_Haz", 0.0) or 0.0), disabled=locked)
+        dist_oil = dist7.number_input("Dist from Oil Deposit (km):", value=float(prev.get("Dist_Oil", 0.0) or 0.0), disabled=locked)
+        dist_ind = dist8.number_input("Dist from Industrial Est (km):", value=float(prev.get("Dist_Ind", 0.0) or 0.0), disabled=locked)
+        
+        dist9, dist10, dist11, dist12 = st.columns(4)
+        dist_river = dist9.number_input("Dist from River Bank (m):", value=float(prev.get("Dist_River", 0.0) or 0.0), disabled=locked)
+        dist_creek = dist10.number_input("Dist from Creeks (m):", value=float(prev.get("Dist_Creek", 0.0) or 0.0), disabled=locked)
+        dist_lake = dist11.number_input("Dist from Lake (m):", value=float(prev.get("Dist_Lake", 0.0) or 0.0), disabled=locked)
+        dist_other = dist12.text_input("Other Distance:", value=str(prev.get("Dist_Other", "")), disabled=locked)
+
+        st.divider()
+        st.markdown("**Module 3 Authorized Signatory**")
+        st.caption("The name and position entered here will automatically be used for ALL print/signature blocks in Module 3.")
+        s1, s2 = st.columns(2)
+        sign_name = s1.text_input("Signatory Name (e.g. John Doe):", value=str(prev.get("Sign_Name", "")), disabled=locked)
+        sign_pos = s2.text_input("Signatory Position (e.g. Head of Facility):", value=str(prev.get("Sign_Pos", "Head of Facility")), disabled=locked)
+
         st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
         if st.button("🖨️ Print General Information for Signature", use_container_width=True):
             html = f"""
             <table style="width:100%; border-collapse: collapse; font-size: 13px;">
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Facility:</b> {u['hosp']}</td><td style="border: 1px solid #333; padding: 6px;"><b>Level:</b> {u.get('level','Level 1')}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Hospital Chief:</b> {chief_name}</td><td style="border: 1px solid #333; padding: 6px;"><b>Contact:</b> {h_contact}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc} Beds</td><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Gross Floor Area (TGFA):</b> {tgfa} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Fault Line Dist:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Volcano Dist:</b> {dist_volc} km</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>EECO Name:</b> {eeco_name}</td><td style="border: 1px solid #333; padding: 6px;"><b>PCO Name:</b> {pco_name}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Green Space:</b> {green_space} sq.m</td></tr>
             </table>
             """
-            render_modular_print("GENERAL INFORMATION", html)
+            render_modular_print("GENERAL INFORMATION", html, sign_name, sign_pos)
 
     # --- PART 2: CONSUMPTION DATA ---
     st.header("2️⃣ MULTI-YEAR CONSUMPTION DATA")
@@ -525,9 +554,8 @@ def module_gva():
                 html = html.replace('class="dataframe my-table"', 'style="width: 100%; border-collapse: collapse; text-align: center;"')
                 html = html.replace('<th>', '<th style="background-color: #eee; padding: 8px; border: 1px solid #333;">')
                 html = html.replace('<td>', '<td style="padding: 6px; border: 1px solid #333;">')
-                render_modular_print(f"{year} CONSUMPTION DATA", html)
+                render_modular_print(f"{year} CONSUMPTION DATA", html, sign_name, sign_pos)
 
-    # Calculate CO2e silently for Admin Dashboard save
     factors = {"Electricity (kWh)": 0.79, "Fuel (L)": 3.28, "Water (m3)": 0.28}
     admin_co2e_save = {}
     for year in years:
@@ -537,10 +565,9 @@ def module_gva():
                     (pd.to_numeric(df["Water (m3)"], errors='coerce').fillna(0).sum() * factors["Water (m3)"])
         admin_co2e_save[f"CO2e_{year}"] = total_co2
 
-    # --- PART 3: PERFORMANCE STANDARDS (THE DYNAMIC EXCEL MAGIC ENGINE) ---
+    # --- PART 3: PERFORMANCE STANDARDS ---
     st.header("3️⃣ PERFORMANCE STANDARDS")
     st.caption("These questions are synced directly from your Google Sheet!")
-    
     gva_answers = {}
     score_summary = []
     perf_df = get_static_sheet("Performance Standards")
@@ -549,11 +576,7 @@ def module_gva():
         st.warning("⚠️ Could not find the 'Performance Standards' tab. Add it to see the checklist!")
     else:
         perf_df.columns = perf_df.columns.str.strip()
-        
-        # Look for the new MAJOR CATEGORY column
         if 'MAJOR CATEGORY' in perf_df.columns and 'CRITERION' in perf_df.columns and 'Ref. #' in perf_df.columns and 'QUESTIONS' in perf_df.columns:
-            
-            # Forward-fill to fix merged cells in Excel
             perf_df['MAJOR CATEGORY'] = perf_df['MAJOR CATEGORY'].ffill()
             perf_df['CRITERION'] = perf_df['CRITERION'].ffill()
             
@@ -567,31 +590,27 @@ def module_gva():
                 cat_max = 0
                 cat_actual = 0
                 cat_questions = questions_only[questions_only['MAJOR CATEGORY'] == cat]
-                criterion_desc = cat_questions['CRITERION'].iloc[0] # Grab the long description
+                criterion_desc = cat_questions['CRITERION'].iloc[0] 
                 
                 with st.expander(f"📌 {cat}", expanded=False):
-                    st.info(f"**Definition:** {criterion_desc}") # Show the description
+                    st.info(f"**Definition:** {criterion_desc}") 
                     
                     if sub_col:
                         subs = cat_questions[sub_col].unique()
                         for sub in subs:
                             st.markdown(f"<h5 style='color:#3B82F6; margin-top:20px;'>🔹 {sub}</h5>", unsafe_allow_html=True)
                             sub_qs = cat_questions[cat_questions[sub_col] == sub]
-                            
                             for _, row in sub_qs.iterrows():
                                 q_ref, q_text = str(row['Ref. #']).strip(), str(row['QUESTIONS']).strip()
                                 st.markdown(f"**{q_ref}:** {q_text}")
-                                
                                 prev_ans = prev.get(f"GVA_{q_ref}", "No (0 pt)")
                                 ans = st.radio("Status", ["Yes (1 pt)", "In Progress (0.5 pt)", "No (0 pt)"], index=get_idx(pd.Series(["Yes (1 pt)", "In Progress (0.5 pt)", "No (0 pt)"]), prev_ans), horizontal=True, key=f"rad_{q_ref}", disabled=locked, label_visibility="collapsed")
                                 gva_answers[f"GVA_{q_ref}"] = ans
-                                
                                 cat_max += 1.0
                                 if "Yes" in ans: cat_actual += 1.0
                                 elif "In Progress" in ans: cat_actual += 0.5
                                 st.divider()
                     
-                    # Modular Print Button for this specific Category
                     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
                     if st.button(f"🖨️ Print {cat} for Signature", use_container_width=True, key=f"p_cat_{cat}"):
                         html_lines = [f"<h4>{cat}</h4><p><i>{criterion_desc}</i></p><table style='width:100%; border-collapse: collapse;'><tr><th style='border:1px solid #333; padding:6px; background:#eee;'>Ref</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Question</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Answer</th></tr>"]
@@ -599,12 +618,11 @@ def module_gva():
                             ref = str(row['Ref. #']).strip()
                             html_lines.append(f"<tr><td style='border:1px solid #333; padding:6px;'>{ref}</td><td style='border:1px solid #333; padding:6px;'>{row['QUESTIONS']}</td><td style='border:1px solid #333; padding:6px; text-align:center;'><b>{gva_answers[f'GVA_{ref}']}</b></td></tr>")
                         html_lines.append("</table>")
-                        render_modular_print(cat, "".join(html_lines))
+                        render_modular_print(cat, "".join(html_lines), sign_name, sign_pos)
                 
                 pct = (cat_actual/cat_max*100) if cat_max > 0 else 0
                 score_summary.append({"Performance Indicator": cat, "Max Score": cat_max, "Actual Score": cat_actual, "Percentage": f"{pct:.2f}%"})
             
-            # --- THE OVERALL SCORE TABLE ---
             st.markdown("### 🏆 Overall Score Summary")
             score_df = pd.DataFrame(score_summary)
             st.dataframe(score_df, use_container_width=True, hide_index=True)
@@ -615,7 +633,7 @@ def module_gva():
                 html = html.replace('class="dataframe"', 'style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;"')
                 html = html.replace('<th>', '<th style="background-color: #064E3B; color: white; padding: 10px; border: 1px solid #333;">')
                 html = html.replace('<td>', '<td style="padding: 8px; border: 1px solid #333;">')
-                render_modular_print("OVERALL PERFORMANCE SCORE SUMMARY", html)
+                render_modular_print("OVERALL PERFORMANCE SCORE SUMMARY", html, sign_name, sign_pos)
         else:
             st.error("⚠️ Please add the 'MAJOR CATEGORY' column to Row 1 of your Performance Standards sheet to unlock the questions!")
 
@@ -624,22 +642,24 @@ def module_gva():
     st.info("Upload a single ZIP file or provide a link to a Google Drive folder containing all your MOVs (Memo Orders, Photos, Audits) properly labeled.")
     master_link = st.text_input("Paste Google Drive Folder Link Here:", value=str(prev.get("Master_Drive_Link", "")), placeholder="https://drive.google.com/drive/folders/...", disabled=locked)
 
-    # Combine Data for saving
     final_mod3_data = {
         "H_Type": h_type, "H_Region": h_region, "H_Prov": h_prov, "H_Muni": h_muni,
         "H_Own": h_own, "H_Subown": h_subown, "LTO_ABC": lto_abc, "IBC": ibc, "ICU_Beds": icu, "BOR_Pct": bor,
-        "Chief_Name": chief_name, "H_Email": h_email, "H_Contact": h_contact,
         "EECO_Name": eeco_name, "EECO_Email": eeco_email, "EECO_Num": eeco_num,
         "PCO_Name": pco_name, "PCO_Email": pco_email, "PCO_Num": pco_num,
         "Clin_Staff": clin_staff, "Non_Clin_Staff": non_clin, "Admin_Staff": admin_staff,
         "Jan_Staff": jan_sec, "Sec_Staff": sec_staff, "Coterm_Staff": coterm_staff,
-        "Lot_Area": lot_area, "Green_Space": green_space, "Coordinates": final_coords,
+        "TGFA": tgfa, "Lot_Area": lot_area, "Green_Space": green_space, "Coordinates": final_coords,
+        "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Date": hsi_date,
         "C_Coast": c_coast, "C_Low": c_low, "C_Land": c_land, "C_Mount": c_mount,
-        "Dist_Fault": dist_fault, "Dist_Volc": dist_volc, "Dist_Sea": dist_sea,
-        "Master_Drive_Link": master_link
+        "Haz_Other1": haz_other1, "Haz_Other2": haz_other2,
+        "Dist_Fault": dist_fault, "Dist_Volc": dist_volc, "Dist_Sea": dist_sea, "Dist_HW": dist_hw,
+        "Dist_Rail": dist_rail, "Dist_Haz": dist_haz, "Dist_Oil": dist_oil, "Dist_Ind": dist_ind,
+        "Dist_River": dist_river, "Dist_Creek": dist_creek, "Dist_Lake": dist_lake, "Dist_Other": dist_other,
+        "Sign_Name": sign_name, "Sign_Pos": sign_pos, "Master_Drive_Link": master_link
     }
     final_mod3_data.update(gva_answers)
-    final_mod3_data.update(admin_co2e_save) # Saves the CO2e math for the Admin Dashboard
+    final_mod3_data.update(admin_co2e_save)
 
     if not locked:
         if st.button("💾 SAVE ALL PROGRESS TO DATABASE", use_container_width=True, type="primary"):
@@ -669,8 +689,6 @@ def admin_analysis_view(module_name, title):
     if df.empty: st.warning("No data has been submitted yet.")
     else:
         st.metric("Total Submissions", len(df))
-        
-        # --- Mod 3 Specific: The Live Emissions Charts ---
         if module_name == "Mod3":
             st.markdown("### 🌍 Total Aggregated Carbon Footprint (All Hospitals)")
             co2_cols = [col for col in df.columns if col.startswith("CO2e_")]
@@ -679,12 +697,10 @@ def admin_analysis_view(module_name, title):
                 yearly_totals.columns = ["Year", "Total CO2e (kg)"]
                 yearly_totals["Year"] = yearly_totals["Year"].str.replace("CO2e_", "")
                 yearly_totals.set_index("Year", inplace=True)
-                
                 col1, col2 = st.columns([1, 2])
                 with col1: st.dataframe(yearly_totals.style.format("{:.2f}"), use_container_width=True)
                 with col2: st.bar_chart(yearly_totals)
             else: st.info("No CO2e data has been calculated yet.")
-            
         st.markdown("### 🗃️ Raw Data Overview")
         st.dataframe(df, use_container_width=True)
         
