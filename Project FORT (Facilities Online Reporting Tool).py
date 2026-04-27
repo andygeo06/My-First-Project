@@ -576,7 +576,7 @@ def module_gva():
         subtle_header("Module 3 Authorized Signatory", "✍️")
         st.caption("The name and position entered here will automatically be used for ALL print/signature blocks in Module 3.")
         s1, s2 = st.columns(2)
-        sign_name = s1.text_input("Signatory Name (e.g. John Doe):", value=str(prev.get("Sign_Name", "")), disabled=locked)
+        sign_name = s1.text_input("Signatory Name (e.g. Juan Dela Cruz):", value=str(prev.get("Sign_Name", "")), disabled=locked)
         sign_pos = s2.text_input("Signatory Position (e.g. Head of Facility):", value=str(prev.get("Sign_Pos", "Head of Facility")), disabled=locked)
 
         st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
