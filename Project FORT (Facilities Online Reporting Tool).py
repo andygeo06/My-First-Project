@@ -819,19 +819,32 @@ def module_gva():
 
 # --- 7. ADMIN DATA ANALYSIS MODE ---
 def admin_dashboard():
-    st.markdown("<h2 style='text-align: center;'>👑 Data Analysis Portal (Admin)</h2>", unsafe_allow_html=True)
+    u = st.session_state.user_info
+    allowed_modules = u.get("access", [])
+    
+    st.markdown(f"<h2 style='text-align: center;'>👑 {u['user']} Portal</h2>", unsafe_allow_html=True)
     st.info("Welcome to the Admin View. Select a module below to view live aggregated statistics.")
-    st.markdown('<div class="marker marker-blue"></div>', unsafe_allow_html=True)
-    if st.button("📊 Analyze Module 1: Scorecard Data", use_container_width=True): st.session_state.current_module = "Admin_Mod1"; st.rerun()
-    st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
-    if st.button("📈 Analyze Module 2: Census Data", use_container_width=True): st.session_state.current_module = "Admin_Mod2"; st.rerun()
-    st.markdown('<div class="marker marker-green"></div>', unsafe_allow_html=True)
-    if st.button("🌿 Analyze Module 3: Green Viability Dashboard", use_container_width=True): st.session_state.current_module = "Admin_Mod3"; st.rerun()
-    st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
-    if st.button("💬 Open Support Center (Live Chat)", use_container_width=True): st.session_state.current_module = "Admin_Chat"; st.rerun()
+    
+    # Only show buttons if the admin has the specific keyword in their access list!
+    if "Mod1" in allowed_modules:
+        st.markdown('<div class="marker marker-blue"></div>', unsafe_allow_html=True)
+        if st.button("📊 Analyze Module 1: Scorecard Data", use_container_width=True): st.session_state.current_module = "Admin_Mod1"; st.rerun()
+        
+    if "Mod2" in allowed_modules:
+        st.markdown('<div class="marker marker-red"></div>', unsafe_allow_html=True)
+        if st.button("📈 Analyze Module 2: Census Data", use_container_width=True): st.session_state.current_module = "Admin_Mod2"; st.rerun()
+        
+    if "Mod3" in allowed_modules:
+        st.markdown('<div class="marker marker-green"></div>', unsafe_allow_html=True)
+        if st.button("🌿 Analyze Module 3: Green Viability Dashboard", use_container_width=True): st.session_state.current_module = "Admin_Mod3"; st.rerun()
+        
+    if "Chat" in allowed_modules:
+        st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
+        if st.button("💬 Open Support Center (Live Chat)", use_container_width=True): st.session_state.current_module = "Admin_Chat"; st.rerun()
+        
     st.markdown('<hr>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
-
+        
 def admin_analysis_view(module_name, title):
     st.markdown(f"<h2>{title}</h2>", unsafe_allow_html=True)
     with st.spinner("Fetching live database..."):
@@ -986,13 +999,26 @@ def login_screen():
             uid = st.text_input("Enter HFDB-2026 ID Code")
             if st.button("Enter Portal", type="primary"):
                 
-                # Secret Admin Bypass (Keep this!)
-                if uid == "ADMIN-2026":
+                # --- NEW: MULTI-ADMIN ACCESS CONTROL ---
+                ADMIN_ACCOUNTS = {
+                    "ADMIN-MASTER": {"name": "Super Admin", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-SCORE": {"name": "Scorecard Chief", "access": ["Mod1", "Chat"]},
+                    "ADMIN-CENSUS": {"name": "Census Director", "access": ["Mod2", "Chat"]},
+                    "ADMIN-GREEN": {"name": "GVA Coordinator", "access": ["Mod3", "Chat"]}
+                }
+                
+                if uid in ADMIN_ACCOUNTS:
+                    admin_profile = ADMIN_ACCOUNTS[uid]
                     st.session_state.user_id = uid
-                    st.session_state.user_info = {"hosp": "DOH Central", "dept": "System Admin", "user": "Administrator", "pos": "Admin", "role": "admin", "level": "N/A"}
+                    st.session_state.user_info = {
+                        "hosp": "DOH Central", "dept": "System Admin", 
+                        "user": admin_profile["name"], "pos": "Admin", 
+                        "role": "admin", "level": "N/A",
+                        "access": admin_profile["access"] # Gives them their specific keys!
+                    }
                     st.rerun()
                 
-                # Real Database Password Check
+                # --- Real Database Password Check for Normal Users ---
                 else:
                     p = get_static_sheet("User_Profiles")
                     if not p.empty and "User_ID" in p.columns and uid in p["User_ID"].astype(str).values:
