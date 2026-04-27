@@ -8,7 +8,7 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
-st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="expanded")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -1015,6 +1015,9 @@ def dashboard():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     st.info(f"Facility: **{u['hosp']}** | Department: **{u['dept']}** | Encoder: **{u['user']}**")
     
+    # --- NEW MOBILE UX BANNER ---
+    st.success("💡 **TIP:** Need help? Open the menu ( **>** ) in the top left corner to access Live Support Chat!")
+    
     d1_str, d1_locked = get_module_config("Mod1")
     d2_str, d2_locked = get_module_config("Mod2")
     d3_str, d3_locked = get_module_config("Mod3")
@@ -1118,9 +1121,13 @@ def admin_chat_view():
         
 # --- 10. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
+    # NEW: Render a locked sidebar for the login screen
+    with st.sidebar:
+        st.markdown("### 💬 Live Support Chat")
+        st.info("🔒 Please log in to access the live support chat.")
     login_screen()
 else:
-    # 🌟 NEW: Render the sliding sidebar for Hospitals!
+    # Render the real sliding sidebar for logged-in Hospitals!
     if st.session_state.user_info.get("role") == "user":
         render_user_sidebar()
         
