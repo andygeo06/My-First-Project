@@ -121,13 +121,10 @@ def render_upload_section(module_name):
                     st.success("✅ PDF Link securely encoded to database!")
             except Exception as e: st.error(f"Failed to attach link: {e}")
 
-# --- UNIVERSAL MODULAR PRINT ENGINE ---
 def render_modular_print(title, content_html, head_name="Authorized Signatory", head_pos="Head of Facility"):
     u = st.session_state.user_info
-    # Fallbacks in case inputs are totally blank
     h_name = head_name if head_name else 'Authorized Signatory'
     h_pos = head_pos if head_pos else 'Head of Facility'
-    
     html = f"""
     <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
@@ -137,15 +134,10 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
             <h3 style="margin:15px 0; padding:8px; background:#064E3B; color:white; border-radius: 5px;">{title}</h3>
             <hr style="border:1px solid #111;">
         </center>
-        <div style="margin: 20px 0; font-size: 13px;">
-            {content_html}
-        </div>
+        <div style="margin: 20px 0; font-size: 13px;">{content_html}</div>
         <br><br><br>
         <table style="width:100%; text-align:center; font-size:14px; margin-top: 40px;">
-            <tr>
-                <td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
-                <td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td>
-            </tr>
+            <tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
             <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
         <center><br><button class="no-print" onclick="window.print()" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
@@ -270,7 +262,33 @@ def module_scorecard():
             st.session_state.show_print = True; st.rerun()
 
     if st.session_state.get("show_print", False):
-        generate_print_view(res_print)
+        u = st.session_state.user_info
+        html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
+        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 800px; margin: 0 auto;">
+            <center><h1 style="margin:0; color:#111;">2025 DOH HOSPITAL SCORECARD</h1><h3 style="margin:5px 0; color:#444;">{u['hosp']} — {u['dept']} Department</h3><hr style="border:1px solid #111;"></center><br>
+            <table style="width: 100%; border-collapse: collapse; text-align: left; margin: 0 auto;">
+                <tr style="background-color: #1A365D; color: white;"><th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">I. STRATEGIC PERFORMANCE INDICATORS</th></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">Service Capability Level</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('Level', '')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('SI1', '')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('SI2', '')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{res_print.get('SI3_Cat', '')} ({res_print.get('SI3_Stat', '')})</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 4: ISO Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{res_print.get('SI4_Status', '')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 5: PGS Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{res_print.get('SI5_25', '')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 6: Specialty Centers</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('SI6', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 7: Zero Co-Payment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('SI7', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">SI 8: Paperless EMR</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('SI8', 0):.2f}%</td></tr>
+                <tr style="background-color: #7B341E; color: white;"><th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">II. CORE QUALITY INDICATORS</th></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 1: ER TAT (&lt;4h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI1', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 2: Discharge TAT (&lt;6h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI2', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 3: Lab TAT (&lt;5h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI3', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 4: HAI Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI4', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 5: Client Experience Survey</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI5', 0):.2f}%</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #333;">CI 6: Disbursement Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{res_print.get('CI6', 0):.2f}%</td></tr>
+            </table><br><br>
+            <table style="width:100%; text-align:center;"><tr><td>__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td>__________________________<br><b>{res_print.get('Head_Name', '')}</b><br>{res_print.get('Head_Pos', '')}</td></tr></table><br>
+            <center><button class="no-print" onclick="window.print()" style="padding:12px 25px; background:#1A365D; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print to PDF</button></center>
+        </div>"""
+        st.components.v1.html(html, height=950, scrolling=True)
         render_upload_section("Mod1")
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
@@ -279,14 +297,12 @@ def module_census_data():
     if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod2")
     prev = st.session_state.staged_data
     deadline_str, locked = get_module_config("Mod2")
-    DRIVE_LINK = "https://drive.google.com/drive/folders/placeholder"
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
     st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
         lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
-        
         r1_1, r1_2, r1_3 = st.columns([5, 2, 2])
         r1_1.markdown("**Service Capability Level (2026):**")
         lv_26 = r1_2.selectbox("Level 26", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_26")), disabled=locked, label_visibility="collapsed")
@@ -385,10 +401,27 @@ def module_census_data():
             st.session_state.show_print = True; st.rerun()
 
     if st.session_state.get("show_print", False):
-        generate_print_view_mod2(final_data)
+        u = st.session_state.user_info
+        html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
+        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
+            <center><h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2><h4 style="margin:5px 0;">{u['hosp']} — {u['dept']} Department</h4><hr style="border:1px solid #111;"></center>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
+                <tr style="background: #eee;"><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 45%;">Data Parameter</th><th style="border: 1px solid #333; padding: 6px; text-align: center; width: 15%;">Value</th><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 40%;">Remarks</th></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('LV_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_LV26', '')}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('ABC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_ABC_25', '')}</td></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('BOR_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_BOR_25', '')}</td></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('APEX', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_APEX', '')}</td></tr>
+            </table><br><br><br>
+            <table style="width:100%; text-align:center; font-size:14px;"><tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{final_data.get('Head_Name', '')}</b><br>{final_data.get('Head_Pos', '')}</td></tr></table>
+            <center><br><button class="no-print" onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
+        </div>"""
+        st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 4 - COMPLETE) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 5 - MASTER) ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
@@ -408,8 +441,14 @@ def module_gva():
     
     auto_abc = mod2_data.get("ABC_25", prev.get("LTO_ABC", ""))
     auto_coords = mod2_data.get("COORDS", prev.get("Coordinates", ""))
+    
+    parts = [p.strip() for p in str(auto_coords).split(",") if p.strip()]
+    auto_lat = parts[0] if len(parts) > 0 else str(prev.get("Lat", ""))
+    auto_long = parts[1] if len(parts) > 1 else str(prev.get("Long", ""))
+    
     abc_locked = True if str(auto_abc).strip() not in ["", "0", "0.0", "nan"] else False
-    coords_locked = True if str(auto_coords).strip() not in ["", "0", "0.0", "nan"] else False
+    lat_locked = True if str(auto_lat).strip() not in ["", "0", "0.0", "nan"] else False
+    long_locked = True if str(auto_long).strip() not in ["", "0", "0.0", "nan"] else False
     
     deadline_str, locked = get_module_config("Mod3")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is READ-ONLY.")
@@ -472,48 +511,68 @@ def module_gva():
         bldg_res = st.data_editor(st.session_state.bldg_df, num_rows="dynamic", use_container_width=True, disabled=locked, key="bldg_grid")
 
         st.divider()
-        st.markdown("**Geographical Description & Testing**")
-        d1, d2, d3 = st.columns(3)
-        lot_area = d1.number_input("Total Lot Area (sq.m):", value=float(prev.get("Lot_Area", 0.0) or 0.0), disabled=locked)
-        green_space = d2.number_input("Green Space Area (sq.m):", value=float(prev.get("Green_Space", 0.0) or 0.0), disabled=locked)
-        final_coords = d3.text_input("Coordinates (Lat, Long):", value=auto_coords, disabled=(locked or coords_locked))
-
-        test1, test2 = st.columns(2)
-        soil_test = test1.selectbox("Conducted soil testing in premise?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Soil_Test")), disabled=locked)
-        soil_date = test2.text_input("If yes, when?", value=str(prev.get("Soil_Date", "")), disabled=locked)
-        hsi_test = test1.selectbox("Conducted Hospital Safety Index?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("HSI_Test")), disabled=locked)
-        hsi_date = test2.text_input("If yes, date & buildings?", value=str(prev.get("HSI_Date", "")), disabled=locked)
+        st.markdown("**Structural & Safety Testing**")
+        t1, t2 = st.columns(2)
+        hammer_test = t1.selectbox("Conducted hammer test/structural analysis within the buildings of hospital?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Hammer_Test")), disabled=locked)
+        hammer_details = t2.text_input("If yes, when and what date? What buildings? All buildings", value=str(prev.get("Hammer_Details", "")), disabled=locked, help="Kindly attach summary of the testing in the master upload")
+        
+        t3, t4 = st.columns(2)
+        hsi_test = t3.selectbox("Conducted Hospital Safety Index within the building/s of hospital?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("HSI_Test")), disabled=locked)
+        hsi_details = t4.text_input("If yes, when and what date? What buildings? All buildings?", value=str(prev.get("HSI_Details", "")), disabled=locked, help="Kindly attach summary of the report in the master upload")
 
         st.divider()
-        st.markdown("**Hazard Susceptibility (Check all that apply or add Others)**")
-        haz1, haz2, haz3, haz4 = st.columns(4)
-        c_coast = haz1.checkbox("Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
-        c_low = haz2.checkbox("Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
-        c_land = haz3.checkbox("Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
-        c_mount = haz4.checkbox("Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+        st.markdown("**GEOGRAPHICAL DESCRIPTION**")
+        st.caption("Note: You may refer to the open sources (e.g. Google earth)")
         
-        hz_o1, hz_o2 = st.columns(2)
-        haz_other1 = hz_o1.text_input("Other Characteristic 1 (e.g. Deep well source):", value=str(prev.get("Haz_Other1", "")), disabled=locked)
-        haz_other2 = hz_o2.text_input("Other Characteristic 2 (e.g. Low Flood Susceptibility):", value=str(prev.get("Haz_Other2", "")), disabled=locked)
+        c_geo1, c_geo2 = st.columns(2)
+        final_lat = c_geo1.text_input("Latitude:", value=auto_lat, disabled=(locked or lat_locked))
+        final_long = c_geo2.text_input("Longitude:", value=auto_long, disabled=(locked or long_locked))
+        
+        c_geo3, c_geo4 = st.columns(2)
+        lot_area = c_geo3.number_input("Total Lot Area (sq.m):", value=float(prev.get("Lot_Area", 0.0) or 0.0), disabled=locked)
+        green_space = c_geo4.number_input("Green Space Area (sq.m):", value=float(prev.get("Green_Space", 0.0) or 0.0), disabled=locked)
+        
+        c_geo5, c_geo6 = st.columns(2)
+        soil_test = c_geo5.selectbox("Conducted soil testing in the hospital premise/s?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Soil_Test")), disabled=locked)
+        soil_date = c_geo6.text_input("If yes, when:", value=str(prev.get("Soil_Date", "")), disabled=locked)
 
-        st.markdown("**Location / Distances**")
+        st.divider()
+        st.markdown("**Characteristic of location of hospital:**")
+        st.caption("Note: You may refer to the open sources (e.g. Project NOAH; Hazard Points; Profiling, National Water Resources Board, etc.)")
+        
+        haz1, haz2, haz3 = st.columns(3)
+        c_coast = haz1.checkbox("a. Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
+        c_low = haz2.checkbox("b. Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
+        c_land = haz3.checkbox("c. Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
+        
+        haz4, haz5, haz6 = st.columns(3)
+        c_mount = haz4.checkbox("d. Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+        c_deep = haz5.checkbox("e. Others: Deep well source", value=bool(prev.get("C_Deep", False)), disabled=locked)
+        c_flood = haz6.checkbox("f. Others: Low Flood Susceptibility", value=bool(prev.get("C_Flood", False)), disabled=locked)
+
+        st.divider()
+        st.markdown("**Location / Distance in Kilometer/meter in relation to the following (if applicable):**")
+        
         dist1, dist2, dist3, dist4 = st.columns(4)
-        dist_fault = dist1.number_input("Dist from Fault Line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
-        dist_volc = dist2.number_input("Dist from Volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
-        dist_sea = dist3.number_input("Dist from Sea (km):", value=float(prev.get("Dist_Sea", 0.0) or 0.0), disabled=locked)
-        dist_hw = dist4.number_input("Dist from Major Highway (km):", value=float(prev.get("Dist_HW", 0.0) or 0.0), disabled=locked)
+        dist_fault = dist1.number_input("from the fault line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
+        dist_volc = dist2.number_input("from volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
+        dist_sea = dist3.number_input("from the sea (km):", value=float(prev.get("Dist_Sea", 0.0) or 0.0), disabled=locked)
+        dist_hw = dist4.number_input("from major highway (km):", value=float(prev.get("Dist_HW", 0.0) or 0.0), disabled=locked)
         
         dist5, dist6, dist7, dist8 = st.columns(4)
-        dist_rail = dist5.number_input("Dist from Railroad (km):", value=float(prev.get("Dist_Rail", 0.0) or 0.0), disabled=locked)
-        dist_haz = dist6.number_input("Dist from Haz Activity (km):", value=float(prev.get("Dist_Haz", 0.0) or 0.0), disabled=locked)
-        dist_oil = dist7.number_input("Dist from Oil Deposit (km):", value=float(prev.get("Dist_Oil", 0.0) or 0.0), disabled=locked)
-        dist_ind = dist8.number_input("Dist from Industrial Est (km):", value=float(prev.get("Dist_Ind", 0.0) or 0.0), disabled=locked)
+        dist_rail = dist5.number_input("from the railroad (km):", value=float(prev.get("Dist_Rail", 0.0) or 0.0), disabled=locked)
+        dist_haz = dist6.number_input("from hazardous elements/activity (km):", value=float(prev.get("Dist_Haz", 0.0) or 0.0), disabled=locked)
+        dist_oil = dist7.number_input("from oil deposit (km):", value=float(prev.get("Dist_Oil", 0.0) or 0.0), disabled=locked)
+        dist_ind = dist8.number_input("from industrial establishment (km):", value=float(prev.get("Dist_Ind", 0.0) or 0.0), disabled=locked)
         
         dist9, dist10, dist11, dist12 = st.columns(4)
-        dist_river = dist9.number_input("Dist from River Bank (m):", value=float(prev.get("Dist_River", 0.0) or 0.0), disabled=locked)
-        dist_creek = dist10.number_input("Dist from Creeks (m):", value=float(prev.get("Dist_Creek", 0.0) or 0.0), disabled=locked)
-        dist_lake = dist11.number_input("Dist from Lake (m):", value=float(prev.get("Dist_Lake", 0.0) or 0.0), disabled=locked)
-        dist_other = dist12.text_input("Other Distance:", value=str(prev.get("Dist_Other", "")), disabled=locked)
+        dist_river = dist9.number_input("from the river bank (m):", value=float(prev.get("Dist_River", 0.0) or 0.0), disabled=locked)
+        dist_creek = dist10.number_input("from the creeks (m):", value=float(prev.get("Dist_Creek", 0.0) or 0.0), disabled=locked)
+        dist_lake = dist11.number_input("from the lake (m):", value=float(prev.get("Dist_Lake", 0.0) or 0.0), disabled=locked)
+        
+        dist_o1, dist_o2 = st.columns([1, 1])
+        dist_other_desc = dist_o1.text_input("other/s:", value=str(prev.get("Dist_Other_Desc", "")), disabled=locked)
+        dist_other_val = dist_o2.number_input("other/s distance:", value=float(prev.get("Dist_Other_Val", 0.0) or 0.0), disabled=locked)
 
         st.divider()
         st.markdown("**Module 3 Authorized Signatory**")
@@ -530,8 +589,9 @@ def module_gva():
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc} Beds</td><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Gross Floor Area (TGFA):</b> {tgfa} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Hammer Test:</b> {hammer_test} ({hammer_details})</td><td style="border: 1px solid #333; padding: 6px;"><b>HSI Test:</b> {hsi_test} ({hsi_details})</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Latitude:</b> {final_lat}</td><td style="border: 1px solid #333; padding: 6px;"><b>Longitude:</b> {final_long}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Fault Line Dist:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Volcano Dist:</b> {dist_volc} km</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>EECO Name:</b> {eeco_name}</td><td style="border: 1px solid #333; padding: 6px;"><b>PCO Name:</b> {pco_name}</td></tr>
             </table>
             """
             render_modular_print("GENERAL INFORMATION", html, sign_name, sign_pos)
@@ -649,13 +709,16 @@ def module_gva():
         "PCO_Name": pco_name, "PCO_Email": pco_email, "PCO_Num": pco_num,
         "Clin_Staff": clin_staff, "Non_Clin_Staff": non_clin, "Admin_Staff": admin_staff,
         "Jan_Staff": jan_sec, "Sec_Staff": sec_staff, "Coterm_Staff": coterm_staff,
-        "TGFA": tgfa, "Lot_Area": lot_area, "Green_Space": green_space, "Coordinates": final_coords,
+        "TGFA": tgfa, "Lot_Area": lot_area, "Green_Space": green_space, 
+        "Lat": final_lat, "Long": final_long,
+        "Hammer_Test": hammer_test, "Hammer_Details": hammer_details,
         "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Date": hsi_date,
         "C_Coast": c_coast, "C_Low": c_low, "C_Land": c_land, "C_Mount": c_mount,
-        "Haz_Other1": haz_other1, "Haz_Other2": haz_other2,
+        "C_Deep": c_deep, "C_Flood": c_flood,
         "Dist_Fault": dist_fault, "Dist_Volc": dist_volc, "Dist_Sea": dist_sea, "Dist_HW": dist_hw,
         "Dist_Rail": dist_rail, "Dist_Haz": dist_haz, "Dist_Oil": dist_oil, "Dist_Ind": dist_ind,
-        "Dist_River": dist_river, "Dist_Creek": dist_creek, "Dist_Lake": dist_lake, "Dist_Other": dist_other,
+        "Dist_River": dist_river, "Dist_Creek": dist_creek, "Dist_Lake": dist_lake, 
+        "Dist_Other_Desc": dist_other_desc, "Dist_Other_Val": dist_other_val,
         "Sign_Name": sign_name, "Sign_Pos": sign_pos, "Master_Drive_Link": master_link
     }
     final_mod3_data.update(gva_answers)
