@@ -8,12 +8,7 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
-st.set_page_config(
-    page_title="Project FORT", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
-
+st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="collapsed")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -22,24 +17,15 @@ st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
-    
-    .sticky-header {{
-        position: -webkit-sticky; position: sticky; top: 2.8rem;
-        background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
-        padding: 12px 20px; border-radius: 8px; border: 1px solid #3B82F6;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 25px; text-align: center;
-    }}
+    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 12px 20px; border-radius: 8px; border: 1px solid #3B82F6; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 25px; text-align: center; }}
     .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.3rem; font-weight: bold; }}
     .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }}
-
     .section-header-strat {{ background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 10px; }}
     .section-header-core {{ background-color: #7B341E; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 10px; }}
     .section-header-green {{ background-color: #064E3B; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #10B981; margin-bottom: 10px; }}
-
     div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 8px; transition: 0.3s; }}
     div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
     div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 15px !important; border-top: 1px solid #30363D; }}
-
     div.element-container:has(.marker) {{ display: none !important; }}
     div.element-container:has(.marker-green) + div.element-container button {{ background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
@@ -58,11 +44,9 @@ def get_static_sheet(sheet_name):
     try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl=0)
     except: return pd.DataFrame()
 
-def clear_app_memory():
-    get_static_sheet.clear()
+def clear_app_memory(): get_static_sheet.clear()
 
-def generate_custom_id():
-    return f"HFDB-2026-{''.join(random.choices(string.ascii_uppercase + string.digits, k=10))}"
+def generate_custom_id(): return f"HFDB-2026-{''.join(random.choices(string.ascii_uppercase + string.digits, k=10))}"
 
 def clean_pct(input_str):
     try: return float(str(input_str).replace('%', '').strip()) if input_str else 0.0
@@ -139,7 +123,6 @@ def render_upload_section(module_name):
 
 # --- UNIVERSAL MODULAR PRINT ENGINE ---
 def render_modular_print(title, content_html):
-    """Generates the HTML payload for a specific isolated print section."""
     u = st.session_state.user_info
     html = f"""
     <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
@@ -159,10 +142,7 @@ def render_modular_print(title, content_html):
                 <td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
                 <td style="width:50%;">__________________________<br><b>Authorized Signatory</b><br>Head of Facility</td>
             </tr>
-            <tr>
-                <td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td>
-                <td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td>
-            </tr>
+            <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
         <center><br><button class="no-print" onclick="window.print()" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
     </div>"""
@@ -301,7 +281,6 @@ def module_census_data():
     st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
-        h1, h2, h3 = st.columns([5, 2, 2])
         lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
         
         r1_1, r1_2, r1_3 = st.columns([5, 2, 2])
@@ -351,17 +330,17 @@ def module_census_data():
     st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
     with st.expander("Expand to fill out HCPN & BUCAS Data", expanded=False):
         c1, c2, c3 = st.columns([5, 2, 2])
-        c1.markdown("**Based on DC No. 2025-0554, is the hospital identified as Apex or End-Referral Hospital?**")
+        c1.markdown("**Apex or End-Referral Hospital?**")
         apex = c2.selectbox("Apex", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("APEX")), disabled=locked, label_visibility="collapsed")
         rm_apex = c3.text_input("Remarks Apex", value=str(prev.get("RM_APEX", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
-        c1.markdown("**If the hospital already has MOA/MOU with a HCPN/province, how many HCPNs are they linked with?**")
+        c1.markdown("**How many HCPNs are they linked with?**")
         hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
         rm_hcpn = c3.text_input("Remarks HCPN", value=str(prev.get("RM_HCPN", "")), disabled=locked, label_visibility="collapsed")
 
         c1, c2, c3 = st.columns([5, 2, 2])
-        c1.markdown("**Does the hospital operate a BUCAS Center/s?**")
+        c1.markdown("**Operates a BUCAS Center/s?**")
         bucas = c2.selectbox("BUCAS", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("BUCAS")), disabled=locked, label_visibility="collapsed")
         rm_bucas = c3.text_input("Remarks BUCAS", value=str(prev.get("RM_BUCAS", "")), disabled=locked, label_visibility="collapsed")
 
@@ -405,19 +384,16 @@ def module_census_data():
         generate_print_view_mod2(final_data)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 2 - DYNAMIC ENGINE & MODULAR PRINT) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 3 - FINAL EXCEL MAGIC) ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    return pd.DataFrame({
-        "Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12,
-        "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12
-    })
+    return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
 
 def module_gva():
     display_sticky_header()
     u = st.session_state.user_info
     
-    # Block rendering of the main form if we are in Print Isolation Mode
+    # Block rendering if in Print Isolation Mode
     if st.session_state.get("isolated_print_html"):
         st.components.v1.html(st.session_state.isolated_print_html, height=1200, scrolling=True)
         if st.button("⬅️ Back to Assessment Form", type="primary"):
@@ -428,7 +404,7 @@ def module_gva():
     mod2_data = get_previous_entry("Mod2")
     prev = get_previous_entry("Mod3")
     
-    auto_abc = mod2_data.get("ABC_25", prev.get("ABC", ""))
+    auto_abc = mod2_data.get("ABC_25", prev.get("LTO_ABC", ""))
     auto_coords = mod2_data.get("COORDS", prev.get("Coordinates", ""))
     
     abc_locked = True if str(auto_abc).strip() not in ["", "0", "0.0", "nan"] else False
@@ -439,70 +415,99 @@ def module_gva():
 
     st.markdown('<div class="section-header-green"><h3 style="margin:0;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h3></div>', unsafe_allow_html=True)
     
-    # --- PART 1: GENERAL INFO ---
+    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE) ---
     st.header("1️⃣ GENERAL INFORMATION")
     with st.expander("Expand to fill General & Geographical Info", expanded=True):
-        c1, c2 = st.columns(2)
-        c1.text_input("Name of Health Facility:", value=u['hosp'], disabled=True)
-        c2.text_input("Service Capability Level:", value=u.get('level', 'Level 1'), disabled=True)
+        st.markdown("**Facility Overview**")
+        c1, c2, c3 = st.columns(3)
+        h_name = c1.text_input("Name of Health Facility:", value=u['hosp'], disabled=True)
+        h_type = c2.selectbox("Type of Health Facility:", ["Hospital", "Infirmary", "Clinic", "Others"], index=get_idx(pd.Series(["Hospital", "Infirmary", "Clinic", "Others"]), prev.get("H_Type")), disabled=locked)
+        h_level = c3.text_input("Service Capability Level:", value=u.get('level', 'Level 1'), disabled=True)
         
-        c3, c4 = st.columns(2)
-        final_abc = c3.text_input("Authorized Bed Capacity (ABC):", value=auto_abc, disabled=(locked or abc_locked))
-        final_coords = c4.text_input("Coordinates (Lat, Long):", value=auto_coords, disabled=(locked or coords_locked))
+        c4, c5, c6 = st.columns(3)
+        h_region = c4.text_input("Region:", value=str(prev.get("H_Region", "")), disabled=locked)
+        h_prov = c5.text_input("Province:", value=str(prev.get("H_Prov", "")), disabled=locked)
+        h_muni = c6.text_input("Municipality:", value=str(prev.get("H_Muni", "")), disabled=locked)
         
-        st.divider()
-        st.markdown("**Facility Dimensions & Testing**")
-        dim1, dim2 = st.columns(2)
-        lot_area = dim1.number_input("Total Lot Area (sq.m):", value=float(prev.get("Lot_Area", 0.0) or 0.0), disabled=locked)
-        green_space = dim2.number_input("Green Space Area (sq.m):", value=float(prev.get("Green_Space", 0.0) or 0.0), disabled=locked)
+        o1, o2 = st.columns(2)
+        h_own = o1.selectbox("Ownership:", ["Government", "Private"], index=get_idx(pd.Series(["Government", "Private"]), prev.get("H_Own")), disabled=locked)
+        h_subown = o2.text_input("Sub-ownership:", value=str(prev.get("H_Subown", "")), disabled=locked)
         
-        test1, test2 = st.columns(2)
-        soil_test = test1.selectbox("Conducted soil testing in premise?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Soil_Test")), disabled=locked)
-        soil_date = test2.text_input("If yes, when?", value=str(prev.get("Soil_Date", "")), disabled=locked)
-        hsi_test = test1.selectbox("Conducted Hospital Safety Index?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("HSI_Test")), disabled=locked)
-        hsi_date = test2.text_input("If yes, date & buildings?", value=str(prev.get("HSI_Date", "")), disabled=locked)
-
-        st.divider()
-        st.markdown("**Hazard Susceptibility (Check all that apply)**")
-        haz1, haz2, haz3, haz4 = st.columns(4)
-        c_coast = haz1.checkbox("Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
-        c_low = haz2.checkbox("Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
-        c_land = haz3.checkbox("Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
-        c_mount = haz4.checkbox("Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+        st.markdown("**Bed Capacities**")
+        b1, b2, b3, b4 = st.columns(4)
+        lto_abc = b1.text_input("LTO ABC (Beds):", value=auto_abc, disabled=(locked or abc_locked))
+        ibc = b2.number_input("Implementing Bed Cap:", value=int(float(prev.get("IBC", 0) or 0)), step=1, disabled=locked)
+        icu = b3.number_input("ICU Beds:", value=int(float(prev.get("ICU_Beds", 0) or 0)), step=1, disabled=locked)
+        bor = b4.text_input("Bed Occupancy Rate (%):", value=str(prev.get("BOR_Pct", "")), disabled=locked)
         
-        st.markdown("**Location / Distance in Kilometer/meter**")
-        d1, d2, d3 = st.columns(3)
-        dist_fault = d1.number_input("Distance from fault line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
-        dist_volc = d2.number_input("Distance from volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
-        dist_sea = d3.number_input("Distance from sea (km):", value=float(prev.get("Dist_Sea", 0.0) or 0.0), disabled=locked)
-
+        st.markdown("**Facility Leadership & Contact**")
+        l1, l2, l3 = st.columns(3)
+        chief_name = l1.text_input("Hospital Chief:", value=str(prev.get("Chief_Name", "")), disabled=locked)
+        h_email = l2.text_input("Official Email:", value=str(prev.get("H_Email", "")), disabled=locked)
+        h_contact = l3.text_input("Contact Number:", value=str(prev.get("H_Contact", "")), disabled=locked)
+        
+        st.markdown("**Green Initiative Officers**")
+        g1, g2, g3 = st.columns(3)
+        eeco_name = g1.text_input("EECO Name:", value=str(prev.get("EECO_Name", "")), disabled=locked)
+        eeco_email = g2.text_input("EECO Email:", value=str(prev.get("EECO_Email", "")), disabled=locked)
+        eeco_num = g3.text_input("EECO Contact:", value=str(prev.get("EECO_Num", "")), disabled=locked)
+        
+        g4, g5, g6 = st.columns(3)
+        pco_name = g4.text_input("PCO Name:", value=str(prev.get("PCO_Name", "")), disabled=locked)
+        pco_email = g5.text_input("PCO Email:", value=str(prev.get("PCO_Email", "")), disabled=locked)
+        pco_num = g6.text_input("PCO Contact:", value=str(prev.get("PCO_Num", "")), disabled=locked)
+        
         st.divider()
         st.markdown("**Personnel Profiling**")
         p1, p2, p3 = st.columns(3)
         clin_staff = p1.number_input("Clinical Staff Count:", value=int(float(prev.get("Clin_Staff", 0) or 0)), step=1, disabled=locked)
         non_clin = p2.number_input("Non-Clinical Staff Count:", value=int(float(prev.get("Non_Clin_Staff", 0) or 0)), step=1, disabled=locked)
-        jan_sec = p3.number_input("Janitorial/Security Count:", value=int(float(prev.get("Jan_Sec_Staff", 0) or 0)), step=1, disabled=locked)
+        admin_staff = p3.number_input("Administrative Personnel:", value=int(float(prev.get("Admin_Staff", 0) or 0)), step=1, disabled=locked)
         
+        p4, p5, p6 = st.columns(3)
+        jan_sec = p4.number_input("Janitorial Personnel:", value=int(float(prev.get("Jan_Staff", 0) or 0)), step=1, disabled=locked)
+        sec_staff = p5.number_input("Security Personnel:", value=int(float(prev.get("Sec_Staff", 0) or 0)), step=1, disabled=locked)
+        coterm_staff = p6.number_input("Coterminous Personnel:", value=int(float(prev.get("Coterm_Staff", 0) or 0)), step=1, disabled=locked)
+
         st.divider()
         st.markdown("**Physical Distribution (Dynamic Building List)**")
-        if "bldg_df" not in st.session_state:
-            st.session_state.bldg_df = pd.DataFrame([{"Building Name": "Main Hospital", "Floor Area (sq.m)": 0.0}])
-        bldg_res = st.data_editor(st.session_state.bldg_df, num_rows="dynamic", use_container_width=True, disabled=locked)
+        if "bldg_df" not in st.session_state: st.session_state.bldg_df = pd.DataFrame([{"Building Name": "Main Hospital", "Floor Area (sq.m)": 0.0}])
+        bldg_res = st.data_editor(st.session_state.bldg_df, num_rows="dynamic", use_container_width=True, disabled=locked, key="bldg_grid")
+
+        st.divider()
+        st.markdown("**Geographical Description**")
+        d1, d2, d3 = st.columns(3)
+        lot_area = d1.number_input("Total Lot Area (sq.m):", value=float(prev.get("Lot_Area", 0.0) or 0.0), disabled=locked)
+        green_space = d2.number_input("Green Space Area (sq.m):", value=float(prev.get("Green_Space", 0.0) or 0.0), disabled=locked)
+        final_coords = d3.text_input("Coordinates (Lat, Long):", value=auto_coords, disabled=(locked or coords_locked))
+
+        st.markdown("**Hazards & Distances**")
+        haz1, haz2, haz3, haz4 = st.columns(4)
+        c_coast = haz1.checkbox("Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
+        c_low = haz2.checkbox("Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
+        c_land = haz3.checkbox("Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
+        c_mount = haz4.checkbox("Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+
+        dist1, dist2, dist3 = st.columns(3)
+        dist_fault = dist1.number_input("Dist from Fault Line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
+        dist_volc = dist2.number_input("Dist from Volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
+        dist_sea = dist3.number_input("Dist from Sea (km):", value=float(prev.get("Dist_Sea", 0.0) or 0.0), disabled=locked)
         
-        # Modular Print for General Info
         st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
         if st.button("🖨️ Print General Information for Signature", use_container_width=True):
             html = f"""
             <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-                <tr><td style="border: 1px solid #333; padding: 8px;"><b>Facility:</b> {u['hosp']}</td><td style="border: 1px solid #333; padding: 8px;"><b>Level:</b> {u.get('level','Level 1')}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 8px;"><b>Lot Area:</b> {lot_area} sq.m</td><td style="border: 1px solid #333; padding: 8px;"><b>Green Space:</b> {green_space} sq.m</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 8px;"><b>Fault Line Dist:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 8px;"><b>Volcano Dist:</b> {dist_volc} km</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 8px;"><b>Clinical Staff:</b> {clin_staff}</td><td style="border: 1px solid #333; padding: 8px;"><b>Non-Clinical:</b> {non_clin}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Facility:</b> {u['hosp']}</td><td style="border: 1px solid #333; padding: 6px;"><b>Level:</b> {u.get('level','Level 1')}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Hospital Chief:</b> {chief_name}</td><td style="border: 1px solid #333; padding: 6px;"><b>Contact:</b> {h_contact}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc} Beds</td><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>EECO Name:</b> {eeco_name}</td><td style="border: 1px solid #333; padding: 6px;"><b>PCO Name:</b> {pco_name}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Green Space:</b> {green_space} sq.m</td></tr>
             </table>
             """
             render_modular_print("GENERAL INFORMATION", html)
 
-   # --- PART 2: CONSUMPTION DATA ---
+    # --- PART 2: CONSUMPTION DATA ---
     st.header("2️⃣ MULTI-YEAR CONSUMPTION DATA")
     years = [str(y) for y in range(2022, 2029)]
     tabs = st.tabs(years)
@@ -510,17 +515,8 @@ def module_gva():
     
     for i, year in enumerate(years):
         with tabs[i]:
-            if f"grid_{year}" not in st.session_state: 
-                st.session_state[f"grid_{year}"] = get_blank_consumption_grid()
-                
-            # THE FIX: I added `key=f"editor_{year}"` to the end of this line!
-            grid_result = st.data_editor(
-                st.session_state[f"grid_{year}"], 
-                hide_index=True, 
-                use_container_width=True, 
-                disabled=locked,
-                key=f"editor_{year}" 
-            )
+            if f"grid_{year}" not in st.session_state: st.session_state[f"grid_{year}"] = get_blank_consumption_grid()
+            grid_result = st.data_editor(st.session_state[f"grid_{year}"], hide_index=True, use_container_width=True, disabled=locked, key=f"editor_{year}")
             live_consumption[year] = grid_result
             
             st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
@@ -553,25 +549,33 @@ def module_gva():
         st.warning("⚠️ Could not find the 'Performance Standards' tab. Add it to see the checklist!")
     else:
         perf_df.columns = perf_df.columns.str.strip()
-        if 'CRITERION' in perf_df.columns and 'Ref. #' in perf_df.columns and 'QUESTIONS' in perf_df.columns:
-            # Forward-fill to fix merged cells
+        
+        # Look for the new MAJOR CATEGORY column
+        if 'MAJOR CATEGORY' in perf_df.columns and 'CRITERION' in perf_df.columns and 'Ref. #' in perf_df.columns and 'QUESTIONS' in perf_df.columns:
+            
+            # Forward-fill to fix merged cells in Excel
+            perf_df['MAJOR CATEGORY'] = perf_df['MAJOR CATEGORY'].ffill()
             perf_df['CRITERION'] = perf_df['CRITERION'].ffill()
+            
             sub_col = 'SUB- CATEGORY' if 'SUB- CATEGORY' in perf_df.columns else 'SUB-CATEGORY' if 'SUB-CATEGORY' in perf_df.columns else None
             if sub_col: perf_df[sub_col] = perf_df[sub_col].ffill()
             
             questions_only = perf_df.dropna(subset=['Ref. #', 'QUESTIONS'])
-            categories = questions_only['CRITERION'].unique()
+            categories = questions_only['MAJOR CATEGORY'].unique()
             
             for cat in categories:
                 cat_max = 0
                 cat_actual = 0
-                cat_questions = questions_only[questions_only['CRITERION'] == cat]
+                cat_questions = questions_only[questions_only['MAJOR CATEGORY'] == cat]
+                criterion_desc = cat_questions['CRITERION'].iloc[0] # Grab the long description
                 
                 with st.expander(f"📌 {cat}", expanded=False):
+                    st.info(f"**Definition:** {criterion_desc}") # Show the description
+                    
                     if sub_col:
                         subs = cat_questions[sub_col].unique()
                         for sub in subs:
-                            st.markdown(f"<h5 style='color:#3B82F6;'>🔹 {sub}</h5>", unsafe_allow_html=True)
+                            st.markdown(f"<h5 style='color:#3B82F6; margin-top:20px;'>🔹 {sub}</h5>", unsafe_allow_html=True)
                             sub_qs = cat_questions[cat_questions[sub_col] == sub]
                             
                             for _, row in sub_qs.iterrows():
@@ -587,10 +591,10 @@ def module_gva():
                                 elif "In Progress" in ans: cat_actual += 0.5
                                 st.divider()
                     
-                    # Modular Print Button for this specific Criterion
+                    # Modular Print Button for this specific Category
                     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
                     if st.button(f"🖨️ Print {cat} for Signature", use_container_width=True, key=f"p_cat_{cat}"):
-                        html_lines = [f"<h4>{cat}</h4><table style='width:100%; border-collapse: collapse;'><tr><th style='border:1px solid #333; padding:6px; background:#eee;'>Ref</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Question</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Answer</th></tr>"]
+                        html_lines = [f"<h4>{cat}</h4><p><i>{criterion_desc}</i></p><table style='width:100%; border-collapse: collapse;'><tr><th style='border:1px solid #333; padding:6px; background:#eee;'>Ref</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Question</th><th style='border:1px solid #333; padding:6px; background:#eee;'>Answer</th></tr>"]
                         for _, row in cat_questions.iterrows():
                             ref = str(row['Ref. #']).strip()
                             html_lines.append(f"<tr><td style='border:1px solid #333; padding:6px;'>{ref}</td><td style='border:1px solid #333; padding:6px;'>{row['QUESTIONS']}</td><td style='border:1px solid #333; padding:6px; text-align:center;'><b>{gva_answers[f'GVA_{ref}']}</b></td></tr>")
@@ -613,7 +617,7 @@ def module_gva():
                 html = html.replace('<td>', '<td style="padding: 8px; border: 1px solid #333;">')
                 render_modular_print("OVERALL PERFORMANCE SCORE SUMMARY", html)
         else:
-            st.error("⚠️ Ensure your sheet has columns exactly named: 'CRITERION', 'Ref. #', and 'QUESTIONS' on Row 1.")
+            st.error("⚠️ Please add the 'MAJOR CATEGORY' column to Row 1 of your Performance Standards sheet to unlock the questions!")
 
     # --- PART 4: MASTER UPLOAD BOX ---
     st.header("4️⃣ MASTER EVIDENCE UPLOAD")
@@ -622,15 +626,20 @@ def module_gva():
 
     # Combine Data for saving
     final_mod3_data = {
-        "ABC": final_abc, "Coordinates": final_coords, "Lot_Area": lot_area, "Green_Space": green_space,
-        "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Date": hsi_date,
+        "H_Type": h_type, "H_Region": h_region, "H_Prov": h_prov, "H_Muni": h_muni,
+        "H_Own": h_own, "H_Subown": h_subown, "LTO_ABC": lto_abc, "IBC": ibc, "ICU_Beds": icu, "BOR_Pct": bor,
+        "Chief_Name": chief_name, "H_Email": h_email, "H_Contact": h_contact,
+        "EECO_Name": eeco_name, "EECO_Email": eeco_email, "EECO_Num": eeco_num,
+        "PCO_Name": pco_name, "PCO_Email": pco_email, "PCO_Num": pco_num,
+        "Clin_Staff": clin_staff, "Non_Clin_Staff": non_clin, "Admin_Staff": admin_staff,
+        "Jan_Staff": jan_sec, "Sec_Staff": sec_staff, "Coterm_Staff": coterm_staff,
+        "Lot_Area": lot_area, "Green_Space": green_space, "Coordinates": final_coords,
         "C_Coast": c_coast, "C_Low": c_low, "C_Land": c_land, "C_Mount": c_mount,
         "Dist_Fault": dist_fault, "Dist_Volc": dist_volc, "Dist_Sea": dist_sea,
-        "Clin_Staff": clin_staff, "Non_Clin_Staff": non_clin, "Jan_Sec_Staff": jan_sec,
         "Master_Drive_Link": master_link
     }
     final_mod3_data.update(gva_answers)
-    final_mod3_data.update(admin_co2e_save) # Saves the math for the Admin
+    final_mod3_data.update(admin_co2e_save) # Saves the CO2e math for the Admin Dashboard
 
     if not locked:
         if st.button("💾 SAVE ALL PROGRESS TO DATABASE", use_container_width=True, type="primary"):
