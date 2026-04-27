@@ -421,7 +421,7 @@ def module_census_data():
         st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 5 - MASTER) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 6 - MASTER) ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
@@ -455,7 +455,7 @@ def module_gva():
 
     st.markdown('<div class="section-header-green"><h3 style="margin:0;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h3></div>', unsafe_allow_html=True)
     
-    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE & ACCURATE) ---
+    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE) ---
     st.header("1️⃣ GENERAL INFORMATION")
     with st.expander("Expand to fill General & Geographical Info", expanded=True):
         st.markdown("**Facility Overview**")
@@ -538,21 +538,30 @@ def module_gva():
 
         st.divider()
         st.markdown("**Characteristic of location of hospital:**")
-        st.caption("Note: You may refer to the open sources (e.g. Project NOAH; Hazard Points; Profiling, National Water Resources Board, etc.)")
+        st.caption("Check all applicable characteristics and provide the estimated distance. Note: You may refer to open sources (e.g. Project NOAH; Hazard Points; etc.)")
         
-        haz1, haz2, haz3 = st.columns(3)
-        c_coast = haz1.checkbox("a. Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
-        c_low = haz2.checkbox("b. Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
-        c_land = haz3.checkbox("c. Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
+        col1, col2, col3, col4 = st.columns([3, 2, 3, 2])
         
-        haz4, haz5, haz6 = st.columns(3)
-        c_mount = haz4.checkbox("d. Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
-        c_deep = haz5.checkbox("e. Others: Deep well source", value=bool(prev.get("C_Deep", False)), disabled=locked)
-        c_flood = haz6.checkbox("f. Others: Low Flood Susceptibility", value=bool(prev.get("C_Flood", False)), disabled=locked)
+        c_coast = col1.checkbox("a. Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
+        d_coast = col2.text_input("Dist a", value=str(prev.get("D_Coast", "")), disabled=(not c_coast or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
+        
+        c_mount = col3.checkbox("d. Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
+        d_mount = col4.text_input("Dist d", value=str(prev.get("D_Mount", "")), disabled=(not c_mount or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
+        
+        c_low = col1.checkbox("b. Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
+        d_low = col2.text_input("Dist b", value=str(prev.get("D_Low", "")), disabled=(not c_low or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
+        
+        c_deep = col3.checkbox("e. Others: Deep well source", value=bool(prev.get("C_Deep", False)), disabled=locked)
+        d_deep = col4.text_input("Dist e", value=str(prev.get("D_Deep", "")), disabled=(not c_deep or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
+        
+        c_land = col1.checkbox("c. Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
+        d_land = col2.text_input("Dist c", value=str(prev.get("D_Land", "")), disabled=(not c_land or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
+        
+        c_flood = col3.checkbox("f. Others: Low Flood Suscep.", value=bool(prev.get("C_Flood", False)), disabled=locked)
+        d_flood = col4.text_input("Dist f", value=str(prev.get("D_Flood", "")), disabled=(not c_flood or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
 
         st.divider()
         st.markdown("**Location / Distance in Kilometer/meter in relation to the following (if applicable):**")
-        
         dist1, dist2, dist3, dist4 = st.columns(4)
         dist_fault = dist1.number_input("from the fault line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
         dist_volc = dist2.number_input("from volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
@@ -583,14 +592,19 @@ def module_gva():
 
         st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
         if st.button("🖨️ Print General Information for Signature", use_container_width=True):
+            def fmt_char(checked, dist): return f"Yes ({dist})" if checked and dist else "Yes" if checked else "No"
             html = f"""
             <table style="width:100%; border-collapse: collapse; font-size: 13px;">
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Facility:</b> {u['hosp']}</td><td style="border: 1px solid #333; padding: 6px;"><b>Level:</b> {u.get('level','Level 1')}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Region:</b> {h_region}</td><td style="border: 1px solid #333; padding: 6px;"><b>Ownership:</b> {h_own}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>LTO ABC:</b> {lto_abc} Beds</td><td style="border: 1px solid #333; padding: 6px;"><b>ICU Beds:</b> {icu}</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Total Gross Floor Area (TGFA):</b> {tgfa} sq.m</td><td style="border: 1px solid #333; padding: 6px;"><b>Total Lot Area:</b> {lot_area} sq.m</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Hammer Test:</b> {hammer_test} ({hammer_details})</td><td style="border: 1px solid #333; padding: 6px;"><b>HSI Test:</b> {hsi_test} ({hsi_details})</td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Latitude:</b> {final_lat}</td><td style="border: 1px solid #333; padding: 6px;"><b>Longitude:</b> {final_long}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px; background:#f0f0f0;" colspan="2"><b>Facility Characteristics</b></td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Coastal Area:</b> {fmt_char(c_coast, d_coast)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Mountainous:</b> {fmt_char(c_mount, d_mount)}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Low Lying:</b> {fmt_char(c_low, d_low)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Deep Well:</b> {fmt_char(c_deep, d_deep)}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px;"><b>Landslide Prone:</b> {fmt_char(c_land, d_land)}</td><td style="border: 1px solid #333; padding: 6px;"><b>Low Flood Suscep.:</b> {fmt_char(c_flood, d_flood)}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 6px; background:#f0f0f0;" colspan="2"><b>Hazard Distances</b></td></tr>
                 <tr><td style="border: 1px solid #333; padding: 6px;"><b>Fault Line Dist:</b> {dist_fault} km</td><td style="border: 1px solid #333; padding: 6px;"><b>Volcano Dist:</b> {dist_volc} km</td></tr>
             </table>
             """
@@ -713,8 +727,9 @@ def module_gva():
         "Lat": final_lat, "Long": final_long,
         "Hammer_Test": hammer_test, "Hammer_Details": hammer_details,
         "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Date": hsi_date,
-        "C_Coast": c_coast, "C_Low": c_low, "C_Land": c_land, "C_Mount": c_mount,
-        "C_Deep": c_deep, "C_Flood": c_flood,
+        "C_Coast": c_coast, "D_Coast": d_coast, "C_Low": c_low, "D_Low": d_low, 
+        "C_Land": c_land, "D_Land": d_land, "C_Mount": c_mount, "D_Mount": d_mount,
+        "C_Deep": c_deep, "D_Deep": d_deep, "C_Flood": c_flood, "D_Flood": d_flood,
         "Dist_Fault": dist_fault, "Dist_Volc": dist_volc, "Dist_Sea": dist_sea, "Dist_HW": dist_hw,
         "Dist_Rail": dist_rail, "Dist_Haz": dist_haz, "Dist_Oil": dist_oil, "Dist_Ind": dist_ind,
         "Dist_River": dist_river, "Dist_Creek": dist_creek, "Dist_Lake": dist_lake, 
