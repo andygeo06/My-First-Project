@@ -726,7 +726,7 @@ def module_gva():
         "TGFA": tgfa, "Lot_Area": lot_area, "Green_Space": green_space, 
         "Lat": final_lat, "Long": final_long,
         "Hammer_Test": hammer_test, "Hammer_Details": hammer_details,
-        "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Date": hsi_date,
+        "Soil_Test": soil_test, "Soil_Date": soil_date, "HSI_Test": hsi_test, "HSI_Details": hsi_details,
         "C_Coast": c_coast, "D_Coast": d_coast, "C_Low": c_low, "D_Low": d_low, 
         "C_Land": c_land, "D_Land": d_land, "C_Mount": c_mount, "D_Mount": d_mount,
         "C_Deep": c_deep, "D_Deep": d_deep, "C_Flood": c_flood, "D_Flood": d_flood,
