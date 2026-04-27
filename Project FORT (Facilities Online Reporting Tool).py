@@ -1001,10 +1001,10 @@ def login_screen():
                 
                 # --- NEW: MULTI-ADMIN ACCESS CONTROL ---
                 ADMIN_ACCOUNTS = {
-                    "ADMIN-MASTER": {"name": "Super Admin", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                    "ADMIN-SCORE": {"name": "Scorecard Chief", "access": ["Mod1", "Chat"]},
-                    "ADMIN-CENSUS": {"name": "Census Director", "access": ["Mod2", "Chat"]},
-                    "ADMIN-GREEN": {"name": "GVA Coordinator", "access": ["Mod3", "Chat"]}
+                    "ADMIN-DYN4M33K": {"name": "Super Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-Sc0r3c4rd": {"name": "Scorecard Overseer", "access": ["Mod1", "Chat"]},
+                    "ADMIN-Mo03": {"name": "MOOE Coordinator", "access": ["Mod2", "Chat"]},
+                    "ADMIN-Gr33n": {"name": "GVA Coordinator", "access": ["Mod3", "Chat"]}
                 }
                 
                 if uid in ADMIN_ACCOUNTS:
