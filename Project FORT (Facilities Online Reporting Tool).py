@@ -531,32 +531,44 @@ def generate_print_view_mod2(d):
             <h4 style="margin:5px 0;">{u['hosp']}</h4>
             <hr style="border:1px solid #111;">
         </center>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
             <tr style="background: #eee;">
-                <th style="border: 1px solid #333; padding: 8px; text-align: left; width: 40%;">Data Parameter</th>
-                <th style="border: 1px solid #333; padding: 8px; text-align: center; width: 20%;">Value</th>
-                <th style="border: 1px solid #333; padding: 8px; text-align: left; width: 40%;">Remarks</th>
+                <th style="border: 1px solid #333; padding: 6px; text-align: left; width: 45%;">Data Parameter</th>
+                <th style="border: 1px solid #333; padding: 6px; text-align: center; width: 15%;">Value</th>
+                <th style="border: 1px solid #333; padding: 6px; text-align: left; width: 40%;">Remarks</th>
             </tr>
             <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['LV_26']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_LV26']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['ABC_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_ABC_25']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">IBC (2025)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['IBC_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_IBC25']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('LV_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LV26', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Target Service Capability (2027)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('LV_27', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LV27', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">LTO (2025 & 2026) Uploaded</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">-</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LTO', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ABC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ABC_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Target ABC by Licensing (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ABC_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ABC_26', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Law (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('LAW_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LAW_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Law (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('LAW_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LAW_26', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Target ABC by Licensing (2027)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ABC_27', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ABC27', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">IBC (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('IBC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_IBC25', '')}</td></tr>
             
             <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['BOR_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_BOR_25']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Average Length of Stay (ALOS)</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['ALOS_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_ALOS_25']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Total Outpatient Visits</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['OUT_25']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_OUT_25']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('BOR_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_BOR_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Average Length of Stay (ALOS)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ALOS_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ALOS_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Total Inpatient Days Served (TIDS)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('TIDS_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_TIDS_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Total Number of Inpatients</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('INP_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_INP_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Total Outpatient Visits</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('OUT_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_OUT_25', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Total ER Visits</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ERV_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ERV_25', '')}</td></tr>
             
             <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['APEX']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_APEX']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">Operates BUCAS Center</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['BUCAS']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_BUCAS']}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 5px;">BUCAS Coordinates</td><td style="border: 1px solid #333; padding: 5px; text-align: center;">{d['COORDS']}</td><td style="border: 1px solid #333; padding: 5px;">{d['RM_COORDS']}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('APEX', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_APEX', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">MOA/MOU Uploaded</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">-</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_MOA', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">HCPN/Provinces Linked Count</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('HCPN_COUNT', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_HCPN', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">Operates BUCAS Center</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('BUCAS', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_BUCAS', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">BUCAS Coordinates</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('COORDS', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_COORDS', '')}</td></tr>
+            <tr><td style="border: 1px solid #333; padding: 4px;">BUCAS LTO Uploaded</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">-</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_BUCAS_LTO', '')}</td></tr>
         </table>
         <br><br><br>
         <table style="width:100%; text-align:center; font-size:14px;">
             <tr>
                 <td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td>
-                <td style="width:50%;">__________________________<br><b>{d['Head_Name']}</b><br>{d['Head_Pos']}</td>
+                <td style="width:50%;">__________________________<br><b>{d.get('Head_Name', '')}</b><br>{d.get('Head_Pos', '')}</td>
             </tr>
             <tr>
                 <td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td>
@@ -565,8 +577,8 @@ def generate_print_view_mod2(d):
         </table>
         <center><br><button onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
     </div>"""
-    st.components.v1.html(html, height=800, scrolling=True)
-
+    st.components.v1.html(html, height=1000, scrolling=True)
+    
 # --- 7. ROUTING, LOGIN, & DASHBOARD ---
 
 def get_row_html(title, deadline, is_locked):
