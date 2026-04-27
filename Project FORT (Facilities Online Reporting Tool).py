@@ -878,6 +878,26 @@ def get_row_html(title, deadline, is_locked):
 
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
+    
+    # --- The "Save Your Password" Screen ---
+    if "pending_id" in st.session_state:
+        st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
+        st.markdown(f"""
+            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
+                <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
+                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
+                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
+            st.session_state.user_id = st.session_state.pending_id
+            st.session_state.user_info = st.session_state.pending_info
+            del st.session_state.pending_id; del st.session_state.pending_info
+            st.success("Access Granted. Redirecting to Dashboard...")
+            time.sleep(1); st.rerun()
+        st.stop() 
+
+    # --- Main Login UI ---
     if "auth_mode" not in st.session_state:
         c1, c2 = st.columns(2)
         with c1:
@@ -889,30 +909,68 @@ def login_screen():
     else:
         if st.button("⬅️ Back"): del st.session_state.auth_mode; st.rerun()
         
+        # --- LIVE: Register a New User to the Database ---
         if st.session_state.auth_mode == "new":
             h_df = get_static_sheet("Facility_List")
-            h_list = h_df["Facility_Name"].tolist() if not h_df.empty else []
+            h_list = h_df["Facility_Name"].dropna().tolist() if not h_df.empty and "Facility_Name" in h_df.columns else []
             h_name = st.selectbox("Hospital Name", [""] + sorted(h_list))
             u_dept = st.text_input("Department/Unit (e.g., ER, PHU, Management)")
             u_name = st.text_input("Encoder Name")
             u_pos = st.text_input("Designation")
+            
             if st.button("Register Profile", type="primary"):
-                st.session_state.user_id = generate_custom_id()
-                st.session_state.user_info = {"hosp": h_name, "dept": u_dept, "user": u_name, "pos": u_pos, "role": "user", "level": "Level 1"}
-                st.success("Registered successfully! Redirecting..."); time.sleep(1); st.rerun()
+                if not h_name or not u_name or not u_dept: 
+                    st.error("Please fill in all fields.")
+                else:
+                    new_id = generate_custom_id()
+                    try:
+                        p_df = get_static_sheet("User_Profiles")
+                        new_profile = pd.DataFrame([{
+                            "User_ID": new_id, "Hospital_Name": h_name, "Department": u_dept, 
+                            "Encoder_Name": u_name, "Position": u_pos, "Service_Capability": "Level 1"
+                        }])
                         
+                        if p_df.empty: updated_p = new_profile
+                        else: updated_p = pd.concat([p_df, new_profile], ignore_index=True)
+                            
+                        conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_p)
+                        clear_app_memory() 
+                        
+                        st.session_state.pending_id = new_id
+                        st.session_state.pending_info = {"hosp": h_name, "dept": u_dept, "user": u_name, "pos": u_pos, "role": "user", "level": "Level 1"}
+                        st.rerun()
+                    except Exception as e: 
+                        st.error(f"Could not save to database. Ensure the 'User_Profiles' tab exists. Error: {e}")
+                        
+        # --- LIVE: Existing User Login ---
         elif st.session_state.auth_mode == "existing":
             uid = st.text_input("Enter HFDB-2026 ID Code")
             if st.button("Enter Portal", type="primary"):
+                
+                # Secret Admin Bypass (Keep this!)
                 if uid == "ADMIN-2026":
                     st.session_state.user_id = uid
                     st.session_state.user_info = {"hosp": "DOH Central", "dept": "System Admin", "user": "Administrator", "pos": "Admin", "role": "admin", "level": "N/A"}
                     st.rerun()
+                
+                # Real Database Password Check
                 else:
-                    st.session_state.user_id = uid
-                    st.session_state.user_info = {"hosp": "Sample Medical Center", "dept": "Engineering", "user": "John Doe", "pos": "Officer", "role": "user", "level": "Level 2"}
-                    st.rerun()
-
+                    p = get_static_sheet("User_Profiles")
+                    if not p.empty and "User_ID" in p.columns and uid in p["User_ID"].astype(str).values:
+                        r = p[p["User_ID"].astype(str) == uid].iloc[0]
+                        st.session_state.user_id = uid
+                        st.session_state.user_info = {
+                            "hosp": r.get("Hospital_Name", "Unknown"), 
+                            "dept": r.get("Department", "General"), 
+                            "user": r.get("Encoder_Name", "Unknown"), 
+                            "pos": r.get("Position", "Unknown"), 
+                            "role": "user", 
+                            "level": r.get("Service_Capability", "Level 1")
+                        }
+                        st.rerun()
+                    else: 
+                        st.error("User ID not found in database. Check for typos or register a new profile.")
+                        
 def dashboard():
     u = st.session_state.user_info
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
