@@ -45,7 +45,7 @@ def get_static_sheet(sheet_name):
     except: return pd.DataFrame()
 
 def clear_app_memory(): get_static_sheet.clear()
-def generate_custom_id(): return f"HFDB-2026-{''.join(random.choices(string.ascii_uppercase + string.digits, k=10))}"
+def generate_custom_id(): return f"HFDB-2026-{''.join(random.choices(string.ascii_letters + string.digits, k=10))}"
 def clean_pct(input_str):
     try: return float(str(input_str).replace('%', '').strip()) if input_str else 0.0
     except: return 0.0
@@ -814,6 +814,8 @@ def admin_dashboard():
     st.markdown('<div class="marker marker-green"></div>', unsafe_allow_html=True)
     if st.button("🌿 Analyze Module 3: Green Viability Dashboard", use_container_width=True): st.session_state.current_module = "Admin_Mod3"; st.rerun()
     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
+    if st.button("💬 Open Support Center (Live Chat)", use_container_width=True): st.session_state.current_module = "Admin_Chat"; st.rerun()
+    st.markdown('<hr>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
 def admin_analysis_view(module_name, title):
@@ -1009,8 +1011,9 @@ def dashboard():
         {"id": "Mod3", "title": "🌿 Green Viability Assessment", "date": d3_str, "locked": d3_locked, "marker": "marker-green"}
     ]
     
-    ongoing = [m for m in modules if not m["locked"]]
-    lapsed = [m for m in modules if m["locked"]]
+    ongoing = [m for m in modules if not m["locked"] and str(m["date"]).strip().upper() not in ["UPCOMING", "TBA"]]
+    lapsed = [m for m in modules if m["locked"] and str(m["date"]).strip().upper() not in ["UPCOMING", "TBA"]]
+    upcoming = [m for m in modules if str(m["date"]).strip().upper() in ["UPCOMING", "TBA"]]
 
     if ongoing:
         st.markdown("### 🟢 Ongoing Data Submission Modules")
@@ -1029,25 +1032,98 @@ def dashboard():
             if st.button(f"VIEW {m['id'].upper()} (READ-ONLY)", use_container_width=True, key=f"btn_lap_{m['id']}"):
                 st.session_state.current_module = m['id']; st.rerun()
             st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+            
+    if upcoming:
+        st.markdown("### ⏳ Upcoming Modules")
+        for m in upcoming:
+            st.markdown(f"""
+            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
+                <div style="flex: 1; font-family: monospace; color: #64748B;">{m["date"]}</div>
+                <div style="flex: 1; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
+            </div>""", unsafe_allow_html=True)
+            st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
+            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
         
     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
-# --- 10. THE TRAFFIC CONTROLLER ---
-if "user_id" not in st.session_state: login_screen()
-elif "current_module" in st.session_state:
-    if not st.session_state.get("isolated_print_html"):
-        if st.button("🏠 Return to Dashboard"): 
-            if "show_print" in st.session_state: del st.session_state.show_print
-            del st.session_state.current_module; st.rerun()
+# --- 9.5 SUPPORT CHAT ENGINES ---
+def render_user_sidebar():
+    with st.sidebar:
+        st.markdown("### 💬 Live Support Chat")
+        st.caption("Need help? Message the HFDB Admins directly!")
+        
+        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5s")
+        except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Sender", "Message"])
+            
+        u_id = str(st.session_state.user_id)
+        if not chat_df.empty and "User_ID" in chat_df.columns:
+            user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
+            for _, row in user_chats.iterrows():
+                with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
+                    st.markdown(row["Message"])
+                    st.caption(row["Timestamp"])
+        else:
+            st.info("No messages yet. Ask us anything!")
+
+        prompt = st.chat_input("Type your message to HFDB...")
+        if prompt:
+            new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], "Sender": "User", "Message": prompt}
+            updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+            conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+            st.rerun()
+
+def admin_chat_view():
+    st.markdown("<h2>💬 Admin Support Center</h2>", unsafe_allow_html=True)
+    if st.button("⬅️ Back to Admin Dashboard"): del st.session_state.current_module; st.rerun()
     
-    mod = st.session_state.current_module
-    if mod == "Mod1": module_scorecard()
-    elif mod == "Mod2": module_census_data()
-    elif mod == "Mod3": module_gva()
-    elif mod == "Admin_Mod1": admin_analysis_view("Mod1", "📊 Scorecard Data Analysis")
-    elif mod == "Admin_Mod2": admin_analysis_view("Mod2", "📈 Census Data Analysis")
-    elif mod == "Admin_Mod3": admin_analysis_view("Mod3", "🌿 Green Viability Dashboard")
-else: 
-    if st.session_state.user_info.get("role") == "admin": admin_dashboard()
-    else: dashboard()
+    try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5s")
+    except: st.error("Could not load 'Support_Logs' tab from Google Sheets."); return
+        
+    if chat_df.empty: st.info("No messages from hospitals yet."); return
+
+    hospitals = chat_df["Hospital"].dropna().unique().tolist()
+    sel_hosp = st.selectbox("Select a Hospital to view/reply:", hospitals)
+    hosp_chats = chat_df[chat_df["Hospital"] == sel_hosp]
+    
+    st.markdown(f"### Chat History: {sel_hosp}")
+    chat_container = st.container(height=500)
+    with chat_container:
+        for _, row in hosp_chats.iterrows():
+            with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
+                st.markdown(f"**{row['Sender']}** - {row['Timestamp']}\n\n{row['Message']}")
+                
+    reply = st.chat_input(f"Reply to {sel_hosp}...")
+    if reply:
+        u_id = hosp_chats.iloc[0]["User_ID"]
+        new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": sel_hosp, "Sender": "Admin", "Message": reply}
+        updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+        st.rerun()
+        
+# --- 10. THE TRAFFIC CONTROLLER ---
+if "user_id" not in st.session_state: 
+    login_screen()
+else:
+    # 🌟 NEW: Render the sliding sidebar for Hospitals!
+    if st.session_state.user_info.get("role") == "user":
+        render_user_sidebar()
+        
+    if "current_module" in st.session_state:
+        if not st.session_state.get("isolated_print_html"):
+            if st.button("🏠 Return to Dashboard"): 
+                if "show_print" in st.session_state: del st.session_state.show_print
+                del st.session_state.current_module; st.rerun()
+        
+        mod = st.session_state.current_module
+        if mod == "Mod1": module_scorecard()
+        elif mod == "Mod2": module_census_data()
+        elif mod == "Mod3": module_gva()
+        elif mod == "Admin_Mod1": admin_analysis_view("Mod1", "📊 Scorecard Data Analysis")
+        elif mod == "Admin_Mod2": admin_analysis_view("Mod2", "📈 Census Data Analysis")
+        elif mod == "Admin_Mod3": admin_analysis_view("Mod3", "🌿 Green Viability Dashboard")
+        elif mod == "Admin_Chat": admin_chat_view()
+    else: 
+        if st.session_state.user_info.get("role") == "admin": admin_dashboard()
+        else: dashboard()
