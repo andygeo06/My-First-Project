@@ -115,7 +115,10 @@ def get_previous_entry(module_name="Mod1"):
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
-            if not user_data.empty: return user_data.iloc[-1].to_dict()
+            if not user_data.empty: 
+                # --- THE FIX: Tell pandas to replace 'NaN' with completely blank strings ---
+                clean_data = user_data.fillna("") 
+                return clean_data.iloc[-1].to_dict()
     except: pass
     return {}
 
