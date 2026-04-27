@@ -65,8 +65,22 @@ def get_module_config(module_name="Mod1"):
         row = df[df.iloc[:, 0] == module_name]
         if not row.empty:
             deadline_str = str(row.iloc[0, 1]).strip()
-            if deadline_str.upper() == "NOT SET" or not deadline_str: return "Not Set", False
-            return deadline_str, datetime.now() > datetime.strptime(deadline_str, "%Y-%m-%d")
+            
+            # 1. Handle Blank or "Not Set"
+            if not deadline_str or deadline_str.upper() == "NOT SET": 
+                return "Not Set", False
+                
+            # 2. Handle the new "Upcoming" / "TBA" logic safely
+            if deadline_str.upper() in ["UPCOMING", "TBA"]:
+                return deadline_str.upper(), False
+                
+            # 3. Handle actual Dates securely
+            try:
+                return deadline_str, datetime.now() > datetime.strptime(deadline_str, "%Y-%m-%d")
+            except ValueError:
+                # If someone accidentally types a typo like "2026-15-30", this stops the app from crashing!
+                return deadline_str, False 
+                
     return "Not Set", False
 
 def get_previous_entry(module_name="Mod1"):
