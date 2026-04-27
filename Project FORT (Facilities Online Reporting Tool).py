@@ -101,7 +101,7 @@ def render_upload_section(module_name):
     st.divider()
     st.markdown("### 📤 FINAL STEP: Upload Signed PDF Submission")
     st.info("Please print the documents, secure the required signatures, and upload the scanned PDF.")
-    st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/", type="primary")
+    st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link")
     pdf_link = st.text_input("Paste Google Drive File Link Here:", placeholder="https://drive.google.com/file/d/...")
     if st.button("💾 Save Drive Link", type="secondary", key=f"btn_save_link_{module_name}"):
         if pdf_link:
@@ -831,7 +831,6 @@ def generate_print_view(d):
         <center><h1 style="margin:0; color:#111;">2025 DOH HOSPITAL SCORECARD</h1><h3 style="margin:5px 0; color:#444;">{u['hosp']} — {u['dept']} Department</h3><hr style="border:1px solid #111;"></center><br>
         <table style="width: 100%; border-collapse: collapse; text-align: left; margin: 0 auto;">
             <tr style="background-color: #1A365D; color: white;"><th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">I. STRATEGIC PERFORMANCE INDICATORS</th></tr>
-            <tr><td style="padding: 8px; border: 1px solid #333;">Service Capability Level</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('Level', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI1', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI2', '')}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d.get('SI3_Cat', '')} ({d.get('SI3_Stat', '')})</td></tr>
