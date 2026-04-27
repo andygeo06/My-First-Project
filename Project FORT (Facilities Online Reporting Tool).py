@@ -45,12 +45,10 @@ def get_static_sheet(sheet_name):
     except: return pd.DataFrame()
 
 def clear_app_memory(): get_static_sheet.clear()
-
 def generate_custom_id(): return f"HFDB-2026-{''.join(random.choices(string.ascii_uppercase + string.digits, k=10))}"
-
 def clean_pct(input_str):
     try: return float(str(input_str).replace('%', '').strip()) if input_str else 0.0
-    except ValueError: return 0.0
+    except: return 0.0
 
 def score_calc(n, d, label):
     val = (n / d * 100) if d > 0 else 0
@@ -97,12 +95,7 @@ def submit_module_data(res_data, module_name="Mod1"):
 
 def display_sticky_header():
     u = st.session_state.user_info
-    st.markdown(f"""
-        <div class="sticky-header">
-            <p class="sticky-title">🏥 {u['hosp']}</p>
-            <p class="sticky-sub">{u['dept']} Department</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="sticky-header"><p class="sticky-title">🏥 {u['hosp']}</p><p class="sticky-sub">{u['dept']} Department</p></div>""", unsafe_allow_html=True)
 
 def render_upload_section(module_name):
     st.divider()
@@ -144,6 +137,14 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
     </div>"""
     st.session_state.isolated_print_html = html
     st.rerun()
+
+# --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
+def subtle_header(title, icon="🔹"):
+    st.markdown(f"""
+    <div style="background-color: rgba(59, 130, 246, 0.1); padding: 8px 15px; border-left: 4px solid #3B82F6; border-radius: 4px; margin-bottom: 15px; margin-top: 25px;">
+        <span style="margin: 0; color: #93C5FD; font-size: 1.05rem; font-weight: bold;">{icon} {title}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
@@ -421,7 +422,7 @@ def module_census_data():
         st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 6 - MASTER) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 7 - MASTER UI UPDATE) ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
@@ -441,7 +442,6 @@ def module_gva():
     
     auto_abc = mod2_data.get("ABC_25", prev.get("LTO_ABC", ""))
     auto_coords = mod2_data.get("COORDS", prev.get("Coordinates", ""))
-    
     parts = [p.strip() for p in str(auto_coords).split(",") if p.strip()]
     auto_lat = parts[0] if len(parts) > 0 else str(prev.get("Lat", ""))
     auto_long = parts[1] if len(parts) > 1 else str(prev.get("Long", ""))
@@ -455,10 +455,11 @@ def module_gva():
 
     st.markdown('<div class="section-header-green"><h3 style="margin:0;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h3></div>', unsafe_allow_html=True)
     
-    # --- PART 1: GENERAL INFO (NOW 100% COMPLETE) ---
+    # --- PART 1: GENERAL INFO ---
     st.header("1️⃣ GENERAL INFORMATION")
     with st.expander("Expand to fill General & Geographical Info", expanded=True):
-        st.markdown("**Facility Overview**")
+        
+        subtle_header("Facility Overview", "🏥")
         c1, c2, c3 = st.columns(3)
         h_name = c1.text_input("Name of Health Facility:", value=u['hosp'], disabled=True)
         h_type = c2.selectbox("Type of Health Facility:", ["Hospital", "Infirmary", "Clinic", "Others"], index=get_idx(pd.Series(["Hospital", "Infirmary", "Clinic", "Others"]), prev.get("H_Type")), disabled=locked)
@@ -473,14 +474,14 @@ def module_gva():
         h_own = o1.selectbox("Ownership:", ["Government", "Private"], index=get_idx(pd.Series(["Government", "Private"]), prev.get("H_Own")), disabled=locked)
         h_subown = o2.text_input("Sub-ownership:", value=str(prev.get("H_Subown", "")), disabled=locked)
         
-        st.markdown("**Bed Capacities**")
+        subtle_header("Bed Capacities", "🛏️")
         b1, b2, b3, b4 = st.columns(4)
         lto_abc = b1.text_input("LTO ABC (Beds):", value=auto_abc, disabled=(locked or abc_locked))
         ibc = b2.number_input("Implementing Bed Cap:", value=int(float(prev.get("IBC", 0) or 0)), step=1, disabled=locked)
         icu = b3.number_input("ICU Beds:", value=int(float(prev.get("ICU_Beds", 0) or 0)), step=1, disabled=locked)
         bor = b4.text_input("Bed Occupancy Rate (%):", value=str(prev.get("BOR_Pct", "")), disabled=locked)
         
-        st.markdown("**Green Initiative Officers**")
+        subtle_header("Green Initiative Officers", "🌿")
         g1, g2, g3 = st.columns(3)
         eeco_name = g1.text_input("EECO Name:", value=str(prev.get("EECO_Name", "")), disabled=locked)
         eeco_email = g2.text_input("EECO Email:", value=str(prev.get("EECO_Email", "")), disabled=locked)
@@ -491,8 +492,7 @@ def module_gva():
         pco_email = g5.text_input("PCO Email:", value=str(prev.get("PCO_Email", "")), disabled=locked)
         pco_num = g6.text_input("PCO Contact:", value=str(prev.get("PCO_Num", "")), disabled=locked)
         
-        st.divider()
-        st.markdown("**Personnel Profiling**")
+        subtle_header("Personnel Profiling", "👥")
         p1, p2, p3 = st.columns(3)
         clin_staff = p1.number_input("Clinical Staff Count:", value=int(float(prev.get("Clin_Staff", 0) or 0)), step=1, disabled=locked)
         non_clin = p2.number_input("Non-Clinical Staff Count:", value=int(float(prev.get("Non_Clin_Staff", 0) or 0)), step=1, disabled=locked)
@@ -503,15 +503,13 @@ def module_gva():
         sec_staff = p5.number_input("Security Personnel:", value=int(float(prev.get("Sec_Staff", 0) or 0)), step=1, disabled=locked)
         coterm_staff = p6.number_input("Coterminous Personnel:", value=int(float(prev.get("Coterm_Staff", 0) or 0)), step=1, disabled=locked)
 
-        st.divider()
-        st.markdown("**Physical Distribution**")
+        subtle_header("Physical Distribution", "🏢")
         tgfa = st.number_input("Total Gross Floor Area (TGFA) (sq.m):", value=float(prev.get("TGFA", 0.0) or 0.0), disabled=locked)
         st.caption("Building Breakdown (Click the '+' to add more buildings)")
         if "bldg_df" not in st.session_state: st.session_state.bldg_df = pd.DataFrame([{"Building Name": "Main Hospital", "Floor Area (sq.m)": 0.0}])
         bldg_res = st.data_editor(st.session_state.bldg_df, num_rows="dynamic", use_container_width=True, disabled=locked, key="bldg_grid")
 
-        st.divider()
-        st.markdown("**Structural & Safety Testing**")
+        subtle_header("Structural & Safety Testing", "🏗️")
         t1, t2 = st.columns(2)
         hammer_test = t1.selectbox("Conducted hammer test/structural analysis within the buildings of hospital?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Hammer_Test")), disabled=locked)
         hammer_details = t2.text_input("If yes, when and what date? What buildings? All buildings", value=str(prev.get("Hammer_Details", "")), disabled=locked, help="Kindly attach summary of the testing in the master upload")
@@ -520,10 +518,8 @@ def module_gva():
         hsi_test = t3.selectbox("Conducted Hospital Safety Index within the building/s of hospital?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("HSI_Test")), disabled=locked)
         hsi_details = t4.text_input("If yes, when and what date? What buildings? All buildings?", value=str(prev.get("HSI_Details", "")), disabled=locked, help="Kindly attach summary of the report in the master upload")
 
-        st.divider()
-        st.markdown("**GEOGRAPHICAL DESCRIPTION**")
-        st.caption("Note: You may refer to the open sources (e.g. Google earth)")
-        
+        subtle_header("GEOGRAPHICAL DESCRIPTION", "🗺️")
+        st.caption("Note: You may refer to open sources (e.g. Google earth)")
         c_geo1, c_geo2 = st.columns(2)
         final_lat = c_geo1.text_input("Latitude:", value=auto_lat, disabled=(locked or lat_locked))
         final_long = c_geo2.text_input("Longitude:", value=auto_long, disabled=(locked or long_locked))
@@ -536,32 +532,26 @@ def module_gva():
         soil_test = c_geo5.selectbox("Conducted soil testing in the hospital premise/s?", ["No", "Yes"], index=get_idx(pd.Series(["No", "Yes"]), prev.get("Soil_Test")), disabled=locked)
         soil_date = c_geo6.text_input("If yes, when:", value=str(prev.get("Soil_Date", "")), disabled=locked)
 
-        st.divider()
-        st.markdown("**Characteristic of location of hospital:**")
-        st.caption("Check all applicable characteristics and provide the estimated distance. Note: You may refer to open sources (e.g. Project NOAH; Hazard Points; etc.)")
-        
+        subtle_header("Characteristic of Location", "📍")
+        st.caption("Check all applicable characteristics and provide the estimated distance.")
         col1, col2, col3, col4 = st.columns([3, 2, 3, 2])
         
         c_coast = col1.checkbox("a. Coastal Area", value=bool(prev.get("C_Coast", False)), disabled=locked)
         d_coast = col2.text_input("Dist a", value=str(prev.get("D_Coast", "")), disabled=(not c_coast or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
-        
         c_mount = col3.checkbox("d. Mountainous Terrain", value=bool(prev.get("C_Mount", False)), disabled=locked)
         d_mount = col4.text_input("Dist d", value=str(prev.get("D_Mount", "")), disabled=(not c_mount or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
         
         c_low = col1.checkbox("b. Low Lying Area", value=bool(prev.get("C_Low", False)), disabled=locked)
         d_low = col2.text_input("Dist b", value=str(prev.get("D_Low", "")), disabled=(not c_low or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
-        
         c_deep = col3.checkbox("e. Others: Deep well source", value=bool(prev.get("C_Deep", False)), disabled=locked)
         d_deep = col4.text_input("Dist e", value=str(prev.get("D_Deep", "")), disabled=(not c_deep or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
         
         c_land = col1.checkbox("c. Landslide Prone", value=bool(prev.get("C_Land", False)), disabled=locked)
         d_land = col2.text_input("Dist c", value=str(prev.get("D_Land", "")), disabled=(not c_land or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
-        
         c_flood = col3.checkbox("f. Others: Low Flood Suscep.", value=bool(prev.get("C_Flood", False)), disabled=locked)
         d_flood = col4.text_input("Dist f", value=str(prev.get("D_Flood", "")), disabled=(not c_flood or locked), label_visibility="collapsed", placeholder="Dist. (km/m)...")
 
-        st.divider()
-        st.markdown("**Location / Distance in Kilometer/meter in relation to the following (if applicable):**")
+        subtle_header("Location / Distance in Kilometer/meter", "📏")
         dist1, dist2, dist3, dist4 = st.columns(4)
         dist_fault = dist1.number_input("from the fault line (km):", value=float(prev.get("Dist_Fault", 0.0) or 0.0), disabled=locked)
         dist_volc = dist2.number_input("from volcano (km):", value=float(prev.get("Dist_Volc", 0.0) or 0.0), disabled=locked)
@@ -583,8 +573,7 @@ def module_gva():
         dist_other_desc = dist_o1.text_input("other/s:", value=str(prev.get("Dist_Other_Desc", "")), disabled=locked)
         dist_other_val = dist_o2.number_input("other/s distance:", value=float(prev.get("Dist_Other_Val", 0.0) or 0.0), disabled=locked)
 
-        st.divider()
-        st.markdown("**Module 3 Authorized Signatory**")
+        subtle_header("Module 3 Authorized Signatory", "✍️")
         st.caption("The name and position entered here will automatically be used for ALL print/signature blocks in Module 3.")
         s1, s2 = st.columns(2)
         sign_name = s1.text_input("Signatory Name (e.g. John Doe):", value=str(prev.get("Sign_Name", "")), disabled=locked)
@@ -622,6 +611,18 @@ def module_gva():
             grid_result = st.data_editor(st.session_state[f"grid_{year}"], hide_index=True, use_container_width=True, disabled=locked, key=f"editor_{year}")
             live_consumption[year] = grid_result
             
+            # --- The Annual Totals Bar ---
+            t_df = grid_result.copy()
+            st.markdown(f"""
+            <div style="background:#161B22; padding:12px; border-radius:6px; display:flex; justify-content:space-between; font-size:0.95em; border: 1px solid #30363D; margin-bottom: 15px;">
+                <div><b>⚡ Elec:</b> {pd.to_numeric(t_df["Electricity (kWh)"], errors='coerce').sum():,.2f} kWh</div>
+                <div><b>⛽ Fuel:</b> {pd.to_numeric(t_df["Fuel (L)"], errors='coerce').sum():,.2f} L</div>
+                <div><b>💧 Water:</b> {pd.to_numeric(t_df["Water (m3)"], errors='coerce').sum():,.2f} m³</div>
+                <div><b>🗑️ Gen Waste:</b> {pd.to_numeric(t_df["General Waste (kg)"], errors='coerce').sum():,.2f} kg</div>
+                <div><b>☢️ Haz Waste:</b> {pd.to_numeric(t_df["Haz Waste (kg)"], errors='coerce').sum():,.2f} kg</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
             if st.button(f"🖨️ Print {year} Consumption for Signature", use_container_width=True, key=f"p_cons_{year}"):
                 html = grid_result.to_html(index=False, border=1, classes="my-table", justify="center")
@@ -642,8 +643,18 @@ def module_gva():
     # --- PART 3: PERFORMANCE STANDARDS ---
     st.header("3️⃣ PERFORMANCE STANDARDS")
     st.caption("These questions are synced directly from your Google Sheet!")
+    
+    # Official GVA Weights Database
+    weights_dict = {
+        "GOVERNANCE": 0.10, "ENERGY EFFICIENCY": 0.17, "WATER EFFICIENCY, SANITATION AND HYGIENE": 0.13,
+        "HEALTH CARE WASTE MANAGEMENT": 0.13, "ENVIRONMENTALLY RESILIENT HEALTH FACILITY": 0.12,
+        "MATERIAL SUSTAINABILITY": 0.15, "SITE SUSTAINABILITY": 0.10, "INDOOR ENVIRONMENTAL QUALITY": 0.10
+    }
+    
     gva_answers = {}
     score_summary = []
+    total_gva_weighted_score = 0.0  # Master Score Tracker
+    
     perf_df = get_static_sheet("Performance Standards")
     
     if perf_df.empty:
@@ -694,12 +705,33 @@ def module_gva():
                         html_lines.append("</table>")
                         render_modular_print(cat, "".join(html_lines), sign_name, sign_pos)
                 
-                pct = (cat_actual/cat_max*100) if cat_max > 0 else 0
-                score_summary.append({"Performance Indicator": cat, "Max Score": cat_max, "Actual Score": cat_actual, "Percentage": f"{pct:.2f}%"})
+                # --- The Weighted Math Engine ---
+                pct = (cat_actual / cat_max * 100) if cat_max > 0 else 0
+                cat_weight = weights_dict.get(str(cat).strip().upper(), 0.0) 
+                weighted_score = (pct / 100.0) * cat_weight * 100.0 
+                total_gva_weighted_score += weighted_score
+                
+                score_summary.append({
+                    "Performance Indicator": cat, 
+                    "Max Score": cat_max, 
+                    "Actual Score": cat_actual, 
+                    "Percentage": f"{pct:.2f}%",
+                    "Weight": f"{cat_weight*100:.0f}%",
+                    "Weighted Score": f"{weighted_score:.2f}%"
+                })
             
+            # --- OVERALL SCORE TABLE ---
             st.markdown("### 🏆 Overall Score Summary")
             score_df = pd.DataFrame(score_summary)
             st.dataframe(score_df, use_container_width=True, hide_index=True)
+            
+            # Show The Massive Final Score
+            st.markdown(f"""
+            <div style="background-color: #064E3B; padding: 20px; border-radius: 8px; border: 2px solid #10B981; text-align: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #A7F3D0; font-weight: normal;">FINAL GVA SCORE</h3>
+                <h1 style="margin: 0; color: #FFFFFF; font-size: 3rem;">{total_gva_weighted_score:.2f}%</h1>
+            </div>
+            """, unsafe_allow_html=True)
             
             st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
             if st.button("🖨️ Print OVERALL SCORE TABLE for Signature", use_container_width=True):
@@ -707,6 +739,7 @@ def module_gva():
                 html = html.replace('class="dataframe"', 'style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;"')
                 html = html.replace('<th>', '<th style="background-color: #064E3B; color: white; padding: 10px; border: 1px solid #333;">')
                 html = html.replace('<td>', '<td style="padding: 8px; border: 1px solid #333;">')
+                html += f"<h2 style='text-align:center; color:#064E3B; margin-top:30px;'>FINAL GVA SCORE: {total_gva_weighted_score:.2f}%</h2>"
                 render_modular_print("OVERALL PERFORMANCE SCORE SUMMARY", html, sign_name, sign_pos)
         else:
             st.error("⚠️ Please add the 'MAJOR CATEGORY' column to Row 1 of your Performance Standards sheet to unlock the questions!")
@@ -734,7 +767,8 @@ def module_gva():
         "Dist_Rail": dist_rail, "Dist_Haz": dist_haz, "Dist_Oil": dist_oil, "Dist_Ind": dist_ind,
         "Dist_River": dist_river, "Dist_Creek": dist_creek, "Dist_Lake": dist_lake, 
         "Dist_Other_Desc": dist_other_desc, "Dist_Other_Val": dist_other_val,
-        "Sign_Name": sign_name, "Sign_Pos": sign_pos, "Master_Drive_Link": master_link
+        "Sign_Name": sign_name, "Sign_Pos": sign_pos, "Master_Drive_Link": master_link,
+        "FINAL_GVA_SCORE": total_gva_weighted_score
     }
     final_mod3_data.update(gva_answers)
     final_mod3_data.update(admin_co2e_save)
