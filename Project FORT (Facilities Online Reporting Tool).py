@@ -502,7 +502,7 @@ def module_gva():
             """
             render_modular_print("GENERAL INFORMATION", html)
 
-    # --- PART 2: CONSUMPTION DATA ---
+   # --- PART 2: CONSUMPTION DATA ---
     st.header("2️⃣ MULTI-YEAR CONSUMPTION DATA")
     years = [str(y) for y in range(2022, 2029)]
     tabs = st.tabs(years)
@@ -510,8 +510,17 @@ def module_gva():
     
     for i, year in enumerate(years):
         with tabs[i]:
-            if f"grid_{year}" not in st.session_state: st.session_state[f"grid_{year}"] = get_blank_consumption_grid()
-            grid_result = st.data_editor(st.session_state[f"grid_{year}"], hide_index=True, use_container_width=True, disabled=locked)
+            if f"grid_{year}" not in st.session_state: 
+                st.session_state[f"grid_{year}"] = get_blank_consumption_grid()
+                
+            # THE FIX: I added `key=f"editor_{year}"` to the end of this line!
+            grid_result = st.data_editor(
+                st.session_state[f"grid_{year}"], 
+                hide_index=True, 
+                use_container_width=True, 
+                disabled=locked,
+                key=f"editor_{year}" 
+            )
             live_consumption[year] = grid_result
             
             st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
