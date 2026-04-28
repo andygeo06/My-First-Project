@@ -203,6 +203,35 @@ def subtle_header(title, icon="🔹"):
     </div>
     """, unsafe_allow_html=True)
 
+def display_sticky_header(title_html):
+    c1, c2, c3 = st.columns([1, 4, 1])
+    with c1:
+        # Secret CSS Anchor
+        st.markdown('<span id="sticky-anchor"></span>', unsafe_allow_html=True)
+        if st.button("⬅️ Dashboard", use_container_width=True): 
+            del st.session_state.current_module
+            if "show_print" in st.session_state: del st.session_state.show_print
+            st.rerun()
+    with c2:
+        st.markdown(title_html, unsafe_allow_html=True)
+        
+    st.markdown("""
+    <style>
+        div[data-testid="stHorizontalBlock"]:has(#sticky-anchor) {
+            position: sticky;
+            top: 2.8rem;
+            background-color: rgba(14, 17, 23, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            padding: 10px 15px 0 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid #3B82F6;
+            margin-bottom: 15px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
     display_sticky_header()
@@ -214,10 +243,9 @@ def module_scorecard():
     deadline_str, locked = get_module_config("Mod1")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    st.markdown('<div class="section-header-strat"><h3 style="margin:0;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>', unsafe_allow_html=True)
-    with st.expander("🔹 Basic Setup: Service Capability", expanded=True):
-        lvl_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
-        h_level = st.selectbox("Current Health Facility Service Capability Level:", lvl_opts, index=get_idx(pd.Series(lvl_opts), prev.get("Level")), disabled=locked)
+    # --- STICKY HEADER ---
+    title_html = '<div class="section-header-strat" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>'
+    display_sticky_header(title_html)
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=False):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked))
     with st.expander("🔹 SI 2: Green Viability Assessment (GVA)", expanded=False):
@@ -357,7 +385,9 @@ def module_census_data():
     deadline_str, locked = get_module_config("Mod2")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
+    # --- STICKY HEADER ---
+    title_html = '<div class="section-header-core" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>'
+    display_sticky_header(title_html)
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
         lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
@@ -485,8 +515,12 @@ def get_blank_consumption_grid():
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
 
 def module_gva():
-    display_sticky_header()
+    # --- STICKY HEADER ---
+    title_html = '<div class="section-header-green" style="margin-bottom:0; border:none; background:transparent;"><h2 style="margin:0; color:white;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h2></div>'
+    display_sticky_header(title_html)
+    
     u = st.session_state.user_info
+    # ... [rest of the code continues]
 
     mod2_data = get_previous_entry("Mod2")
     prev = get_previous_entry("Mod3")
@@ -990,7 +1024,7 @@ def get_row_html(title, deadline, is_locked):
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
-    # --- The "Save Your Password" Screen ---
+    # --- 1. THE "SAVE YOUR LOGIN CODE" SCREEN --- [cite: 208]
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -1016,15 +1050,46 @@ def login_screen():
         
         with tab1:
             with st.form("login_form"):
-                # FIX: Removed type="password". Browsers will no longer aggressively ask to save/generate passwords!
+                # Standard text input to avoid browser password prompts [cite: 212]
                 access_code = st.text_input("Enter your Access Code")
                 submitted = st.form_submit_button("Secure Login", use_container_width=True)
                 
                 if submitted:
+                    code_clean = access_code.strip()
+                    
+                    # --- 2. MASTER ADMIN BYPASS ROSTER (CUSTOM ACCESS) ---
+                    # Note: "Chat" is included for every admin account!
+                    admin_roster = {
+                        "ADMIN-LEAD": {"name": "System Administrator (Lead)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-01": {"name": "Data Verifier (Admin 1)", "access": ["Mod1", "Chat"]},
+                        "ADMIN-02": {"name": "Support Specialist (Admin 2)", "access": ["Mod2", "Chat"]},
+                        "ADMIN-03": {"name": "Green Assessor (Admin 3)", "access": ["Mod3", "Chat"]},
+                        "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
+                        "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-07": {"name": "Compliance Officer (Admin 7)", "access": ["Mod3", "Chat"]},
+                        "ADMIN-08": {"name": "IT Support (Admin 8)", "access": ["Chat"]}, # Chat Only
+                        "ADMIN-09": {"name": "Audit Lead (Admin 9)", "access": ["Mod1", "Mod3", "Chat"]},
+                        "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
+                    }
+                    
+                    if code_clean in admin_roster:
+                        st.session_state.user_id = code_clean
+                        admin_data = admin_roster[code_clean]
+                        st.session_state.user_info = {
+                            "user": admin_data["name"],
+                            "role": "admin",
+                            "hosp": "DOH Central Office",
+                            "dept": "HFDB",
+                            "access": admin_data["access"]
+                        }
+                        st.rerun()
+                        
+                    # --- 3. REGULAR USER DATABASE CHECK --- [cite: 213]
                     accounts_df = get_static_sheet("User_Profiles")
                     if not accounts_df.empty and "User_ID" in accounts_df.columns:
                         accounts_df["User_ID"] = accounts_df["User_ID"].astype(str).str.strip()
-                        match = accounts_df[accounts_df["User_ID"] == access_code.strip()]
+                        match = accounts_df[accounts_df["User_ID"] == code_clean]
                         
                         if not match.empty:
                             user_data = match.iloc[0]
@@ -1035,6 +1100,7 @@ def login_screen():
                                 "role": user_data.get("Role", "user"),
                                 "hosp": user_data.get("Hospital_Name", "N/A"),
                                 "dept": user_data.get("Department", "General"),
+                                "pos": user_data.get("Position", "Encoder"),
                                 "access": [m.strip() for m in access_str.split(",")] if access_str else []
                             }
                             st.rerun()
@@ -1042,7 +1108,7 @@ def login_screen():
                     else: st.error("Database connection error or 'User_ID' column missing.")
                     
         with tab2:
-            st.info("First time here? Generate your unique access code below.")
+            st.info("First time here? Generate your unique access code below.") [cite: 219]
             try:
                 hosp_df = get_static_sheet("Facility_List") 
                 if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
@@ -1066,7 +1132,7 @@ def login_screen():
                     if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
                         st.error("⚠️ Please fill in all fields and select a valid hospital to register.")
                     else:
-                        # Generates HFDB-YEAR-10CHARS
+                        # Generates secure HFDB-YEAR-10CHARS ID [cite: 224]
                         current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
                         random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                         new_code = f"HFDB-{current_year}-{random_chars}"
@@ -1074,7 +1140,7 @@ def login_screen():
                         st.session_state.pending_id = new_code
                         st.session_state.pending_info = {
                             "user": new_encoder, "role": "user", "hosp": new_hosp, "dept": new_dept,
-                            "designation": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
+                            "pos": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
                         }
                         
                         try:
@@ -1083,7 +1149,7 @@ def login_screen():
                             updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
                             conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
                         except Exception as e:
-                            st.error(f"Failed to save new user to database. Ensure 'User_Profiles' sheet exists. Error: {e}")
+                            st.error(f"Failed to save new user to database. Error: {e}")
                         st.rerun()
                         
 def dashboard():
