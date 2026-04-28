@@ -169,30 +169,24 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
     u = st.session_state.user_info
     h_name = head_name if head_name else 'Authorized Signatory'
     h_pos = head_pos if head_pos else 'Head of Facility'
-    
-    # --- THE FIX: Safely retrieve the user name and position without crashing ---
-    user_name = u.get('user', 'Unknown Encoder')
-    user_pos = u.get('pos', u.get('designation', 'Encoder')) 
-
     html = f"""
     <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
         <center>
             <h2 style="margin:0;">2026 GREEN VIABILITY ASSESSMENT</h2>
-            <h4 style="margin:5px 0; color:#444;">{u.get('hosp', 'Unknown Facility')} — {u.get('dept', 'Unknown Dept')}</h4>
+            <h4 style="margin:5px 0; color:#444;">{u['hosp']} — {u['dept']}</h4>
             <h3 style="margin:15px 0; padding:8px; background:#064E3B; color:white; border-radius: 5px;">{title}</h3>
             <hr style="border:1px solid #111;">
         </center>
         <div style="margin: 20px 0; font-size: 13px;">{content_html}</div>
         <br><br><br>
         <table style="width:100%; text-align:center; font-size:14px; margin-top: 40px;">
-            <tr><td style="width:50%;">__________________________<br><b>{user_name}</b><br>{user_pos}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
+            <tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
             <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
-        <center><br><button class="no-print" onclick="window.focus(); window.print();" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
+        <center><br><button class="no-print" onclick="window.print()" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
     </div>"""
-    
-    st.session_state.mod3_print_html = html
+    st.session_state.isolated_print_html = html
     st.rerun()
 
 # --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
@@ -203,42 +197,9 @@ def subtle_header(title, icon="🔹"):
     </div>
     """, unsafe_allow_html=True)
 
-def display_sticky_header(title_html):
-    c1, c2, c3 = st.columns([1, 4, 1])
-    with c1:
-        st.markdown('<span id="sticky-anchor"></span>', unsafe_allow_html=True)
-        # ADDED: key="sticky_dash_btn"
-        if st.button("⬅️ Dashboard", use_container_width=True, key="sticky_dash_btn"): 
-            del st.session_state.current_module
-            if "show_print" in st.session_state: del st.session_state.show_print
-            if "mod3_print_html" in st.session_state: del st.session_state.mod3_print_html
-            st.rerun()
-    with c2:
-        st.markdown(title_html, unsafe_allow_html=True)
-    
-    # ... rest of your CSS stays the same ...
-        
-    st.markdown("""
-    <style>
-        div[data-testid="stHorizontalBlock"]:has(#sticky-anchor) {
-            position: sticky;
-            top: 2.8rem;
-            background-color: rgba(14, 17, 23, 0.95);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            padding: 10px 15px 0 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            border-bottom: 2px solid #3B82F6;
-            margin-bottom: 15px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
-    title_html = '<div class="section-header-strat" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>'
-    display_sticky_header(title_html)
+    display_sticky_header()
     dd = get_static_sheet("Mod1_DD")
     if dd.empty: st.error("Sheet 'Mod1_DD' not found."); return
     dd.columns = dd.columns.str.strip()
@@ -247,9 +208,10 @@ def module_scorecard():
     deadline_str, locked = get_module_config("Mod1")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    # --- STICKY HEADER ---
-    title_html = '<div class="section-header-strat" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>'
-    display_sticky_header(title_html)
+    st.markdown('<div class="section-header-strat"><h3 style="margin:0;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>', unsafe_allow_html=True)
+    with st.expander("🔹 Basic Setup: Service Capability", expanded=True):
+        lvl_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
+        h_level = st.selectbox("Current Health Facility Service Capability Level:", lvl_opts, index=get_idx(pd.Series(lvl_opts), prev.get("Level")), disabled=locked)
     with st.expander("🔹 SI 1: % Functionality of PHU", expanded=False):
         s1 = clean_pct(st.text_input("Percentage (e.g., 95%)", value=str(prev.get("SI1", "0%")), disabled=locked))
     with st.expander("🔹 SI 2: Green Viability Assessment (GVA)", expanded=False):
@@ -383,16 +345,13 @@ def module_scorecard():
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
 def module_census_data():
-    title_html = '<div class="section-header-core" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>'
-    display_sticky_header(title_html)
+    display_sticky_header()
     if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod2")
     prev = st.session_state.staged_data
     deadline_str, locked = get_module_config("Mod2")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    # --- STICKY HEADER ---
-    title_html = '<div class="section-header-core" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>'
-    display_sticky_header(title_html)
+    st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
     st.header("1️⃣ BASIC INFORMATION")
     with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
         lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
@@ -520,12 +479,14 @@ def get_blank_consumption_grid():
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
 
 def module_gva():
-    # --- STICKY HEADER ---
-    title_html = '<div class="section-header-green" style="margin-bottom:0; border:none; background:transparent;"><h2 style="margin:0; color:white;">🌿 MODULE 3: GREEN VIABILITY ASSESSMENT</h2></div>'
-    display_sticky_header(title_html)
-    
+    display_sticky_header()
     u = st.session_state.user_info
-    # ... [rest of the code continues]
+    
+    if st.session_state.get("isolated_print_html"):
+        st.components.v1.html(st.session_state.isolated_print_html, height=1200, scrolling=True)
+        if st.button("⬅️ Back to Assessment Form", type="primary"):
+            del st.session_state.isolated_print_html; st.rerun()
+        return
 
     mod2_data = get_previous_entry("Mod2")
     prev = get_previous_entry("Mod3")
@@ -893,16 +854,6 @@ def module_gva():
                 st.session_state.staged_data.update(final_mod3_data)
                 st.success("Progress Saved to Google Sheets!")
 
-# --- THE OG PRINT ENGINE FOR MOD 3 ---
-    if st.session_state.get("mod3_print_html"):
-        st.divider()
-        st.markdown("### 🖨️ Document Ready for Printing")
-        st.components.v1.html(st.session_state.mod3_print_html, height=1000, scrolling=True)
-        
-        if st.button("❌ Close Print View", type="secondary"):
-            del st.session_state.mod3_print_html
-            st.rerun()
-
 # --- 7. ADMIN DATA ANALYSIS MODE ---
 def admin_dashboard():
     u = st.session_state.user_info
@@ -1029,7 +980,7 @@ def get_row_html(title, deadline, is_locked):
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
-    # --- 1. THE "SAVE YOUR LOGIN CODE" SCREEN ---
+    # --- The "Save Your Password" Screen ---
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -1055,46 +1006,15 @@ def login_screen():
         
         with tab1:
             with st.form("login_form"):
-                # Clean text input to avoid browser password manager interference
+                # FIX: Removed type="password". Browsers will no longer aggressively ask to save/generate passwords!
                 access_code = st.text_input("Enter your Access Code")
                 submitted = st.form_submit_button("Secure Login", use_container_width=True)
                 
                 if submitted:
-                    code_clean = access_code.strip()
-                    
-                    # --- 2. MASTER ADMIN BYPASS ROSTER (10 ACCOUNTS) ---
-                    admin_roster = {
-                        "ADMIN-SUP3R4DM1N": {"name": "FPMD Admin", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-Sc0r3c4rd": {"name": "Hospital Scorecard Admin", "access": ["Mod1", "Chat"]},
-                        "ADMIN-Mo03": {"name": "Hospital MOOE Admin", "access": ["Mod2", "Chat"]},
-                        "ADMIN-Gr33n": {"name": "GVA Admin", "access": ["Mod3", "Chat"]},
-                        "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
-                        "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-07": {"name": "Compliance Officer (Admin 7)", "access": ["Mod3", "Chat"]},
-                        "ADMIN-08": {"name": "IT Support (Admin 8)", "access": ["Chat"]}, 
-                        "ADMIN-09": {"name": "Audit Lead (Admin 9)", "access": ["Mod1", "Mod3", "Chat"]},
-                        "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
-                    }
-                    
-                    if code_clean in admin_roster:
-                        st.session_state.user_id = code_clean
-                        admin_data = admin_roster[code_clean]
-                        st.session_state.user_info = {
-                            "user": admin_data["name"],
-                            "role": "admin",
-                            "hosp": "DOH Central Office",
-                            "dept": "HFDB",
-                            "access": admin_data["access"]
-                        }
-                        st.rerun()
-                        
-                    # --- 3. REGULAR USER DATABASE CHECK ---
-                    # Using the function name 'get_static_sheet' from your baseline
                     accounts_df = get_static_sheet("User_Profiles")
                     if not accounts_df.empty and "User_ID" in accounts_df.columns:
                         accounts_df["User_ID"] = accounts_df["User_ID"].astype(str).str.strip()
-                        match = accounts_df[accounts_df["User_ID"] == code_clean]
+                        match = accounts_df[accounts_df["User_ID"] == access_code.strip()]
                         
                         if not match.empty:
                             user_data = match.iloc[0]
@@ -1105,7 +1025,6 @@ def login_screen():
                                 "role": user_data.get("Role", "user"),
                                 "hosp": user_data.get("Hospital_Name", "N/A"),
                                 "dept": user_data.get("Department", "General"),
-                                "pos": user_data.get("Position", "Encoder"),
                                 "access": [m.strip() for m in access_str.split(",")] if access_str else []
                             }
                             st.rerun()
@@ -1115,20 +1034,19 @@ def login_screen():
         with tab2:
             st.info("First time here? Generate your unique access code below.")
             try:
-                # Fetching from Facility_List as per your baseline
                 hosp_df = get_static_sheet("Facility_List") 
                 if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
                     hosp_list = ["-- Select Hospital --"] + hosp_df["Facility_Name"].dropna().unique().tolist()
                 elif not hosp_df.empty:
                     hosp_list = ["-- Select Hospital --"] + hosp_df.iloc[:, 0].dropna().unique().tolist()
                 else:
-                    hosp_list = ["-- Select Hospital --", "List Unavailable"]
+                    hosp_list = ["-- Select Hospital --", "List Unavailable - Please Contact Admin"]
             except:
                 hosp_list = ["-- Select Hospital --", "Error Loading List"]
 
             with st.form("register_form"):
                 new_hosp = st.selectbox("Hospital Name", hosp_list)
-                new_dept = st.text_input("Department / Unit")
+                new_dept = st.text_input("Department / Unit (e.g., HFDB, ER, Pedia)")
                 new_encoder = st.text_input("Encoder Name")
                 new_designation = st.text_input("Position / Designation")
                 
@@ -1136,9 +1054,9 @@ def login_screen():
                 
                 if reg_submit:
                     if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
-                        st.error("⚠️ Please fill in all fields.")
+                        st.error("⚠️ Please fill in all fields and select a valid hospital to register.")
                     else:
-                        # Baseline randomizer: HFDB-YEAR-10CHARS
+                        # Generates HFDB-YEAR-10CHARS
                         current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
                         random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                         new_code = f"HFDB-{current_year}-{random_chars}"
@@ -1146,24 +1064,16 @@ def login_screen():
                         st.session_state.pending_id = new_code
                         st.session_state.pending_info = {
                             "user": new_encoder, "role": "user", "hosp": new_hosp, "dept": new_dept,
-                            "pos": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
+                            "designation": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
                         }
                         
                         try:
                             accounts_df = get_static_sheet("User_Profiles")
-                            new_row = {
-                                "User_ID": new_code, 
-                                "Hospital_Name": new_hosp, 
-                                "Department": new_dept, 
-                                "Encoder_Name": new_encoder, 
-                                "Position": new_designation, 
-                                "Role": "user", 
-                                "Access": "Mod1, Mod2, Mod3, Chat"
-                            }
+                            new_row = {"User_ID": new_code, "Hospital_Name": new_hosp, "Department": new_dept, "Encoder_Name": new_encoder, "Position": new_designation, "Role": "user", "Access": "Mod1, Mod2, Mod3, Chat"}
                             updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
                             conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
                         except Exception as e:
-                            st.error(f"Failed to save user. Error: {e}")
+                            st.error(f"Failed to save new user to database. Ensure 'User_Profiles' sheet exists. Error: {e}")
                         st.rerun()
                         
 def dashboard():
@@ -1368,6 +1278,11 @@ else:
         st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         
     if "current_module" in st.session_state:
+        if not st.session_state.get("isolated_print_html"):
+            if st.button("🏠 Return to Dashboard"): 
+                if "show_print" in st.session_state: del st.session_state.show_print
+                del st.session_state.current_module; st.rerun()
+        
         mod = st.session_state.current_module
         if mod == "Mod1": module_scorecard()
         elif mod == "Mod2": module_census_data()
