@@ -201,7 +201,7 @@ def login_screen():
     # --- Dual Login System ---
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Returning User", "📝 New User"])
+        tab1, tab2 = st.tabs(["🔐 Existing User", "📝 New User"])
         
         with tab1:
             with st.form("login_form"):
