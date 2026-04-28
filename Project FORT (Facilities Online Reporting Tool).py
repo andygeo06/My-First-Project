@@ -184,9 +184,11 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
             <tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
             <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
-        <center><br><button class="no-print" onclick="window.print()" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
+        <center><br><button class="no-print" onclick="window.focus(); window.print();" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
     </div>"""
-    st.session_state.isolated_print_html = html
+    
+    # Send it to a Mod3 specific session state instead of the isolated one
+    st.session_state.mod3_print_html = html
     st.rerun()
 
 # --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
@@ -481,12 +483,6 @@ def get_blank_consumption_grid():
 def module_gva():
     display_sticky_header()
     u = st.session_state.user_info
-    
-    if st.session_state.get("isolated_print_html"):
-        st.components.v1.html(st.session_state.isolated_print_html, height=1200, scrolling=True)
-        if st.button("⬅️ Back to Assessment Form", type="primary"):
-            del st.session_state.isolated_print_html; st.rerun()
-        return
 
     mod2_data = get_previous_entry("Mod2")
     prev = get_previous_entry("Mod3")
@@ -853,6 +849,16 @@ def module_gva():
             if submit_module_data(final_mod3_data, "Mod3"):
                 st.session_state.staged_data.update(final_mod3_data)
                 st.success("Progress Saved to Google Sheets!")
+
+# --- THE OG PRINT ENGINE FOR MOD 3 ---
+    if st.session_state.get("mod3_print_html"):
+        st.divider()
+        st.markdown("### 🖨️ Document Ready for Printing")
+        st.components.v1.html(st.session_state.mod3_print_html, height=1000, scrolling=True)
+        
+        if st.button("❌ Close Print View", type="secondary"):
+            del st.session_state.mod3_print_html
+            st.rerun()
 
 # --- 7. ADMIN DATA ANALYSIS MODE ---
 def admin_dashboard():
