@@ -973,9 +973,8 @@ def get_row_html(title, deadline, is_locked):
     bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-        <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
-
+    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="flex: 1.5; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
@@ -1131,10 +1130,10 @@ def dashboard():
         st.markdown("### ⏳ Upcoming Modules")
         for m in upcoming:
             st.markdown(f"""
-            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
+            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="flex: 1.5; font-size: 1.1em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
                 <div style="flex: 1; font-family: monospace; color: #64748B; text-align: center;">{m["date"]}</div>
-                <div style="flex: 1; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
+                <div style="flex: 1.5; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
             </div>""", unsafe_allow_html=True)
             st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
             st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
