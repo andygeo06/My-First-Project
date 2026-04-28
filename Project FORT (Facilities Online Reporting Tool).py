@@ -1274,7 +1274,7 @@ else:
     if announcement_text and not st.session_state.get("hide_announcement", False):
         ann_col1, ann_col2 = st.columns([20, 1])
         with ann_col1:
-            st.info(f"📢 **ANNOUNCEMENT:** {announcement_text}")
+            st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         with ann_col2:
             if st.button("✖", help="Dismiss for this session"):
                 st.session_state.hide_announcement = True
