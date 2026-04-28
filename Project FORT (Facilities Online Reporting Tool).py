@@ -1187,7 +1187,6 @@ def admin_chat_view():
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-
     # --- RIGHT COLUMN: THE ACTIVE CHAT ---
     with chat_col:
         if st.session_state.get("active_chat"):
