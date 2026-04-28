@@ -43,7 +43,7 @@ st.markdown(f"""
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
     
     /* COMPACT ALERT & BANNER CSS */
-    div[data-testid="stAlert"] {{ padding: 0.2rem 1rem !important; }}
+    div[data-testid="stAlert"] {{ padding: 0.2rem 0.5rem !important; }}
     div[data-testid="stAlert"] > div {{ align-items: center !important; }}
     div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.1rem !important; line-height: 1.4 !important; }}
     
