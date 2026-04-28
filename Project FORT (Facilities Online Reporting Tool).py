@@ -42,9 +42,10 @@ st.markdown(f"""
     div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
     
-    /* NEW: COMPACT ALERT & BANNER CSS */
-    div[data-testid="stAlert"] {{ padding: 0.5rem 1rem !important; align-items: center !important; }}
-    div[data-testid="stAlert"] p {{ margin: 0 !important; font-size: 0.95em; display: flex !important; align-items: center !important; line-height: 1.2 !important; }}
+    /* COMPACT ALERT & BANNER CSS */
+    div[data-testid="stAlert"] {{ padding: 0.5rem 1rem !important; }}
+    div[data-testid="stAlert"] > div {{ align-items: center !important; }}
+    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.1rem !important; line-height: 1.4 !important; }}
     
     /* COMPACT CHAT CSS */
     div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
@@ -973,8 +974,8 @@ def get_row_html(title, deadline, is_locked):
     bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <div style="flex: 1.5; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
+    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <div style="flex: 1.5; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
@@ -1130,8 +1131,8 @@ def dashboard():
         st.markdown("### ⏳ Upcoming Modules")
         for m in upcoming:
             st.markdown(f"""
-            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div style="flex: 1.5; font-size: 1.1em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
+            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <div style="flex: 1.5; font-size: 1.05em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
                 <div style="flex: 1; font-family: monospace; color: #64748B; text-align: center;">{m["date"]}</div>
                 <div style="flex: 1.5; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
             </div>""", unsafe_allow_html=True)
