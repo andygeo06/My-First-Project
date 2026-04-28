@@ -637,7 +637,24 @@ def render_mod1():
                 st.error(f"Failed to save to database. Error: {e}")
 
 def render_mod2():
-    # THE TRUE WORD-FOR-WORD MODULE 2
+    # --- CHECK IF LOCKED & TRIGGER UNIVERSAL PRINT VIEW ---
+    deadline_str, is_locked = get_module_config("Mod2")
+    
+    if is_locked:
+        df = get_static_sheet("Mod2")
+        if not df.empty and "User_ID" in df.columns:
+            user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
+            if not user_data.empty:
+                # Triggers the dynamic Universal Print HTML
+                print_view(st.session_state.user_info.get("hosp", "Unknown Hospital"), user_data.iloc[-1].to_dict(), "Module 2: Hospital Census & HCPN Data")
+                return
+            else:
+                st.warning("⚠️ No submission record found for this module.")
+                if st.button("⬅️ Return to Dashboard"): 
+                    del st.session_state.current_module; st.rerun()
+                return
+
+    # --- NORMAL DATA ENTRY VIEW (IF OPEN) ---
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
         if st.button("⬅️ Dashboard", use_container_width=True): 
@@ -782,15 +799,20 @@ def render_mod2():
                 "Date Noted": str(note_date)
             }
             
-            try: existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod2", ttl=0)
-            except: existing_df = pd.DataFrame()
+            try: 
+                existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod2", ttl=0)
+                # Ensure we only keep their most recent submission if they submit multiple times while open
+                if not existing_df.empty and "User_ID" in existing_df.columns:
+                    existing_df = existing_df[existing_df["User_ID"].astype(str) != str(st.session_state.user_id)]
+            except: 
+                existing_df = pd.DataFrame()
             
             updated_df = pd.concat([existing_df, pd.DataFrame([new_data])], ignore_index=True) if not existing_df.empty else pd.DataFrame([new_data])
             conn.update(spreadsheet=SHEET_URL, worksheet="Mod2", data=updated_df)
             
             st.success("✅ Module 2 Data Successfully Saved!")
             st.balloons()
-
+            
 def render_mod3():
     st.markdown("<h2 style='text-align: center;'>🌿 Module 3: Green Viability Assessment</h2>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard", use_container_width=True): del st.session_state.current_module; st.rerun()
