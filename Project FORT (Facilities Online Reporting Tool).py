@@ -181,23 +181,13 @@ def login_screen():
     # --- The "Save Your Password" Screen ---
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
-        
-        # Top half of the yellow box
         st.markdown(f"""
-            <div style="background-color:#F0B216; padding:20px; border-radius:10px 10px 0 0; text-align:center; border: 4px solid #000; border-bottom: none;">
+            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
                 <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
-                <p style="color:black; font-size:16px; margin-top:5px;"><b>Hover over the dark box below and click the Copy icon! 📋</b></p>
+                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
+                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
             </div>
         """, unsafe_allow_html=True)
-        
-        # Streamlit's native code block (automatically includes a copy-to-clipboard button!)
-        st.code(st.session_state.pending_id, language=None)
-        
-        # Bottom half of the yellow box to seal it
-        st.markdown(f"""
-            <div style="background-color:#F0B216; padding:10px; border-radius:0 0 10px 10px; border: 4px solid #000; border-top: none; margin-bottom: 15px;"></div>
-        """, unsafe_allow_html=True)
-        
         if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
             st.session_state.user_id = st.session_state.pending_id
             st.session_state.user_info = st.session_state.pending_info
@@ -206,7 +196,7 @@ def login_screen():
             st.success("Access Granted. Redirecting to Dashboard...")
             time.sleep(1)
             st.rerun()
-        st.stop() 
+        st.stop()
 
     # --- Dual Login System ---
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -727,13 +717,15 @@ def render_user_sidebar():
             st.rerun()
 
 # --- 10. THE TRAFFIC CONTROLLER ---
+# --- 10. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
     with st.sidebar:
         st.markdown("### 💬 Live Support Chat")
         st.info("🔒 Please log in to access the live support chat.")
     login_screen()
 else:
-    if st.session_state.user_info.get("role") == "user":
+    # FIX: Made the role check completely case-insensitive!
+    if str(st.session_state.user_info.get("role")).strip().lower() == "user":
         render_user_sidebar()
         
     # --- NEW: Global Persistent Announcement Banner (NO CLOSE BUTTON) ---
@@ -742,10 +734,7 @@ else:
         st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         
     if "current_module" in st.session_state:
-        if not st.session_state.get("isolated_print_html"):
-            if st.button("🏠 Return to Dashboard"): 
-                if "show_print" in st.session_state: del st.session_state.show_print
-                del st.session_state.current_module; st.rerun()
+        # FIX: Redundant "Return to Dashboard" button was deleted from here!
         
         mod = st.session_state.current_module
         if mod == "Mod1": render_mod1()
@@ -756,5 +745,6 @@ else:
         elif mod == "Admin_Mod3": admin_analysis_view("Mod3", "🌿 Green Viability Dashboard")
         elif mod == "Admin_Chat": admin_chat_view()
     else: 
-        if st.session_state.user_info.get("role") == "admin": admin_dashboard()
+        # FIX: Also made the Admin check case-insensitive just to be safe!
+        if str(st.session_state.user_info.get("role")).strip().lower() == "admin": admin_dashboard()
         else: dashboard()
