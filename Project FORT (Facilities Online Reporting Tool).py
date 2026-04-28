@@ -1169,7 +1169,7 @@ def render_user_sidebar():
         prompt = st.chat_input("Type your message to HFDB...")
         if prompt:
             new_msg = {
-                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"), 
                 "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], 
                 "Encoder_Name": st.session_state.user_info['user'], 
                 "Sender": "User", "Message": prompt
@@ -1245,7 +1245,7 @@ def admin_chat_view():
             if reply:
                 u_id = hosp_chats.iloc[0]["User_ID"]
                 new_msg = {
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                    "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"), 
                     "User_ID": u_id, "Hospital": sel_hosp, 
                     "Encoder_Name": "Admin", "Sender": "Admin", "Message": reply
                 }
