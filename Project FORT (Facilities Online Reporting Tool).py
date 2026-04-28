@@ -201,7 +201,7 @@ def login_screen():
     # --- Dual Login System ---
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Existing User", "📝 New User"])
+        tab1, tab2 = st.tabs(["🔐 Returning User", "📝 New User"])
         
         with tab1:
             with st.form("login_form"):
@@ -209,17 +209,20 @@ def login_screen():
                 submitted = st.form_submit_button("Secure Login", use_container_width=True)
                 
                 if submitted:
-                    accounts_df = get_static_sheet("Accounts")
-                    if not accounts_df.empty:
-                        accounts_df["Username"] = accounts_df["Username"].astype(str).str.strip()
-                        match = accounts_df[accounts_df["Username"] == access_code.strip()]
+                    # UPDATED: Now points to the exact "User_Profiles" sheet
+                    accounts_df = get_static_sheet("User_Profiles")
+                    if not accounts_df.empty and "User_ID" in accounts_df.columns:
+                        accounts_df["User_ID"] = accounts_df["User_ID"].astype(str).str.strip()
+                        match = accounts_df[accounts_df["User_ID"] == access_code.strip()]
                         
                         if not match.empty:
                             user_data = match.iloc[0]
-                            st.session_state.user_id = str(uuid.uuid4())
+                            st.session_state.user_id = user_data["User_ID"]
                             access_str = str(user_data.get("Access", "")).strip()
+                            
+                            # UPDATED: Maps perfectly to your new headers
                             st.session_state.user_info = {
-                                "user": user_data["Username"],
+                                "user": user_data.get("Encoder_Name", "Unknown"),
                                 "role": user_data.get("Role", "user"),
                                 "hosp": user_data.get("Hospital_Name", "N/A"),
                                 "dept": user_data.get("Department", "General"),
@@ -227,39 +230,65 @@ def login_screen():
                             }
                             st.rerun()
                         else: st.error("❌ Invalid Access Code.")
-                    else: st.error("Database connection error.")
+                    else: st.error("Database connection error or 'User_ID' column missing.")
                     
         with tab2:
             st.info("First time here? Generate your unique access code below.")
+            
+            # --- UPDATED: Fetch hospitals from "Facility_List" sheet, "Facility_Name" column ---
+            try:
+                hosp_df = get_static_sheet("Facility_List") 
+                if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
+                    hosp_list = ["-- Select Hospital --"] + hosp_df["Facility_Name"].dropna().unique().tolist()
+                elif not hosp_df.empty:
+                    hosp_list = ["-- Select Hospital --"] + hosp_df.iloc[:, 0].dropna().unique().tolist()
+                else:
+                    hosp_list = ["-- Select Hospital --", "List Unavailable - Please Contact Admin"]
+            except:
+                hosp_list = ["-- Select Hospital --", "Error Loading List"]
+
             with st.form("register_form"):
-                new_hosp = st.text_input("Hospital Name")
+                new_hosp = st.selectbox("Hospital Name", hosp_list)
+                new_dept = st.text_input("Department / Unit (e.g., HFDB, ER, Pedia)")
                 new_encoder = st.text_input("Encoder Name")
+                new_designation = st.text_input("Position / Designation")
+                
                 reg_submit = st.form_submit_button("Generate Login Code", use_container_width=True)
                 
-                if reg_submit and new_hosp and new_encoder:
-                    # Generates a random secure code
-                    new_code = "HFDB-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-                    
-                    # Store pending data for the warning screen
-                    st.session_state.pending_id = new_code
-                    st.session_state.pending_info = {
-                        "user": new_encoder,
-                        "role": "user",
-                        "hosp": new_hosp,
-                        "dept": "General",
-                        "access": ["Mod1", "Mod2", "Mod3", "Chat"]
-                    }
-                    
-                    # Append new user logic to Google Sheets
-                    try:
-                        accounts_df = get_static_sheet("Accounts")
-                        new_row = {"Username": new_code, "Password": "", "Role": "user", "Hospital_Name": new_hosp, "Department": "General", "Access": "Mod1, Mod2, Mod3, Chat"}
-                        updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
-                        conn.update(spreadsheet=SHEET_URL, worksheet="Accounts", data=updated_df)
-                    except Exception as e:
-                        st.error("Failed to save new user to database.")
+                if reg_submit:
+                    if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
+                        st.error("⚠️ Please fill in all fields and select a valid hospital to register.")
+                    else:
+                        new_code = "HFDB-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
                         
-                    st.rerun()
+                        st.session_state.pending_id = new_code
+                        st.session_state.pending_info = {
+                            "user": new_encoder,
+                            "role": "user",
+                            "hosp": new_hosp,
+                            "dept": new_dept,
+                            "designation": new_designation,
+                            "access": ["Mod1", "Mod2", "Mod3", "Chat"]
+                        }
+                        
+                        # --- UPDATED: Pushes to User_Profiles using your exact column names ---
+                        try:
+                            accounts_df = get_static_sheet("User_Profiles")
+                            new_row = {
+                                "User_ID": new_code, 
+                                "Hospital_Name": new_hosp, 
+                                "Department": new_dept,
+                                "Encoder_Name": new_encoder,
+                                "Position": new_designation,
+                                "Role": "user",
+                                "Access": "Mod1, Mod2, Mod3, Chat"
+                            }
+                            updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
+                            conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
+                        except Exception as e:
+                            st.error(f"Failed to save new user to database. Ensure 'User_Profiles' sheet exists. Error: {e}")
+                            
+                        st.rerun()
                     
 # --- 6. ADMIN VIEWS ---
 def admin_analysis_view(mod_id, title):
