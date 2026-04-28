@@ -234,7 +234,8 @@ def display_sticky_header(title_html):
 
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
-    display_sticky_header()
+    title_html = '<div class="section-header-strat" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📊 STRATEGIC PERFORMANCE INDICATORS</h3></div>'
+    display_sticky_header(title_html)
     dd = get_static_sheet("Mod1_DD")
     if dd.empty: st.error("Sheet 'Mod1_DD' not found."); return
     dd.columns = dd.columns.str.strip()
@@ -379,7 +380,8 @@ def module_scorecard():
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
 def module_census_data():
-    display_sticky_header()
+    title_html = '<div class="section-header-core" style="margin-bottom:0; border:none; background:transparent;"><h3 style="margin:0; color:white;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>'
+    display_sticky_header(title_html)
     if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod2")
     prev = st.session_state.staged_data
     deadline_str, locked = get_module_config("Mod2")
