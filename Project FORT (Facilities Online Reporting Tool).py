@@ -1002,7 +1002,7 @@ def login_screen():
                 
                 # --- NEW: MULTI-ADMIN ACCESS CONTROL ---
                 ADMIN_ACCOUNTS = {
-                    "ADMIN-DYN4M33K": {"name": "Super Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-SUP3R4DM1N": {"name": "Super Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
                     "ADMIN-Sc0r3c4rd": {"name": "Scorecard Overseer", "access": ["Mod1", "Chat"]},
                     "ADMIN-Mo03": {"name": "MOOE Coordinator", "access": ["Mod2", "Chat"]},
                     "ADMIN-Gr33n": {"name": "GVA Coordinator", "access": ["Mod3", "Chat"]}
