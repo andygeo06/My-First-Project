@@ -6,6 +6,7 @@ import random
 import uuid
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+from streamlit_autorefresh import st_autorefresh
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
 st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="expanded")
@@ -1097,23 +1098,47 @@ def render_user_sidebar():
         st.markdown("### 💬 Live Support Chat")
         st.caption("Need help? Message the HFDB Admins directly!")
         
-        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5s")
+        # --- AUTO REFRESH: Silently checks for Admin replies every 15 seconds ---
+        st_autorefresh(interval=15000, limit=None, key="user_chat_refresh")
+        
+        # --- SAFE CACHE: Downloads from Google every 15s to save API limits ---
+        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="15s")
         except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Sender", "Message"])
             
         u_id = str(st.session_state.user_id)
-        if not chat_df.empty and "User_ID" in chat_df.columns:
-            user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
-            for _, row in user_chats.iterrows():
-                with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                    st.markdown(row["Message"])
-                    st.caption(row["Timestamp"])
-        else:
-            st.info("No messages yet. Ask us anything!")
+        
+        # --- LOCAL MEMORY: Holds messages the user JUST sent so they don't disappear ---
+        if "local_chat" not in st.session_state:
+            st.session_state.local_chat = []
+            
+        chat_container = st.container(height=450)
+        with chat_container:
+            # 1. Draw messages securely from Google Sheets
+            if not chat_df.empty and "User_ID" in chat_df.columns:
+                user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
+                for _, row in user_chats.iterrows():
+                    with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
+                        st.markdown(row["Message"])
+                        st.caption(row["Timestamp"])
+            else:
+                st.info("No messages yet. Ask us anything!")
+                
+            # 2. Draw messages from local memory (The Win-Win visual trick!)
+            for msg in st.session_state.local_chat:
+                with st.chat_message("user"):
+                    st.markdown(msg["Message"])
+                    st.caption(msg["Timestamp"] + " (Sending...)")
 
         prompt = st.chat_input("Type your message to HFDB...")
         if prompt:
             new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], "Sender": "User", "Message": prompt}
-            updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+            
+            # Instantly show on screen
+            st.session_state.local_chat.append(new_msg) 
+            
+            # Securely send to Google Sheets in background
+            if chat_df.empty: updated_df = pd.DataFrame([new_msg])
+            else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
             conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
             st.rerun()
 
@@ -1121,7 +1146,11 @@ def admin_chat_view():
     st.markdown("<h2>💬 Admin Support Center</h2>", unsafe_allow_html=True)
     if st.button("⬅️ Back to Admin Dashboard"): del st.session_state.current_module; st.rerun()
     
-    try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5s")
+    # --- AUTO REFRESH: Silently checks for Hospital messages every 15 seconds ---
+    st_autorefresh(interval=15000, limit=None, key="admin_chat_refresh")
+    
+    # SAFE CACHE
+    try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="15s")
     except: st.error("Could not load 'Support_Logs' tab from Google Sheets."); return
         
     if chat_df.empty: st.info("No messages from hospitals yet."); return
@@ -1131,16 +1160,28 @@ def admin_chat_view():
     hosp_chats = chat_df[chat_df["Hospital"] == sel_hosp]
     
     st.markdown(f"### Chat History: {sel_hosp}")
+    
+    # Local Admin Memory Trick
+    if "admin_local_chat" not in st.session_state: st.session_state.admin_local_chat = []
+        
     chat_container = st.container(height=500)
     with chat_container:
+        # Draw from Database
         for _, row in hosp_chats.iterrows():
             with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
                 st.markdown(f"**{row['Sender']}** - {row['Timestamp']}\n\n{row['Message']}")
+        # Draw from Local Memory
+        for msg in st.session_state.admin_local_chat:
+            if msg["Hospital"] == sel_hosp:
+                with st.chat_message("assistant"):
+                    st.markdown(f"**Admin** - {msg['Timestamp']}\n\n{msg['Message']} (Sending...)")
                 
     reply = st.chat_input(f"Reply to {sel_hosp}...")
     if reply:
         u_id = hosp_chats.iloc[0]["User_ID"]
         new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": sel_hosp, "Sender": "Admin", "Message": reply}
+        
+        st.session_state.admin_local_chat.append(new_msg)
         updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
         st.rerun()
