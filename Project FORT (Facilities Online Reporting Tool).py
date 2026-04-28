@@ -259,7 +259,10 @@ def login_screen():
                     if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
                         st.error("⚠️ Please fill in all fields and select a valid hospital to register.")
                     else:
-                        new_code = "HFDB-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                        # Generates HFDB-YEAR-10 Random Characters (Upper, Lower, Numbers)
+                        current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
+                        random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
+                        new_code = f"HFDB-{current_year}-{random_chars}"
                         
                         st.session_state.pending_id = new_code
                         st.session_state.pending_info = {
