@@ -44,7 +44,7 @@ st.markdown(f"""
     
     /* NEW: COMPACT ALERT & BANNER CSS */
     div[data-testid="stAlert"] {{ padding: 0.5rem 1rem !important; align-items: center !important; }}
-    div[data-testid="stAlert"] p {{ margin: 0 !important; font-size: 0.95em; }}
+    div[data-testid="stAlert"] p {{ margin: 0 !important; font-size: 0.95em; display: flex !important; align-items: center !important; line-height: 1.2 !important; }}
     
     /* COMPACT CHAT CSS */
     div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
@@ -974,7 +974,7 @@ def get_row_html(title, deadline, is_locked):
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
     return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-        <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div><div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
+        <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
@@ -1133,7 +1133,7 @@ def dashboard():
             st.markdown(f"""
             <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
-                <div style="flex: 1; font-family: monospace; color: #64748B;">{m["date"]}</div>
+                <div style="flex: 1; font-family: monospace; color: #64748B; text-align: center;">{m["date"]}</div>
                 <div style="flex: 1; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
             </div>""", unsafe_allow_html=True)
             st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
