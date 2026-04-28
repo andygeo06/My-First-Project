@@ -66,6 +66,19 @@ def get_static_sheet(sheet_name):
 def clear_app_memory():
     st.cache_data.clear()
 
+def clean_pct(input_str):
+    try: return float(str(input_str).replace('%', '').strip()) if input_str else 0.0
+    except: return 0.0
+
+def score_calc(n, d, label):
+    val = (n / d * 100) if d > 0 else 0
+    st.markdown(f"📈 **Current {label} Performance:** `{val:.2f}%`")
+    return val
+
+def get_idx(opts_series, val):
+    opts_list = list(opts_series.dropna().unique())
+    return opts_list.index(val) if val in opts_list else 0
+
 def get_module_config(mod_id):
     df = get_static_sheet("Config")
     if not df.empty and "Module" in df.columns:
@@ -440,14 +453,188 @@ def admin_dashboard():
 
 # --- 7. USER MODULES (DATA ENTRY) ---
 def render_mod1():
-    # TEMPORARY PLACEHOLDER FOR MOD 1
+    # --- CHECK IF LOCKED & TRIGGER CUSTOM PRINT VIEW ---
+    deadline_str, is_locked = get_module_config("Mod1")
+    
+    if is_locked:
+        df = get_static_sheet("Mod1")
+        if not df.empty and "User_ID" in df.columns:
+            user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
+            if not user_data.empty:
+                d = user_data.iloc[-1].to_dict()
+                u = st.session_state.user_info
+                
+                # Custom DOH Scorecard Printout HTML
+                html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
+                <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 800px; margin: 0 auto;">
+                    <center><h1 style="margin:0; color:#111;">2026 DOH HOSPITAL SCORECARD</h1><h3 style="margin:5px 0; color:#444;">{u.get('hosp', 'Unknown')} — {u.get('dept', 'Unknown')} Department</h3><hr style="border:1px solid #111;"></center><br>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; margin: 0 auto;">
+                        <tr style="background-color: #1A365D; color: white;"><th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">I. STRATEGIC PERFORMANCE INDICATORS</th></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">Service Capability Level</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('Level', '')}</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 1: Functionality of PHU</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI1', '')}</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 2: Green Viability Assessment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{d.get('SI2', '')}</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 3: Capital Formation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d.get('SI3_Cat', '')} ({d.get('SI3_Stat', '')})</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 4: ISO Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d.get('SI4_Status', '')}</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 5: PGS Accreditation</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 12px;">{d.get('SI5_25', '')}</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 6: Specialty Centers</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('SI6', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 7: Zero Co-Payment</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('SI7', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">SI 8: Paperless EMR</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('SI8', 0)):.2f}%</td></tr>
+                        <tr style="background-color: #7B341E; color: white;"><th colspan="2" style="padding: 10px; border: 1px solid #333; text-align: center;">II. CORE QUALITY INDICATORS</th></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 1: ER TAT (&lt;4h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI1', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 2: Discharge TAT (&lt;6h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI2', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 3: Lab TAT (&lt;5h)</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI3', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 4: HAI Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI4', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 5: Client Experience Survey</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI5', 0)):.2f}%</td></tr>
+                        <tr><td style="padding: 8px; border: 1px solid #333;">CI 6: Disbursement Rate</td><td style="padding: 8px; border: 1px solid #333; text-align: center; font-size: 13px; font-weight: bold;">{float(d.get('CI6', 0)):.2f}%</td></tr>
+                    </table><br><br>
+                    <table style="width:100%; text-align:center;"><tr><td>__________________________<br><b>{u.get('user', 'Unknown')}</b><br>{u.get('pos', 'Encoder')}</td><td>__________________________<br><b>{d.get('Head_Name', 'Authorized Signatory')}</b><br>{d.get('Head_Pos', 'Head of Facility')}</td></tr></table><br>
+                </div>"""
+                
+                c1, c2, c3 = st.columns([1, 4, 1])
+                with c1:
+                    if st.button("⬅️ Back to Dashboard", type="primary"): 
+                        del st.session_state.current_module; st.rerun()
+                st.success("🖨️ **PRINT MODE:** Use your browser's print function (Ctrl+P or Cmd+P) to save this page as a PDF.")
+                st.components.v1.html(html, height=950, scrolling=True)
+                return
+            else:
+                st.warning("⚠️ No submission record found for this module.")
+                if st.button("⬅️ Return to Dashboard"): 
+                    del st.session_state.current_module; st.rerun()
+                return
+
+    # --- NORMAL DATA ENTRY VIEW (IF OPEN) ---
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
         if st.button("⬅️ Dashboard", use_container_width=True): 
             del st.session_state.current_module; st.rerun()
+
+    st.markdown("<div class='section-header-strat'><h2 style='margin:0; color:white;'>📊 Module 1: Hospital Scorecard</h2></div>", unsafe_allow_html=True)
+    
+    try: dd = get_static_sheet("Mod1_DD")
+    except: dd = pd.DataFrame()
+    
+    if dd.empty: 
+        st.error("⚠️ Sheet 'Mod1_DD' not found. Please ensure it exists in your Google Sheets for the dropdowns to work.")
+        return
+        
+    dd.columns = dd.columns.str.strip()
+    prev = {} # Optional: You can hook up the 'get_previous_entry' function later if you want save-states!
+
+    with st.form("mod1_form"):
+        st.markdown("### 📊 STRATEGIC PERFORMANCE INDICATORS")
+        
+        lvl_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
+        h_level = st.selectbox("Current Health Facility Service Capability Level:", lvl_opts, index=get_idx(pd.Series(lvl_opts), prev.get("Level")))
+        
+        col_s1, col_s2 = st.columns(2)
+        s1 = clean_pct(col_s1.text_input("SI 1: % Functionality of PHU (e.g., 95%)", value=str(prev.get("SI1", "0%"))))
+        s2 = clean_pct(col_s2.text_input("SI 2: Green Viability Assessment GVA Score (e.g., 88%)", value=str(prev.get("SI2", "0%"))))
+        
+        st.markdown("**SI 3: Capital Formation**")
+        col_c1, col_c2, col_c3 = st.columns(3)
+        cat_opts, src_opts = dd.get("Indicator 3, DD1", pd.Series()), dd.get("Indicator 3, DD2", pd.Series())
+        cat = col_c1.selectbox("Category", cat_opts.dropna().unique(), index=get_idx(cat_opts, prev.get("SI3_Cat"))) if not cat_opts.empty else "N/A"
+        src = col_c2.selectbox("Fund Source", src_opts.dropna().unique(), index=get_idx(src_opts, prev.get("SI3_Src"))) if not src_opts.empty else "N/A"
+        stat_opts = dd.get("Indicator 3, DD3.a", pd.Series()) if "Infrastructure" in str(cat) else dd.get("Indicator 3, DD3.b", pd.Series())
+        stat = col_c3.selectbox("Status", stat_opts.dropna().unique(), index=get_idx(stat_opts, prev.get("SI3_Stat"))) if not stat_opts.empty else "N/A"
+
+        col_i1, col_i2 = st.columns(2)
+        iso1 = col_i1.selectbox("SI 4: ISO Status", dd.get("Indicator 4, DD1", pd.Series()).dropna().unique())
+        iso2 = col_i2.selectbox("SI 4: Internal Audit", dd.get("Indicator 4, DD2", pd.Series()).dropna().unique())
+
+        col_p1, col_p2 = st.columns(2)
+        pgs1 = col_p1.selectbox("SI 5: 2024 PGS Status", dd.get("Indicator 5, DD1", pd.Series()).dropna().unique())
+        pgs2 = col_p2.selectbox("SI 5: 2025 PGS Status", dd.get("Indicator 5, DD2", pd.Series()).dropna().unique())
+
+        st.markdown("**SI 6: Functional Specialty Centers**")
+        col_s6a, col_s6b = st.columns(2)
+        s6n = col_s6a.number_input("Functional Centers", value=0, min_value=0)
+        s6d = col_s6b.number_input("Target Centers", value=1, min_value=1)
+
+        st.markdown("**SI 7: Zero Co-Payment Patients**")
+        col_s7a, col_s7b = st.columns(2)
+        s7n = col_s7a.number_input("Zero Co-Pay Patients", value=0, min_value=0)
+        s7d = col_s7b.number_input("Total Basic Patients", value=1, min_value=1)
+
+        st.markdown("**SI 8: Paperless EMR Areas**")
+        col_s8a, col_s8b = st.columns(2)
+        s8n = col_s8a.number_input("Paperless Areas", value=0, min_value=0)
+        s8d = col_s8b.number_input("Expected Areas", value=1, min_value=1)
+
+        st.markdown("<hr style='border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        st.markdown("### 🎯 CORE QUALITY INDICATORS")
+        
+        st.markdown("**CI 1: ER Turnaround Time (<4 hrs)**")
+        col_ci1a, col_ci1b = st.columns(2)
+        ci1n = col_ci1a.number_input("ER <4h Count", value=0, min_value=0)
+        ci1d = col_ci1b.number_input("Total ER Patients", value=1, min_value=1)
+
+        st.markdown("**CI 2: Discharge Turnaround (<6 hrs)**")
+        col_ci2a, col_ci2b = st.columns(2)
+        ci2n = col_ci2a.number_input("Discharge <6h Count", value=0, min_value=0)
+        ci2d = col_ci2b.number_input("Total Discharges", value=1, min_value=1)
+
+        st.markdown("**CI 3: Lab Result Turnaround (<5 hrs)**")
+        col_ci3a, col_ci3b = st.columns(2)
+        ci3n = col_ci3a.number_input("Results <5h Count", value=0, min_value=0)
+        ci3d = col_ci3b.number_input("Total Lab Tests", value=1, min_value=1)
+
+        st.markdown("**CI 4: Healthcare Associated Infection Rate**")
+        col_ci4a, col_ci4b = st.columns(2)
+        ci4n = col_ci4a.number_input("Total HAI Cases", value=0, min_value=0)
+        ci4d = col_ci4b.number_input("Discharges/Deaths >48h", value=1, min_value=1)
+
+        st.markdown("**CI 5: Client Experience Survey**")
+        col_ci5a, col_ci5b = st.columns(2)
+        ci5n = col_ci5a.number_input("Outstanding Ratings", value=0, min_value=0)
+        ci5d = col_ci5b.number_input("Total Respondents", value=1, min_value=1)
+
+        st.markdown("**CI 6: Disbursement Rate**")
+        col_ci6a, col_ci6b = st.columns(2)
+        ci6n = col_ci6a.number_input("Total Disbursement", value=0.0, min_value=0.0)
+        ci6d = col_ci6b.number_input("Total Allocation", value=1.0, min_value=1.0)
+
+        st.markdown("<hr style='border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        h_col1, h_col2 = st.columns(2)
+        h_name = h_col1.text_input("Name of Head of Facility:")
+        h_pos = h_col2.text_input("Designation of Head of Facility:")
+        
+        submit_btn = st.form_submit_button("📤 Submit Module 1", use_container_width=True, type="primary")
+        
+        if submit_btn:
+            # Calculate percentages in the background!
+            s6v = (s6n / s6d * 100) if s6d > 0 else 0
+            s7v = (s7n / s7d * 100) if s7d > 0 else 0
+            s8v = (s8n / s8d * 100) if s8d > 0 else 0
+            ci1v = (ci1n / ci1d * 100) if ci1d > 0 else 0
+            ci2v = (ci2n / ci2d * 100) if ci2d > 0 else 0
+            ci3v = (ci3n / ci3d * 100) if ci3d > 0 else 0
+            ci4v = (ci4n / ci4d * 100) if ci4d > 0 else 0
+            ci5v = (ci5n / ci5d * 100) if ci5d > 0 else 0
+            ci6v = (ci6n / ci6d * 100) if ci6d > 0 else 0
+
+            res_db = {
+                "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"),
+                "User_ID": st.session_state.user_id,
+                "Encoder": st.session_state.user_info.get("user", "Unknown"),
+                "Level": h_level, "SI1": s1, "SI2": s2, "SI3_Cat": cat, "SI3_Src": src, "SI3_Stat": stat,
+                "SI4_Status": iso1, "SI4_Audit": iso2, "SI5_24": pgs1, "SI5_25": pgs2,
+                "SI6": s6v, "SI7": s7v, "SI8": s8v,
+                "CI1": ci1v, "CI2": ci2v, "CI3": ci3v, "CI4": ci4v, "CI5": ci5v, "CI6": ci6v,
+                "Head_Name": h_name, "Head_Pos": h_pos
+            }
             
-    st.markdown("<div class='section-header-strat'><h2 style='margin:0; color:white;'>📊 Module 1: Hospital Scorecard Placeholder</h2></div>", unsafe_allow_html=True)
-    st.info("Module 1 exact text layout is pending. This is a placeholder.")
+            try:
+                existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Mod1", ttl=0)
+                if "User_ID" in existing_df.columns:
+                    existing_df = existing_df[existing_df["User_ID"].astype(str) != str(st.session_state.user_id)]
+                updated_df = pd.concat([existing_df, pd.DataFrame([res_db])], ignore_index=True) if not existing_df.empty else pd.DataFrame([res_db])
+                conn.update(spreadsheet=SHEET_URL, worksheet="Mod1", data=updated_df)
+                st.success("✅ Module 1 Data Successfully Saved!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Failed to save to database. Error: {e}")
 
 def render_mod2():
     # THE TRUE WORD-FOR-WORD MODULE 2
