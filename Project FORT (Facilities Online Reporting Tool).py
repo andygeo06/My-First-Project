@@ -18,24 +18,34 @@ st.markdown(f"""
 <style>
     .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
-    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 12px 20px; border-radius: 8px; border: 1px solid #3B82F6; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 25px; text-align: center; }}
-    .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.3rem; font-weight: bold; }}
-    .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }}
-    .section-header-strat {{ background-color: #1A365D; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 10px; }}
-    .section-header-core {{ background-color: #7B341E; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 10px; }}
-    .section-header-green {{ background-color: #064E3B; padding: 10px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #10B981; margin-bottom: 10px; }}
-    div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 8px; transition: 0.3s; }}
+    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 8px 15px; border-radius: 8px; border: 1px solid #3B82F6; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 15px; text-align: center; }}
+    .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.1rem; font-weight: bold; }}
+    .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }}
+    
+    /* COMPRESSED HEADERS */
+    .section-header-strat {{ background-color: #1A365D; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 8px; }}
+    .section-header-core {{ background-color: #7B341E; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 8px; }}
+    .section-header-green {{ background-color: #064E3B; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #10B981; margin-bottom: 8px; }}
+    
+    div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 6px; transition: 0.3s; }}
     div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
-    div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 15px !important; border-top: 1px solid #30363D; }}
+    div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 10px !important; border-top: 1px solid #30363D; }}
     div.element-container:has(.marker) {{ display: none !important; }}
-    div.element-container:has(.marker-green) + div.element-container button {{ background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
+    
+    /* COMPRESSED BUTTON HEIGHTS */
+    div.element-container:has(.marker-green) + div.element-container button {{ background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-blue) + div.element-container button {{ background-color: #1A365D !important; color: white !important; border: 1px solid #3B82F6 !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-blue) + div.element-container button {{ background-color: #1A365D !important; color: white !important; border: 1px solid #3B82F6 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-blue) + div.element-container button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-red) + div.element-container button {{ background-color: #dc2626 !important; color: white !important; border: 1px solid #ef4444 !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-red) + div.element-container button {{ background-color: #dc2626 !important; color: white !important; border: 1px solid #ef4444 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
+    
+    /* NEW: COMPACT ALERT & BANNER CSS */
+    div[data-testid="stAlert"] {{ padding: 0.5rem 1rem !important; }}
+    div[data-testid="stAlert"] p {{ margin-bottom: 0 !important; font-size: 0.95em; }}
+    
     /* COMPACT CHAT CSS */
     div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
     div[data-testid="stChatMessageContent"] {{ gap: 0.1rem !important; }}
@@ -963,8 +973,8 @@ def get_row_html(title, deadline, is_locked):
     bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
     border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div><div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
+    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8;">{deadline}</div><div style="flex: 1; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
@@ -1077,7 +1087,10 @@ def login_screen():
 def dashboard():
     u = st.session_state.user_info
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
-    st.info(f"Facility: **{u['hosp']}** | Department: **{u['dept']}** | Encoder: **{u['user']}**")
+    
+    # --- BONUS FIX: Solves the 'Department: nan' bug from your screenshot ---
+    clean_dept = "General" if pd.isna(u.get('dept')) else u.get('dept', 'General')
+    st.info(f"Facility: **{u['hosp']}** | Department: **{clean_dept}** | Encoder: **{u['user']}**")
     
     # --- NEW MOBILE UX BANNER ---
     st.success("💡 **TIP:** Need help? Open the menu ( **>** ) in the top left corner to access Live Support Chat!")
@@ -1103,7 +1116,7 @@ def dashboard():
             st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"OPEN {m['id'].upper()}", use_container_width=True, key=f"btn_on_{m['id']}"):
                 st.session_state.current_module = m['id']; st.rerun()
-            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
 
     if lapsed:
         st.markdown("### 🔴 Lapsed Data Submission Modules")
@@ -1112,23 +1125,23 @@ def dashboard():
             st.markdown(f'<div class="marker {m["marker"]}"></div>', unsafe_allow_html=True)
             if st.button(f"VIEW {m['id'].upper()} (READ-ONLY)", use_container_width=True, key=f"btn_lap_{m['id']}"):
                 st.session_state.current_module = m['id']; st.rerun()
-            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
             
     if upcoming:
         st.markdown("### ⏳ Upcoming Modules")
         for m in upcoming:
             st.markdown(f"""
-            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div style="flex: 2; font-size: 1.1em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
+            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <div style="flex: 2; font-size: 1.05em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
                 <div style="flex: 1; font-family: monospace; color: #64748B;">{m["date"]}</div>
                 <div style="flex: 1; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
             </div>""", unsafe_allow_html=True)
             st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
-            st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
         
     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
-
+        
 # --- 9.5 SUPPORT CHAT ENGINES ---
 def render_user_sidebar():
     with st.sidebar:
