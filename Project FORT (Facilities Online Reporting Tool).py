@@ -1268,7 +1268,8 @@ if "user_id" not in st.session_state:
         st.info("🔒 Please log in to access the live support chat.")
     login_screen()
 else:
-    if st.session_state.user_info.get("role") == "user":
+    # FIX: Made the role check case-insensitive so Returning Users can see the chat!
+    if str(st.session_state.user_info.get("role")).strip().lower() == "user":
         render_user_sidebar()
         
    # --- NEW: Global Persistent Announcement Banner ---
