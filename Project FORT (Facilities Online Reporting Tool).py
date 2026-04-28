@@ -1101,7 +1101,7 @@ def dashboard():
     
     modules = [
         {"id": "Mod1", "title": "📊 Hospital Scorecard", "date": d1_str, "locked": d1_locked, "marker": "marker-blue"},
-        {"id": "Mod2", "title": "📈 Hospital Census & HCPN", "date": d2_str, "locked": d2_locked, "marker": "marker-red"},
+        {"id": "Mod2", "title": "📈 Hospital MOOE Data", "date": d2_str, "locked": d2_locked, "marker": "marker-red"},
         {"id": "Mod3", "title": "🌿 Green Viability Assessment", "date": d3_str, "locked": d3_locked, "marker": "marker-green"}
     ]
     
