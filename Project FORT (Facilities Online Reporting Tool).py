@@ -84,6 +84,26 @@ def get_module_config(module_name="Mod1"):
                 
     return "Not Set", False
 
+def get_announcement():
+    df = get_static_sheet("Config")
+    if not df.empty and "Announcement" in df.iloc[:, 0].values:
+        val = str(df[df.iloc[:, 0] == "Announcement"].iloc[0, 1]).strip()
+        return val if val.upper() != "NAN" else ""
+    return ""
+
+def set_announcement(text):
+    df = get_static_sheet("Config")
+    if df.empty:
+        df = pd.DataFrame([["Announcement", text]])
+    else:
+        if "Announcement" in df.iloc[:, 0].values:
+            df.loc[df.iloc[:, 0] == "Announcement", df.columns[1]] = text
+        else:
+            new_row = pd.DataFrame([["Announcement", text] + [""]*(len(df.columns)-2)], columns=df.columns)
+            df = pd.concat([df, new_row], ignore_index=True)
+    conn.update(spreadsheet=SHEET_URL, worksheet="Config", data=df)
+    clear_app_memory()
+
 def get_previous_entry(module_name="Mod1"):
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
@@ -824,9 +844,21 @@ def admin_dashboard():
     allowed_modules = u.get("access", [])
     
     st.markdown(f"<h2 style='text-align: center;'>👑 {u['user']} Portal</h2>", unsafe_allow_html=True)
+    
+    # --- NEW: Global Announcement Manager ---
+    with st.expander("📢 Manage Global Announcement Banner", expanded=False):
+        st.markdown("Set a banner to display at the top of every hospital's screen. Supports [Markdown Links](https://example.com). Leave blank to remove the banner.")
+        current_ann = get_announcement()
+        new_ann = st.text_area("Announcement Text:", value=current_ann, placeholder="e.g. 🚨 The deadline for Module 1 is approaching! Please review the [Guidelines here](https://drive.google.com/...).")
+        
+        if st.button("💾 Broadcast Announcement", type="primary"):
+            set_announcement(new_ann)
+            st.session_state.hide_announcement = False # Resets the 'hide' button for everyone!
+            st.success("✅ Announcement broadcasted globally!")
+            time.sleep(1); st.rerun()
+            
     st.info("Welcome to the Admin View. Select a module below to view live aggregated statistics.")
     
-    # Only show buttons if the admin has the specific keyword in their access list!
     if "Mod1" in allowed_modules:
         st.markdown('<div class="marker marker-blue"></div>', unsafe_allow_html=True)
         if st.button("📊 Analyze Module 1: Scorecard Data", use_container_width=True): st.session_state.current_module = "Admin_Mod1"; st.rerun()
@@ -1096,7 +1128,16 @@ def dashboard():
 def render_user_sidebar():
     with st.sidebar:
         st.markdown("### 💬 Live Support Chat")
-        st.caption("Need help? Message the HFDB Admins directly!")
+        
+        # --- NEW: The FAQ Corner ---
+        with st.expander("📚 Frequently Asked Questions", expanded=False):
+            st.markdown("**Q: When is the deadline?**\nA: Check your dashboard for specific module deadlines.")
+            st.markdown("**Q: Can I edit after submitting?**\nA: Once the deadline passes, modules are locked to Read-Only.")
+            st.markdown("**Q: Where do I upload MOVs?**\nA: Use the Google Drive link at the bottom of the Module 3 screen.")
+            st.markdown("**Q: Who do I contact for technical issues?**\nA: Use the chat below! We will respond ASAP.")
+            
+        # --- NEW: The 15-Second Disclaimer ---
+        st.caption("⏳ *Note: Messages may take up to 15 seconds to sync across devices. Click the refresh button below to check for replies.*")
         
         c1, c2 = st.columns([4, 1])
         with c2: 
@@ -1107,13 +1148,12 @@ def render_user_sidebar():
             
         u_id = str(st.session_state.user_id)
             
-        chat_container = st.container(height=450)
+        chat_container = st.container(height=400)
         with chat_container:
             if not chat_df.empty and "User_ID" in chat_df.columns:
                 user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
                 for _, row in user_chats.iterrows():
                     with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                        # If Admin replied, say Admin. If User sent, say "User - Name"
                         sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {row.get('Encoder_Name', 'Unknown')}"
                         st.markdown(f"**{sender_label}**\n\n{row['Message']}")
                         st.caption(row["Timestamp"])
@@ -1122,19 +1162,14 @@ def render_user_sidebar():
 
         prompt = st.chat_input("Type your message to HFDB...")
         if prompt:
-            # --- NEW: Added Encoder_Name to the save dictionary! ---
             new_msg = {
                 "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                "User_ID": u_id, 
-                "Hospital": st.session_state.user_info['hosp'], 
+                "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], 
                 "Encoder_Name": st.session_state.user_info['user'], 
-                "Sender": "User", 
-                "Message": prompt
+                "Sender": "User", "Message": prompt
             }
-            
             if chat_df.empty: updated_df = pd.DataFrame([new_msg])
             else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
-            
             conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
             st.rerun()
             
@@ -1226,15 +1261,24 @@ def admin_chat_view():
 
 # --- 10. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
-    # Render a locked sidebar for the login screen
     with st.sidebar:
         st.markdown("### 💬 Live Support Chat")
         st.info("🔒 Please log in to access the live support chat.")
     login_screen()
 else:
-    # Render the real sliding sidebar for logged-in Hospitals!
     if st.session_state.user_info.get("role") == "user":
         render_user_sidebar()
+        
+    # --- NEW: Global Persistent Announcement Banner ---
+    announcement_text = get_announcement()
+    if announcement_text and not st.session_state.get("hide_announcement", False):
+        ann_col1, ann_col2 = st.columns([20, 1])
+        with ann_col1:
+            st.info(f"📢 **ANNOUNCEMENT:** {announcement_text}")
+        with ann_col2:
+            if st.button("✖", help="Dismiss for this session"):
+                st.session_state.hide_announcement = True
+                st.rerun()
         
     if "current_module" in st.session_state:
         if not st.session_state.get("isolated_print_html"):
