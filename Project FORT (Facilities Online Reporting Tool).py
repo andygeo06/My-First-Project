@@ -4,7 +4,7 @@ import time
 import string
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from streamlit_gsheets import GSheetsConnection
 from streamlit_autorefresh import st_autorefresh
 
@@ -124,7 +124,7 @@ def submit_module_data(res_data, module_name="Mod1"):
             try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
             except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Department", "Encoder"])
             u = st.session_state.user_info
-            new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Department": u["dept"], "Encoder": u["user"]}
+            new_record = {"User_ID": st.session_state.user_id, "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"), "Hospital": u["hosp"], "Department": u["dept"], "Encoder": u["user"]}
             new_record.update(res_data)
             if "User_ID" in df.columns: df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
             updated_df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
