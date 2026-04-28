@@ -345,121 +345,133 @@ def module_scorecard():
 
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
 def module_census_data():
-    # --- HEADER & NAVIGATION ---
-    c1, c2, c3 = st.columns([1, 4, 1])
-    with c1:
-        if st.button("⬅️ Dashboard", use_container_width=True): 
-            del st.session_state.current_module; st.rerun()
-            
-    # Notice we changed this to 'section-header-core' to use your Red theme for Mod 2!
-    st.markdown("<div class='section-header-core'><h2 style='margin:0; color:white;'>📈 Module 2: Hospital Data Reporting Form 2025</h2></div>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94A3B8;'>Please ensure all data is accurate as of December 31, 2025.</p>", unsafe_allow_html=True)
+    display_sticky_header()
+    if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod2")
+    prev = st.session_state.staged_data
+    deadline_str, locked = get_module_config("Mod2")
+    if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
-    # Capability Levels
-    cap_levels = ["Level 1", "Level 2", "Level 3", "Infirmary", "Not Applicable"]
+    st.markdown('<div class="section-header-core"><h3 style="margin:0;">📈 MODULE 2: BASIC INFO, CENSUS & HCPN</h3></div>', unsafe_allow_html=True)
+    st.header("1️⃣ BASIC INFORMATION")
+    with st.expander("Expand to fill out Facility Capability & Bed Capacity", expanded=False):
+        lv_opts = ["Level 1", "Level 2", "Level 3", "Specialty"]
+        r1_1, r1_2, r1_3 = st.columns([5, 2, 2])
+        r1_1.markdown("**Service Capability Level (2026):**")
+        lv_26 = r1_2.selectbox("Level 26", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_26")), disabled=locked, label_visibility="collapsed")
+        rm_lv26 = r1_3.text_input("Remarks LV26", value=str(prev.get("RM_LV26", "")), disabled=locked, label_visibility="collapsed")
 
-    with st.form("mod2_form"):
-        # --- SECTION 1: GENERAL INFO ---
-        st.markdown("### 🏥 I. General Information")
-        hosp_name = st.text_input("Name of Hospital:", value=st.session_state.user_info.get('hosp', ''))
-        
-        c_cap1, c_cap2, c_cap3 = st.columns(3)
-        with c_cap1:
-            cap_2025 = st.selectbox("Service Capability Level (2025):", cap_levels)
-        with c_cap2:
-            cap_2026 = st.selectbox("Service Capability Level (2026):", cap_levels)
-        with c_cap3:
-            st.caption("If the same with 2025/2026, please input the level below.")
-            cap_2027 = st.selectbox("Target Service Capability Level in 2027:", cap_levels)
-            
-        st.info("📂 **LTO UPLOAD REQUIRED:** Please upload your LTO (2025) and LTO (2026) using the link below.\n\n⚠️ **CRITICAL:** Follow the proper naming convention: `HOSPITAL ACRONYM_LTO_2025_2026` (e.g., SOGHMC_LTO_2025_2026). Failing to comply will make your submission INVALID.\n\n👉 [Click here to upload files (HDRT Files Upload)](https://bit.ly/HDRTFilesUpload)")
+        r2_1, r2_2, r2_3 = st.columns([5, 2, 2])
+        r2_1.markdown("**Target Service Capability Level in 2027:**")
+        lv_27 = r2_2.selectbox("Level 27", lv_opts, index=get_idx(pd.Series(lv_opts), prev.get("LV_27")), disabled=locked, label_visibility="collapsed")
+        rm_lv27 = r2_3.text_input("Remarks LV27", value=str(prev.get("RM_LV27", "")), disabled=locked, label_visibility="collapsed")
 
-        st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        labels = [("ABC by Licensing (2025):", "ABC_25"), ("Target ABC by Licensing (2026):", "ABC_26"), ("ABC by Law (2025):", "LAW_25"), ("ABC by Law (2026):", "LAW_26")]
+        res_beds = {}
+        for label, key in labels:
+            c1, c2, c3 = st.columns([5, 2, 2])
+            c1.markdown(f"**{label}**")
+            res_beds[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            res_beds[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=str(prev.get(f"RM_{key}", "")), disabled=locked, label_visibility="collapsed")
 
-        # --- SECTION 2: BED CAPACITY ---
-        st.markdown("### 🛏️ II. Bed Capacity")
-        
-        bc1, bc2 = st.columns(2)
-        with bc1:
-            abc_lic_2025 = st.number_input("Authorized Bed Capacity (ABC) by Licensing as of Dec 31, 2025:", min_value=0, step=1)
-            abc_law_2025 = st.number_input("Authorized Bed Capacity (ABC) by Law (2025):", min_value=0, step=1)
-            ibc_2025 = st.number_input("Implementing Bed Capacity (IBC) (2025):", min_value=0, step=1)
-        with bc2:
-            abc_lic_2026 = st.number_input("Target ABC by Licensing by the end of 2026:", min_value=0, step=1)
-            abc_law_2026 = st.number_input("Authorized Bed Capacity (ABC) by Law (2026):", min_value=0, step=1)
-            
-            st.caption("If the same with 2025/2026, input the same ABC. If increasing in 2026, indicate target quarter in REMARKS.")
-            abc_lic_2027 = st.number_input("Target ABC by Licensing in 2027:", min_value=0, step=1)
+        r8_1, r8_2, r8_3 = st.columns([5, 2, 2])
+        r8_1.markdown("**Target ABC by Licensing in 2027:**")
+        abc_27 = r8_2.number_input("ABC 27", value=int(float(prev.get("ABC_27", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_abc27 = r8_3.text_input("Remarks ABC27", value=str(prev.get("RM_ABC27", "")), disabled=locked, label_visibility="collapsed")
 
-        st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        r9_1, r9_2, r9_3 = st.columns([5, 2, 2])
+        r9_1.markdown("**Implementing Bed Capacity (IBC) (2025):**")
+        ibc_25 = r9_2.number_input("IBC 25", value=int(float(prev.get("IBC_25", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_ibc25 = r9_3.text_input("Remarks IBC25", value=str(prev.get("RM_IBC25", "")), disabled=locked, label_visibility="collapsed")
 
-        # --- SECTION 3: HOSPITAL PERFORMANCE ---
-        st.markdown("### 📈 III. Hospital Performance (2025)")
-        
-        hp1, hp2, hp3 = st.columns(3)
-        with hp1:
-            bor_2025 = st.number_input("Bed Occupancy Rate (BOR) %:", min_value=0.0, step=0.1, format="%.2f")
-            inpatients_2025 = st.number_input("Total Number of Inpatients:", min_value=0, step=1)
-        with hp2:
-            alos_2025 = st.number_input("Average Length of Stay (ALOS):", min_value=0.0, step=0.1, format="%.2f")
-            outpatients_2025 = st.number_input("Total Number of Outpatient Visits:", min_value=0, step=1)
-        with hp3:
-            tids_2025 = st.number_input("Total Inpatient Days Served (TIDS):", min_value=0, step=1)
-            er_2025 = st.number_input("Total Number of ER Visits:", min_value=0, step=1)
+    st.header("2️⃣ HOSPITAL CENSUS DATA")
+    with st.expander("Expand to fill out Census Data", expanded=False):
+        census_data = [
+            ("Bed Occupancy Rate (BOR) (2025):", "BOR_25", "pct"), ("Average Length of Stay (ALOS) (2025):", "ALOS_25", "float"),
+            ("Total Inpatient Days Served (TIDS):", "TIDS_25", "int"), ("Total Number of Inpatients (2025):", "INP_25", "int"),
+            ("Total Number of Outpatient Visits:", "OUT_25", "int"), ("Total ER Visits (2025):", "ERV_25", "int")
+        ]
+        res_census = {}
+        for label, key, dtype in census_data:
+            c1, c2, c3 = st.columns([5, 2, 2])
+            c1.markdown(f"**{label}**")
+            if dtype == "pct": res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
+            elif dtype == "float": res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0) or 0.0), step=0.1, disabled=locked, label_visibility="collapsed")
+            else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=str(prev.get(f"RM_{key}", "")), disabled=locked, label_visibility="collapsed")
 
-        st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+    st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
+    with st.expander("Expand to fill out HCPN & BUCAS Data", expanded=False):
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**Apex or End-Referral Hospital?**")
+        apex = c2.selectbox("Apex", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("APEX")), disabled=locked, label_visibility="collapsed")
+        rm_apex = c3.text_input("Remarks Apex", value=str(prev.get("RM_APEX", "")), disabled=locked, label_visibility="collapsed")
 
-        # --- SECTION 4: APEX & MOA ---
-        st.markdown("### 🤝 IV. Apex/End-Referral & HCPN Linkages")
-        
-        st.caption("Reference: [DC 2025-0554 '2024 List of Eligible Apex or End-Referral Hospitals'](https://bit.ly/2025ApexHospitals)")
-        is_apex = st.radio("Based on DC No. 2025-0554, is the hospital identified as an Apex or End-Referral Hospital?", ["No", "Yes"])
-        
-        st.info("📂 **MOA/MOU UPLOAD:** For those with a signed or on-going review MOA/MOU with a HCPN or province.\n\n⚠️ **CRITICAL:** Name the file `HOSPITAL ACRONYM_MOA` (e.g., SOGHMC_MOA).\n\n👉 [Click here to upload MOA/MOU](https://bit.ly/HDRTFilesUpload)")
-        
-        hcpn_links = st.number_input("If the hospital already has MOA/MOU with a HCPN/province, how many HCPNs or provinces are they linked with?", min_value=0, step=1)
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**How many HCPNs are they linked with?**")
+        hcpn_count = c2.number_input("HCPN Count", value=int(float(prev.get("HCPN_COUNT", 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+        rm_hcpn = c3.text_input("Remarks HCPN", value=str(prev.get("RM_HCPN", "")), disabled=locked, label_visibility="collapsed")
 
-        st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**Operates a BUCAS Center/s?**")
+        bucas = c2.selectbox("BUCAS", ["Yes", "No"], index=get_idx(pd.Series(["Yes", "No"]), prev.get("BUCAS")), disabled=locked, label_visibility="collapsed")
+        rm_bucas = c3.text_input("Remarks BUCAS", value=str(prev.get("RM_BUCAS", "")), disabled=locked, label_visibility="collapsed")
 
-        # --- SECTION 5: BUCAS CENTER ---
-        st.markdown("### 🏢 V. BUCAS Center Information")
-        has_bucas = st.radio("Does the hospital operate a BUCAS Center/s?", ["No", "Yes"])
-        
-        bucas_coords = ""
-        if has_bucas == "Yes":
-            st.warning("⚠️ **ACTION REQUIRED:** Please update your data in the UHC HSC BUCAS Tracker (DM 2025-0026): [BUCAS Tracker Form](https://example.com/dummy-bucas-link)")
-            
-            st.caption("Format: Latitude, Longitude (e.g. 14.615628, 120.982498)")
-            bucas_coords = st.text_input("Exact coordinates of the BUCAS Center:")
-            
-            st.info("📂 **BUCAS LICENSE UPLOAD:** Please provide a copy of the BUCAS Center's license to operate.\n\n⚠️ **CRITICAL:** Name the file `HOSPITAL ACRONYM_BUCAS` (e.g., SOGHMC_BUCAS).\n\n👉 [Click here to upload BUCAS License](https://bit.ly/HDRTFilesUpload)")
+        c1, c2, c3 = st.columns([5, 2, 2])
+        c1.markdown("**Coordinates of the BUCAS Center (Lat, Long)**")
+        coords = c2.text_input("Coords", value=str(prev.get("COORDS", "")), disabled=locked, label_visibility="collapsed")
+        rm_coords = c3.text_input("Remarks Coords", value=str(prev.get("RM_COORDS", "")), disabled=locked, label_visibility="collapsed")
 
-        st.markdown("<hr style='margin: 15px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
+    st.divider()
+    h_col1, h_col2 = st.columns(2)
+    h_name = h_col1.text_input("Name of Head of Facility:", value=str(prev.get("Head_Name", "")), disabled=locked)
+    h_pos = h_col2.text_input("Designation of Head of Facility:", value=str(prev.get("Head_Pos", "")), disabled=locked)
 
-        # --- SECTION 6: REMARKS & SIGNATORIES ---
-        st.markdown("### 📝 VI. Remarks & Signatories")
-        
-        st.caption("Breakdown of Bed Capacity, Queries, Explanations of data, etc., kindly put on this field.")
-        remarks = st.text_area("Remarks:")
-        
-        sig1, sig2 = st.columns(2)
-        with sig1:
-            st.markdown("**Prepared by:**")
-            prep_name = st.text_input("Name (Prepared By):")
-            prep_desig = st.text_input("Designation (Prepared By):")
-            prep_date = st.date_input("Date Prepared:")
-        with sig2:
-            st.markdown("**Noted by:**")
-            note_name = st.text_input("Name (Noted By):")
-            st.text_input("Designation (Noted By):", value="Medical Center Chief / Chief of Hospital", disabled=True)
-            note_date = st.date_input("Date Noted:")
+    final_data = {
+        "LV_26": lv_26, "RM_LV26": rm_lv26, "LV_27": lv_27, "RM_LV27": rm_lv27,
+        "ABC_25": res_beds["ABC_25"], "RM_ABC_25": res_beds["RM_ABC_25"], "ABC_26": res_beds["ABC_26"], "RM_ABC_26": res_beds["RM_ABC_26"],
+        "LAW_25": res_beds["LAW_25"], "RM_LAW_25": res_beds["RM_LAW_25"], "LAW_26": res_beds["LAW_26"], "RM_LAW_26": res_beds["RM_LAW_26"],
+        "ABC_27": abc_27, "RM_ABC27": rm_abc27, "IBC_25": ibc_25, "RM_IBC25": rm_ibc25,
+        "APEX": apex, "RM_APEX": rm_apex, "HCPN_COUNT": hcpn_count, "RM_HCPN": rm_hcpn,
+        "BUCAS": bucas, "RM_BUCAS": rm_bucas, "COORDS": coords, "RM_COORDS": rm_coords,
+        "Head_Name": h_name, "Head_Pos": h_pos
+    }
+    final_data.update(res_census)
 
-        # --- SUBMISSION LOGIC ---
-        submit_btn = st.form_submit_button("📤 Submit Module 2", use_container_width=True, type="primary")
-        
-        if submit_btn:
-            st.success("✅ Module 2 Data Successfully Saved!")
-            st.balloons()
+    if not locked:
+        btn1, btn2 = st.columns(2)
+        if btn1.button("🖨️ GENERATE CENSUS REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
+            if submit_module_data(final_data, "Mod2"):
+                st.session_state.staged_data.update(final_data)
+                st.session_state.show_print = True
+                st.rerun()
+        if btn2.button("💾 SAVE PROGRESS ONLY", use_container_width=True):
+            if submit_module_data(final_data, "Mod2"):
+                st.session_state.staged_data.update(final_data)
+                st.success("Progress saved!")
+    else:
+        if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
+            st.session_state.show_print = True; st.rerun()
+
+    if st.session_state.get("show_print", False):
+        u = st.session_state.user_info
+        html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
+        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
+            <center><h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2><h4 style="margin:5px 0;">{u['hosp']} — {u['dept']} Department</h4><hr style="border:1px solid #111;"></center>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
+                <tr style="background: #eee;"><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 45%;">Data Parameter</th><th style="border: 1px solid #333; padding: 6px; text-align: center; width: 15%;">Value</th><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 40%;">Remarks</th></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('LV_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_LV26', '')}</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('ABC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_ABC_25', '')}</td></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('BOR_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_BOR_25', '')}</td></tr>
+                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
+                <tr><td style="border: 1px solid #333; padding: 4px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('APEX', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_APEX', '')}</td></tr>
+            </table><br><br><br>
+            <table style="width:100%; text-align:center; font-size:14px;"><tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{final_data.get('Head_Name', '')}</b><br>{final_data.get('Head_Pos', '')}</td></tr></table>
+            <center><br><button class="no-print" onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
+        </div>"""
+        st.components.v1.html(html, height=1000, scrolling=True)
+        render_upload_section("Mod2")
 
 # --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 7 - MASTER UI UPDATE) ---
 def get_blank_consumption_grid():
