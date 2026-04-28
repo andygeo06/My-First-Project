@@ -169,25 +169,29 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
     u = st.session_state.user_info
     h_name = head_name if head_name else 'Authorized Signatory'
     h_pos = head_pos if head_pos else 'Head of Facility'
+    
+    # --- THE FIX: Safely retrieve the user name and position without crashing ---
+    user_name = u.get('user', 'Unknown Encoder')
+    user_pos = u.get('pos', u.get('designation', 'Encoder')) 
+
     html = f"""
     <style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
         <center>
             <h2 style="margin:0;">2026 GREEN VIABILITY ASSESSMENT</h2>
-            <h4 style="margin:5px 0; color:#444;">{u['hosp']} — {u['dept']}</h4>
+            <h4 style="margin:5px 0; color:#444;">{u.get('hosp', 'Unknown Facility')} — {u.get('dept', 'Unknown Dept')}</h4>
             <h3 style="margin:15px 0; padding:8px; background:#064E3B; color:white; border-radius: 5px;">{title}</h3>
             <hr style="border:1px solid #111;">
         </center>
         <div style="margin: 20px 0; font-size: 13px;">{content_html}</div>
         <br><br><br>
         <table style="width:100%; text-align:center; font-size:14px; margin-top: 40px;">
-            <tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
+            <tr><td style="width:50%;">__________________________<br><b>{user_name}</b><br>{user_pos}</td><td style="width:50%;">__________________________<br><b>{h_name}</b><br>{h_pos}</td></tr>
             <tr><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td><td style="padding-top:5px; color:#666;">(Signature Over Printed Name)</td></tr>
         </table>
         <center><br><button class="no-print" onclick="window.focus(); window.print();" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
     </div>"""
     
-    # Send it to a Mod3 specific session state instead of the isolated one
     st.session_state.mod3_print_html = html
     st.rerun()
 
