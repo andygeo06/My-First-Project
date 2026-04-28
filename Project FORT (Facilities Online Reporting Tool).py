@@ -1165,27 +1165,28 @@ def admin_chat_view():
     # --- LEFT COLUMN: THE INBOX ---
     with inbox_col:
         st.markdown("### 📥 Inbox")
-        st.markdown("<div style='height: 500px; overflow-y: auto; padding-right: 10px;'>", unsafe_allow_html=True)
         
-        for hosp in hospitals:
-            hosp_msgs = chat_df[chat_df["Hospital"] == hosp]
-            last_msg = hosp_msgs.iloc[-1] # Grabs the absolute newest message
-            
-            # The Snippet Logic (Cuts off after 20 characters)
-            raw_msg = str(last_msg["Message"])
-            snippet = raw_msg[:20] + "..." if len(raw_msg) > 20 else raw_msg
-            
-            # The Circle Logic: If last sender was User, it's unread!
-            indicator = "🔴" if last_msg["Sender"] == "User" else "🟢"
-            
-            # The Hospital Button
-            if st.button(f"{indicator} {hosp}", key=f"btn_{hosp}", use_container_width=True):
-                st.session_state.active_chat = hosp # Remembers who you clicked!
+        # Use Streamlit's native scrolling container instead of HTML!
+        inbox_container = st.container(height=500)
+        
+        with inbox_container:
+            for hosp in hospitals:
+                hosp_msgs = chat_df[chat_df["Hospital"] == hosp]
+                last_msg = hosp_msgs.iloc[-1] # Grabs the absolute newest message
                 
-            # The Snippet Label underneath
-            st.markdown(f"<div style='font-size: 0.85em; color: #94A3B8; margin-top: -10px; margin-bottom: 15px; padding-left: 10px;'>↳ {snippet}</div>", unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+                # The Snippet Logic (Cuts off after 20 characters)
+                raw_msg = str(last_msg["Message"])
+                snippet = raw_msg[:20] + "..." if len(raw_msg) > 20 else raw_msg
+                
+                # The Circle Logic: If last sender was User, it's unread!
+                indicator = "🔴" if last_msg["Sender"] == "User" else "🟢"
+                
+                # The Hospital Button
+                if st.button(f"{indicator} {hosp}", key=f"btn_{hosp}", use_container_width=True):
+                    st.session_state.active_chat = hosp # Remembers who you clicked!
+                    
+                # The Snippet Label underneath
+                st.markdown(f"<div style='font-size: 0.85em; color: #94A3B8; margin-top: -10px; margin-bottom: 15px; padding-left: 10px;'>↳ {snippet}</div>", unsafe_allow_html=True)
 
     # --- RIGHT COLUMN: THE ACTIVE CHAT ---
     with chat_col:
