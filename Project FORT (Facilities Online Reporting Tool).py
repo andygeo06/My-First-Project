@@ -182,17 +182,19 @@ def login_screen():
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
         with st.form("login_form"):
-            user_input = st.text_input("Username / Access Code")
-            pass_input = st.text_input("Password", type="password")
+            # --- REVERTED: Single Access Code Input ---
+            access_code = st.text_input("Enter your Access Code", type="password")
             submitted = st.form_submit_button("Secure Login", use_container_width=True)
             
             if submitted:
                 accounts_df = get_static_sheet("Accounts")
                 if not accounts_df.empty:
+                    # Clean the database column to ensure perfect matching
                     accounts_df["Username"] = accounts_df["Username"].astype(str).str.strip()
-                    accounts_df["Password"] = accounts_df["Password"].astype(str).str.strip()
                     
-                    match = accounts_df[(accounts_df["Username"] == user_input) & (accounts_df["Password"] == pass_input)]
+                    # Matches the typed code against your database
+                    match = accounts_df[accounts_df["Username"] == access_code.strip()]
+                    
                     if not match.empty:
                         user_data = match.iloc[0]
                         st.session_state.user_id = str(uuid.uuid4())
@@ -208,9 +210,9 @@ def login_screen():
                             "access": allowed_modules
                         }
                         st.rerun()
-                    else: st.error("❌ Invalid Credentials.")
+                    else: st.error("❌ Invalid Access Code.")
                 else: st.error("Database connection error.")
-
+                    
 # --- 6. ADMIN VIEWS ---
 def admin_analysis_view(mod_id, title):
     if "show_print" in st.session_state:
