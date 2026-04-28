@@ -987,7 +987,7 @@ def get_row_html(title, deadline, is_locked):
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
-    # --- The "Save Your Password" Screen ---
+    # --- 1. THE "SAVE YOUR LOGIN CODE" SCREEN ---
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
         st.markdown(f"""
@@ -1013,15 +1013,46 @@ def login_screen():
         
         with tab1:
             with st.form("login_form"):
-                # FIX: Removed type="password". Browsers will no longer aggressively ask to save/generate passwords!
+                # Clean text input to avoid browser password manager interference
                 access_code = st.text_input("Enter your Access Code")
                 submitted = st.form_submit_button("Secure Login", use_container_width=True)
                 
                 if submitted:
+                    code_clean = access_code.strip()
+                    
+                    # --- 2. MASTER ADMIN BYPASS ROSTER (10 ACCOUNTS) ---
+                    admin_roster = {
+                        "ADMIN-SUP3R4DM1N": {"name": "FPMD Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-Sc0r3c4rd": {"name": "Scorecard Administrator", "access": ["Mod1", "Chat"]},
+                        "ADMIN-Mo03": {"name": "MOOE Administrator", "access": ["Mod2", "Chat"]},
+                        "ADMIN-Gr33n": {"name": "GVA Administrator", "access": ["Mod3", "Chat"]},
+                        "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
+                        "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-07": {"name": "Compliance Officer (Admin 7)", "access": ["Mod3", "Chat"]},
+                        "ADMIN-08": {"name": "IT Support (Admin 8)", "access": ["Chat"]}, 
+                        "ADMIN-09": {"name": "Audit Lead (Admin 9)", "access": ["Mod1", "Mod3", "Chat"]},
+                        "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
+                    }
+                    
+                    if code_clean in admin_roster:
+                        st.session_state.user_id = code_clean
+                        admin_data = admin_roster[code_clean]
+                        st.session_state.user_info = {
+                            "user": admin_data["name"],
+                            "role": "admin",
+                            "hosp": "DOH Central Office",
+                            "dept": "HFDB",
+                            "access": admin_data["access"]
+                        }
+                        st.rerun()
+                        
+                    # --- 3. REGULAR USER DATABASE CHECK ---
+                    # Using the function name 'get_static_sheet' from your baseline
                     accounts_df = get_static_sheet("User_Profiles")
                     if not accounts_df.empty and "User_ID" in accounts_df.columns:
                         accounts_df["User_ID"] = accounts_df["User_ID"].astype(str).str.strip()
-                        match = accounts_df[accounts_df["User_ID"] == access_code.strip()]
+                        match = accounts_df[accounts_df["User_ID"] == code_clean]
                         
                         if not match.empty:
                             user_data = match.iloc[0]
@@ -1032,6 +1063,7 @@ def login_screen():
                                 "role": user_data.get("Role", "user"),
                                 "hosp": user_data.get("Hospital_Name", "N/A"),
                                 "dept": user_data.get("Department", "General"),
+                                "pos": user_data.get("Position", "Encoder"),
                                 "access": [m.strip() for m in access_str.split(",")] if access_str else []
                             }
                             st.rerun()
@@ -1041,19 +1073,20 @@ def login_screen():
         with tab2:
             st.info("First time here? Generate your unique access code below.")
             try:
+                # Fetching from Facility_List as per your baseline
                 hosp_df = get_static_sheet("Facility_List") 
                 if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
                     hosp_list = ["-- Select Hospital --"] + hosp_df["Facility_Name"].dropna().unique().tolist()
                 elif not hosp_df.empty:
                     hosp_list = ["-- Select Hospital --"] + hosp_df.iloc[:, 0].dropna().unique().tolist()
                 else:
-                    hosp_list = ["-- Select Hospital --", "List Unavailable - Please Contact Admin"]
+                    hosp_list = ["-- Select Hospital --", "List Unavailable"]
             except:
                 hosp_list = ["-- Select Hospital --", "Error Loading List"]
 
             with st.form("register_form"):
                 new_hosp = st.selectbox("Hospital Name", hosp_list)
-                new_dept = st.text_input("Department / Unit (e.g., HFDB, ER, Pedia)")
+                new_dept = st.text_input("Department / Unit")
                 new_encoder = st.text_input("Encoder Name")
                 new_designation = st.text_input("Position / Designation")
                 
@@ -1061,9 +1094,9 @@ def login_screen():
                 
                 if reg_submit:
                     if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
-                        st.error("⚠️ Please fill in all fields and select a valid hospital to register.")
+                        st.error("⚠️ Please fill in all fields.")
                     else:
-                        # Generates HFDB-YEAR-10CHARS
+                        # Baseline randomizer: HFDB-YEAR-10CHARS
                         current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
                         random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                         new_code = f"HFDB-{current_year}-{random_chars}"
@@ -1071,16 +1104,24 @@ def login_screen():
                         st.session_state.pending_id = new_code
                         st.session_state.pending_info = {
                             "user": new_encoder, "role": "user", "hosp": new_hosp, "dept": new_dept,
-                            "designation": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
+                            "pos": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
                         }
                         
                         try:
                             accounts_df = get_static_sheet("User_Profiles")
-                            new_row = {"User_ID": new_code, "Hospital_Name": new_hosp, "Department": new_dept, "Encoder_Name": new_encoder, "Position": new_designation, "Role": "user", "Access": "Mod1, Mod2, Mod3, Chat"}
+                            new_row = {
+                                "User_ID": new_code, 
+                                "Hospital_Name": new_hosp, 
+                                "Department": new_dept, 
+                                "Encoder_Name": new_encoder, 
+                                "Position": new_designation, 
+                                "Role": "user", 
+                                "Access": "Mod1, Mod2, Mod3, Chat"
+                            }
                             updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
                             conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
                         except Exception as e:
-                            st.error(f"Failed to save new user to database. Ensure 'User_Profiles' sheet exists. Error: {e}")
+                            st.error(f"Failed to save user. Error: {e}")
                         st.rerun()
                         
 def dashboard():
