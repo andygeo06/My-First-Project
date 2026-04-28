@@ -1279,16 +1279,10 @@ else:
     if st.session_state.user_info.get("role") == "user":
         render_user_sidebar()
         
-    # --- NEW: Global Persistent Announcement Banner ---
+   # --- NEW: Global Persistent Announcement Banner ---
     announcement_text = get_announcement()
-    if announcement_text and not st.session_state.get("hide_announcement", False):
-        ann_col1, ann_col2 = st.columns([20, 1])
-        with ann_col1:
-            st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
-        with ann_col2:
-            if st.button("✖", help="Dismiss for this session"):
-                st.session_state.hide_announcement = True
-                st.rerun()
+    if announcement_text:
+        st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         
     if "current_module" in st.session_state:
         if not st.session_state.get("isolated_print_html"):
