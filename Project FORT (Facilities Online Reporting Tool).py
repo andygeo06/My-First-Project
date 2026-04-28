@@ -42,10 +42,10 @@ st.markdown(f"""
     div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
     
-    /* COMPACT ALERT & BANNER CSS (VERTICAL CENTERING SECURED) */
-    div[data-testid="stAlert"] {{ padding: 0.2rem 1rem !important; }}
+    /* COMPACT ALERT & BANNER CSS */
+    div[data-testid="stAlert"] {{ padding: 0.2rem 0.5rem !important; }}
     div[data-testid="stAlert"] > div {{ align-items: center !important; }}
-    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.1rem !important; line-height: 1.4 !important; font-size: 0.95em; }}
+    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.2rem !important; line-height: 1.4 !important; }}
     
     /* COMPACT CHAT CSS */
     div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
@@ -176,42 +176,90 @@ def print_view(hosp, data, module_title):
 
 # --- 5. AUTHENTICATION & LOGIN ---
 def login_screen():
-    st.markdown("<h1 style='text-align: center; margin-bottom: 5px; color: #F8FAFC;'>Project FORT</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: #94A3B8; margin-bottom: 40px;'>Facilities Online Reporting Tool</h4>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        with st.form("login_form"):
-            # --- REVERTED: Single Access Code Input ---
-            access_code = st.text_input("Enter your Access Code", type="password")
-            submitted = st.form_submit_button("Secure Login", use_container_width=True)
-            
-            if submitted:
-                accounts_df = get_static_sheet("Accounts")
-                if not accounts_df.empty:
-                    # Clean the database column to ensure perfect matching
-                    accounts_df["Username"] = accounts_df["Username"].astype(str).str.strip()
-                    
-                    # Matches the typed code against your database
-                    match = accounts_df[accounts_df["Username"] == access_code.strip()]
-                    
-                    if not match.empty:
-                        user_data = match.iloc[0]
-                        st.session_state.user_id = str(uuid.uuid4())
+    # --- The "Save Your Password" Screen ---
+    if "pending_id" in st.session_state:
+        st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
+        st.markdown(f"""
+            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
+                <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
+                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
+                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
+            st.session_state.user_id = st.session_state.pending_id
+            st.session_state.user_info = st.session_state.pending_info
+            del st.session_state.pending_id
+            del st.session_state.pending_info
+            st.success("Access Granted. Redirecting to Dashboard...")
+            time.sleep(1)
+            st.rerun()
+        st.stop() 
+
+    # --- Dual Login System ---
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tab1, tab2 = st.tabs(["🔐 Returning User", "📝 New User"])
+        
+        with tab1:
+            with st.form("login_form"):
+                access_code = st.text_input("Enter your Access Code", type="password")
+                submitted = st.form_submit_button("Secure Login", use_container_width=True)
+                
+                if submitted:
+                    accounts_df = get_static_sheet("Accounts")
+                    if not accounts_df.empty:
+                        accounts_df["Username"] = accounts_df["Username"].astype(str).str.strip()
+                        match = accounts_df[accounts_df["Username"] == access_code.strip()]
                         
-                        access_str = str(user_data.get("Access", "")).strip()
-                        allowed_modules = [m.strip() for m in access_str.split(",")] if access_str else []
+                        if not match.empty:
+                            user_data = match.iloc[0]
+                            st.session_state.user_id = str(uuid.uuid4())
+                            access_str = str(user_data.get("Access", "")).strip()
+                            st.session_state.user_info = {
+                                "user": user_data["Username"],
+                                "role": user_data.get("Role", "user"),
+                                "hosp": user_data.get("Hospital_Name", "N/A"),
+                                "dept": user_data.get("Department", "General"),
+                                "access": [m.strip() for m in access_str.split(",")] if access_str else []
+                            }
+                            st.rerun()
+                        else: st.error("❌ Invalid Access Code.")
+                    else: st.error("Database connection error.")
+                    
+        with tab2:
+            st.info("First time here? Generate your unique access code below.")
+            with st.form("register_form"):
+                new_hosp = st.text_input("Hospital Name")
+                new_encoder = st.text_input("Encoder Name")
+                reg_submit = st.form_submit_button("Generate Login Code", use_container_width=True)
+                
+                if reg_submit and new_hosp and new_encoder:
+                    # Generates a random secure code
+                    new_code = "HFDB-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                    
+                    # Store pending data for the warning screen
+                    st.session_state.pending_id = new_code
+                    st.session_state.pending_info = {
+                        "user": new_encoder,
+                        "role": "user",
+                        "hosp": new_hosp,
+                        "dept": "General",
+                        "access": ["Mod1", "Mod2", "Mod3", "Chat"]
+                    }
+                    
+                    # Append new user logic to Google Sheets
+                    try:
+                        accounts_df = get_static_sheet("Accounts")
+                        new_row = {"Username": new_code, "Password": "", "Role": "user", "Hospital_Name": new_hosp, "Department": "General", "Access": "Mod1, Mod2, Mod3, Chat"}
+                        updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
+                        conn.update(spreadsheet=SHEET_URL, worksheet="Accounts", data=updated_df)
+                    except Exception as e:
+                        st.error("Failed to save new user to database.")
                         
-                        st.session_state.user_info = {
-                            "user": user_data["Username"],
-                            "role": user_data["Role"],
-                            "hosp": user_data.get("Hospital_Name", "N/A"),
-                            "dept": user_data.get("Department", "General"),
-                            "access": allowed_modules
-                        }
-                        st.rerun()
-                    else: st.error("❌ Invalid Access Code.")
-                else: st.error("Database connection error.")
+                    st.rerun()
                     
 # --- 6. ADMIN VIEWS ---
 def admin_analysis_view(mod_id, title):
