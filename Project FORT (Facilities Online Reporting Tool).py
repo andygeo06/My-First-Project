@@ -1098,120 +1098,128 @@ def render_user_sidebar():
         st.markdown("### 💬 Live Support Chat")
         st.caption("Need help? Message the HFDB Admins directly!")
         
-        # --- AUTO REFRESH: Silently checks for Admin replies every 15 seconds ---
-        st_autorefresh(interval=15000, limit=None, key="user_chat_refresh")
+        c1, c2 = st.columns([4, 1])
+        with c2: 
+            if st.button("🔄", help="Check for replies"): st.rerun()
         
-        # --- SAFE CACHE: Downloads from Google every 15s to save API limits ---
-        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="15s")
-        except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Sender", "Message"])
+        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl=1)
+        except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
             
         u_id = str(st.session_state.user_id)
-        
-        # --- LOCAL MEMORY: Holds messages the user JUST sent so they don't disappear ---
-        if "local_chat" not in st.session_state:
-            st.session_state.local_chat = []
             
         chat_container = st.container(height=450)
         with chat_container:
-            # 1. Draw messages securely from Google Sheets
             if not chat_df.empty and "User_ID" in chat_df.columns:
                 user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
                 for _, row in user_chats.iterrows():
                     with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                        st.markdown(row["Message"])
+                        # If Admin replied, say Admin. If User sent, say "User - Name"
+                        sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {row.get('Encoder_Name', 'Unknown')}"
+                        st.markdown(f"**{sender_label}**\n\n{row['Message']}")
                         st.caption(row["Timestamp"])
             else:
                 st.info("No messages yet. Ask us anything!")
-                
-            # 2. Draw messages from local memory (The Win-Win visual trick!)
-            for msg in st.session_state.local_chat:
-                with st.chat_message("user"):
-                    st.markdown(msg["Message"])
-                    st.caption(msg["Timestamp"] + " (Sending...)")
 
         prompt = st.chat_input("Type your message to HFDB...")
         if prompt:
-            new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], "Sender": "User", "Message": prompt}
+            # --- NEW: Added Encoder_Name to the save dictionary! ---
+            new_msg = {
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                "User_ID": u_id, 
+                "Hospital": st.session_state.user_info['hosp'], 
+                "Encoder_Name": st.session_state.user_info['user'], 
+                "Sender": "User", 
+                "Message": prompt
+            }
             
-            # Instantly show on screen
-            st.session_state.local_chat.append(new_msg) 
-            
-            # Securely send to Google Sheets in background
             if chat_df.empty: updated_df = pd.DataFrame([new_msg])
             else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+            
             conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
             st.rerun()
-
+            
 def admin_chat_view():
     st.markdown("<h2>💬 Admin Support Center</h2>", unsafe_allow_html=True)
-    if st.button("⬅️ Back to Admin Dashboard"): del st.session_state.current_module; st.rerun()
     
-    # --- AUTO REFRESH: Silently checks for Hospital messages every 15 seconds ---
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        if st.button("⬅️ Back to Admin Dashboard"): 
+            del st.session_state.current_module
+            if "active_chat" in st.session_state: del st.session_state.active_chat
+            st.rerun()
+    with col2:
+        if st.button("🔄 Refresh Inbox", use_container_width=True, type="primary"): st.rerun()
+    
     st_autorefresh(interval=15000, limit=None, key="admin_chat_refresh")
     
-    # SAFE CACHE
     try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="15s")
     except: st.error("Could not load 'Support_Logs' tab from Google Sheets."); return
         
     if chat_df.empty: st.info("No messages from hospitals yet."); return
 
+    # --- THE GMAIL SPLIT SCREEN ---
+    inbox_col, chat_col = st.columns([1, 2.5]) # 1 part Inbox, 2.5 parts Chat Room
+
     hospitals = chat_df["Hospital"].dropna().unique().tolist()
-    sel_hosp = st.selectbox("Select a Hospital to view/reply:", hospitals)
-    hosp_chats = chat_df[chat_df["Hospital"] == sel_hosp]
-    
-    st.markdown(f"### Chat History: {sel_hosp}")
-    
-    # Local Admin Memory Trick
-    if "admin_local_chat" not in st.session_state: st.session_state.admin_local_chat = []
+
+    # --- LEFT COLUMN: THE INBOX ---
+    with inbox_col:
+        st.markdown("### 📥 Inbox")
+        st.markdown("<div style='height: 500px; overflow-y: auto; padding-right: 10px;'>", unsafe_allow_html=True)
         
-    chat_container = st.container(height=500)
-    with chat_container:
-        # Draw from Database
-        for _, row in hosp_chats.iterrows():
-            with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                st.markdown(f"**{row['Sender']}** - {row['Timestamp']}\n\n{row['Message']}")
-        # Draw from Local Memory
-        for msg in st.session_state.admin_local_chat:
-            if msg["Hospital"] == sel_hosp:
-                with st.chat_message("assistant"):
-                    st.markdown(f"**Admin** - {msg['Timestamp']}\n\n{msg['Message']} (Sending...)")
+        for hosp in hospitals:
+            hosp_msgs = chat_df[chat_df["Hospital"] == hosp]
+            last_msg = hosp_msgs.iloc[-1] # Grabs the absolute newest message
+            
+            # The Snippet Logic (Cuts off after 20 characters)
+            raw_msg = str(last_msg["Message"])
+            snippet = raw_msg[:20] + "..." if len(raw_msg) > 20 else raw_msg
+            
+            # The Circle Logic: If last sender was User, it's unread!
+            indicator = "🔴" if last_msg["Sender"] == "User" else "🟢"
+            
+            # The Hospital Button
+            if st.button(f"{indicator} {hosp}", key=f"btn_{hosp}", use_container_width=True):
+                st.session_state.active_chat = hosp # Remembers who you clicked!
                 
-    reply = st.chat_input(f"Reply to {sel_hosp}...")
-    if reply:
-        u_id = hosp_chats.iloc[0]["User_ID"]
-        new_msg = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "User_ID": u_id, "Hospital": sel_hosp, "Sender": "Admin", "Message": reply}
+            # The Snippet Label underneath
+            st.markdown(f"<div style='font-size: 0.85em; color: #94A3B8; margin-top: -10px; margin-bottom: 15px; padding-left: 10px;'>↳ {snippet}</div>", unsafe_allow_html=True)
         
-        st.session_state.admin_local_chat.append(new_msg)
-        updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
-        st.rerun()
-        
-# --- 10. THE TRAFFIC CONTROLLER ---
-if "user_id" not in st.session_state: 
-    # NEW: Render a locked sidebar for the login screen
-    with st.sidebar:
-        st.markdown("### 💬 Live Support Chat")
-        st.info("🔒 Please log in to access the live support chat.")
-    login_screen()
-else:
-    # Render the real sliding sidebar for logged-in Hospitals!
-    if st.session_state.user_info.get("role") == "user":
-        render_user_sidebar()
-        
-    if "current_module" in st.session_state:
-        if not st.session_state.get("isolated_print_html"):
-            if st.button("🏠 Return to Dashboard"): 
-                if "show_print" in st.session_state: del st.session_state.show_print
-                del st.session_state.current_module; st.rerun()
-        
-        mod = st.session_state.current_module
-        if mod == "Mod1": module_scorecard()
-        elif mod == "Mod2": module_census_data()
-        elif mod == "Mod3": module_gva()
-        elif mod == "Admin_Mod1": admin_analysis_view("Mod1", "📊 Scorecard Data Analysis")
-        elif mod == "Admin_Mod2": admin_analysis_view("Mod2", "📈 Census Data Analysis")
-        elif mod == "Admin_Mod3": admin_analysis_view("Mod3", "🌿 Green Viability Dashboard")
-        elif mod == "Admin_Chat": admin_chat_view()
-    else: 
-        if st.session_state.user_info.get("role") == "admin": admin_dashboard()
-        else: dashboard()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+    # --- RIGHT COLUMN: THE ACTIVE CHAT ---
+    with chat_col:
+        if st.session_state.get("active_chat"):
+            sel_hosp = st.session_state.active_chat
+            st.markdown(f"### Chatting with: {sel_hosp}")
+            
+            hosp_chats = chat_df[chat_df["Hospital"] == sel_hosp]
+            chat_container = st.container(height=450)
+            
+            with chat_container:
+                for _, row in hosp_chats.iterrows():
+                    is_user = row["Sender"] == "User"
+                    with st.chat_message("user" if is_user else "assistant"):
+                        # --- Shows 'User - Andy' or 'Admin' ---
+                        sender_name = f"User - {row.get('Encoder_Name', 'Unknown')}" if is_user else "Admin"
+                        st.markdown(f"**{sender_name}** - {row['Timestamp']}\n\n{row['Message']}")
+                        
+            reply = st.chat_input(f"Reply to {sel_hosp}...")
+            if reply:
+                u_id = hosp_chats.iloc[0]["User_ID"]
+                new_msg = {
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                    "User_ID": u_id, 
+                    "Hospital": sel_hosp, 
+                    "Encoder_Name": "Admin", 
+                    "Sender": "Admin", 
+                    "Message": reply
+                }
+                
+                updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+                conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+                st.rerun()
+        else:
+            # What shows up before they click a hospital
+            st.info("👈 Select a hospital from your Inbox to view their chat history and reply.")
