@@ -206,14 +206,17 @@ def subtle_header(title, icon="🔹"):
 def display_sticky_header(title_html):
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
-        # Secret CSS Anchor
         st.markdown('<span id="sticky-anchor"></span>', unsafe_allow_html=True)
-        if st.button("⬅️ Dashboard", use_container_width=True): 
+        # ADDED: key="sticky_dash_btn"
+        if st.button("⬅️ Dashboard", use_container_width=True, key="sticky_dash_btn"): 
             del st.session_state.current_module
             if "show_print" in st.session_state: del st.session_state.show_print
+            if "mod3_print_html" in st.session_state: del st.session_state.mod3_print_html
             st.rerun()
     with c2:
         st.markdown(title_html, unsafe_allow_html=True)
+    
+    # ... rest of your CSS stays the same ...
         
     st.markdown("""
     <style>
@@ -1365,7 +1368,6 @@ else:
         st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         
     if "current_module" in st.session_state:
-        
         mod = st.session_state.current_module
         if mod == "Mod1": module_scorecard()
         elif mod == "Mod2": module_census_data()
