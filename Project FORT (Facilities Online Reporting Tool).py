@@ -37,10 +37,10 @@ st.markdown(f"""
     div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
     /* COMPACT CHAT CSS */
-    div[data-testid="stChatMessage"] { padding: 0.5rem 0.5rem !important; }
-    div[data-testid="stChatMessageContent"] { gap: 0.1rem !important; }
-    div[data-testid="stChatMessage"] .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.95em; }
-    div[data-testid="stChatMessage"] [data-testid="stIconNode"] { width: 1.5rem !important; height: 1.5rem !important; }
+    div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
+    div[data-testid="stChatMessageContent"] {{ gap: 0.1rem !important; }}
+    div[data-testid="stChatMessage"] .stMarkdown p {{ margin-bottom: 0.2rem !important; font-size: 0.95em; }}
+    div[data-testid="stChatMessage"] [data-testid="stIconNode"] {{ width: 1.5rem !important; height: 1.5rem !important; }}
 </style>
 """, unsafe_allow_html=True)
 
