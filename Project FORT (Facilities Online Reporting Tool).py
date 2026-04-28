@@ -1059,10 +1059,10 @@ def login_screen():
                     
                     # --- 2. MASTER ADMIN BYPASS ROSTER (10 ACCOUNTS) ---
                     admin_roster = {
-                        "ADMIN-SUP3R4DM1N": {"name": "System Administrator (Lead)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-Sc0r3c4rd": {"name": "Data Verifier (Admin 1)", "access": ["Mod1", "Chat"]},
-                        "ADMIN-Mo03": {"name": "Support Specialist (Admin 2)", "access": ["Mod2", "Chat"]},
-                        "ADMIN-Gr33n": {"name": "Green Assessor (Admin 3)", "access": ["Mod3", "Chat"]},
+                        "ADMIN-SUP3R4DM1N": {"name": "FPMD Admin", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                        "ADMIN-Sc0r3c4rd": {"name": "Hospital Scorecard Admin", "access": ["Mod1", "Chat"]},
+                        "ADMIN-Mo03": {"name": "Hospital MOOE Admin", "access": ["Mod2", "Chat"]},
+                        "ADMIN-Gr33n": {"name": "GVA Admin", "access": ["Mod3", "Chat"]},
                         "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
                         "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
                         "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
