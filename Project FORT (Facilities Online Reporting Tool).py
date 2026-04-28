@@ -1223,3 +1223,33 @@ def admin_chat_view():
         else:
             # What shows up before they click a hospital
             st.info("👈 Select a hospital from your Inbox to view their chat history and reply.")
+
+# --- 10. THE TRAFFIC CONTROLLER ---
+if "user_id" not in st.session_state: 
+    # Render a locked sidebar for the login screen
+    with st.sidebar:
+        st.markdown("### 💬 Live Support Chat")
+        st.info("🔒 Please log in to access the live support chat.")
+    login_screen()
+else:
+    # Render the real sliding sidebar for logged-in Hospitals!
+    if st.session_state.user_info.get("role") == "user":
+        render_user_sidebar()
+        
+    if "current_module" in st.session_state:
+        if not st.session_state.get("isolated_print_html"):
+            if st.button("🏠 Return to Dashboard"): 
+                if "show_print" in st.session_state: del st.session_state.show_print
+                del st.session_state.current_module; st.rerun()
+        
+        mod = st.session_state.current_module
+        if mod == "Mod1": module_scorecard()
+        elif mod == "Mod2": module_census_data()
+        elif mod == "Mod3": module_gva()
+        elif mod == "Admin_Mod1": admin_analysis_view("Mod1", "📊 Scorecard Data Analysis")
+        elif mod == "Admin_Mod2": admin_analysis_view("Mod2", "📈 Census Data Analysis")
+        elif mod == "Admin_Mod3": admin_analysis_view("Mod3", "🌿 Green Viability Dashboard")
+        elif mod == "Admin_Chat": admin_chat_view()
+    else: 
+        if st.session_state.user_info.get("role") == "admin": admin_dashboard()
+        else: dashboard()
