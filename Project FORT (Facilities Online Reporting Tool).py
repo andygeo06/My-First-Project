@@ -181,13 +181,23 @@ def login_screen():
     # --- The "Save Your Password" Screen ---
     if "pending_id" in st.session_state:
         st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
+        
+        # Top half of the yellow box
         st.markdown(f"""
-            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
+            <div style="background-color:#F0B216; padding:20px; border-radius:10px 10px 0 0; text-align:center; border: 4px solid #000; border-bottom: none;">
                 <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
-                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
-                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
+                <p style="color:black; font-size:16px; margin-top:5px;"><b>Hover over the dark box below and click the Copy icon! 📋</b></p>
             </div>
         """, unsafe_allow_html=True)
+        
+        # Streamlit's native code block (automatically includes a copy-to-clipboard button!)
+        st.code(st.session_state.pending_id, language=None)
+        
+        # Bottom half of the yellow box to seal it
+        st.markdown(f"""
+            <div style="background-color:#F0B216; padding:10px; border-radius:0 0 10px 10px; border: 4px solid #000; border-top: none; margin-bottom: 15px;"></div>
+        """, unsafe_allow_html=True)
+        
         if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
             st.session_state.user_id = st.session_state.pending_id
             st.session_state.user_info = st.session_state.pending_info
