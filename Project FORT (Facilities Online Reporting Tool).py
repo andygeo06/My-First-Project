@@ -1092,8 +1092,8 @@ def dashboard():
     clean_dept = "General" if pd.isna(u.get('dept')) else u.get('dept', 'General')
     st.info(f"Facility: **{u['hosp']}** | Department: **{clean_dept}** | Encoder: **{u['user']}**")
     
-    # --- NEW MOBILE UX BANNER ---
-    st.success("💡 **TIP:** Need help? Open the menu ( **>** ) in the top left corner to access Live Support Chat!")
+    # --- NEW MOBILE UX BANNER --- (Customizeable when needed)
+    # st.success("💡 **TIP:** Need help? Open the menu ( **>** ) in the top left corner to access Live Support Chat!")
     
     d1_str, d1_locked = get_module_config("Mod1")
     d2_str, d2_locked = get_module_config("Mod2")
