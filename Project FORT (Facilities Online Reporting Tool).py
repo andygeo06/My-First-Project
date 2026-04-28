@@ -36,6 +36,11 @@ st.markdown(f"""
     div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
     div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 3em !important; width: 100% !important; transition: 0.3s !important; }}
     div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
+    /* COMPACT CHAT CSS */
+    div[data-testid="stChatMessage"] { padding: 0.5rem 0.5rem !important; }
+    div[data-testid="stChatMessageContent"] { gap: 0.1rem !important; }
+    div[data-testid="stChatMessage"] .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.95em; }
+    div[data-testid="stChatMessage"] [data-testid="stIconNode"] { width: 1.5rem !important; height: 1.5rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1129,19 +1134,16 @@ def render_user_sidebar():
     with st.sidebar:
         st.markdown("### 💬 Live Support Chat")
         
-        # --- NEW: The FAQ Corner ---
         with st.expander("📚 Frequently Asked Questions", expanded=False):
             st.markdown("**Q: When is the deadline?**\nA: Check your dashboard for specific module deadlines.")
             st.markdown("**Q: Can I edit after submitting?**\nA: Once the deadline passes, modules are locked to Read-Only.")
             st.markdown("**Q: Where do I upload MOVs?**\nA: Use the Google Drive link at the bottom of the Module 3 screen.")
             st.markdown("**Q: Who do I contact for technical issues?**\nA: Use the chat below! We will respond ASAP.")
             
-        # --- NEW: The 15-Second Disclaimer ---
-        st.caption("⏳ *Note: Messages may take up to 15 seconds to sync across devices. Click the refresh button below to check for replies.*")
+        st.caption("⏳ *Note: Messages may take up to 15 seconds to sync across devices.*")
         
-        c1, c2 = st.columns([4, 1])
-        with c2: 
-            if st.button("🔄", help="Check for replies"): st.rerun()
+        # --- UPGRADED: Full-width clearly labeled refresh button ---
+        if st.button("🔄 Press here to refresh chat replies", use_container_width=True): st.rerun()
         
         try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl=1)
         except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
@@ -1154,7 +1156,11 @@ def render_user_sidebar():
                 user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
                 for _, row in user_chats.iterrows():
                     with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                        sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {row.get('Encoder_Name', 'Unknown')}"
+                        # --- UPGRADED: Fixes the 'nan' bug for old messages ---
+                        raw_name = row.get('Encoder_Name', 'Unknown')
+                        clean_name = "Unknown" if pd.isna(raw_name) else raw_name
+                        sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {clean_name}"
+                        
                         st.markdown(f"**{sender_label}**\n\n{row['Message']}")
                         st.caption(row["Timestamp"])
             else:
@@ -1192,38 +1198,30 @@ def admin_chat_view():
         
     if chat_df.empty: st.info("No messages from hospitals yet."); return
 
-    # --- THE GMAIL SPLIT SCREEN ---
-    inbox_col, chat_col = st.columns([1, 2.5]) # 1 part Inbox, 2.5 parts Chat Room
+    inbox_col, chat_col = st.columns([1, 2.5])
 
     hospitals = chat_df["Hospital"].dropna().unique().tolist()
 
-    # --- LEFT COLUMN: THE INBOX ---
     with inbox_col:
         st.markdown("### 📥 Inbox")
         
-        # Use Streamlit's native scrolling container instead of HTML!
         inbox_container = st.container(height=500)
-        
         with inbox_container:
             for hosp in hospitals:
                 hosp_msgs = chat_df[chat_df["Hospital"] == hosp]
-                last_msg = hosp_msgs.iloc[-1] # Grabs the absolute newest message
+                last_msg = hosp_msgs.iloc[-1]
                 
-                # The Snippet Logic (Cuts off after 20 characters)
                 raw_msg = str(last_msg["Message"])
                 snippet = raw_msg[:20] + "..." if len(raw_msg) > 20 else raw_msg
                 
-                # The Circle Logic: If last sender was User, it's unread!
                 indicator = "🔴" if last_msg["Sender"] == "User" else "🟢"
                 
-                # The Hospital Button
                 if st.button(f"{indicator} {hosp}", key=f"btn_{hosp}", use_container_width=True):
-                    st.session_state.active_chat = hosp # Remembers who you clicked!
+                    st.session_state.active_chat = hosp
                     
-                # The Snippet Label underneath
                 st.markdown(f"<div style='font-size: 0.85em; color: #94A3B8; margin-top: -10px; margin-bottom: 15px; padding-left: 10px;'>↳ {snippet}</div>", unsafe_allow_html=True)
 
-    # --- RIGHT COLUMN: THE ACTIVE CHAT ---
+
     with chat_col:
         if st.session_state.get("active_chat"):
             sel_hosp = st.session_state.active_chat
@@ -1236,8 +1234,11 @@ def admin_chat_view():
                 for _, row in hosp_chats.iterrows():
                     is_user = row["Sender"] == "User"
                     with st.chat_message("user" if is_user else "assistant"):
-                        # --- Shows 'User - Andy' or 'Admin' ---
-                        sender_name = f"User - {row.get('Encoder_Name', 'Unknown')}" if is_user else "Admin"
+                        # --- UPGRADED: Fixes the 'nan' bug for the Admin screen ---
+                        raw_name = row.get('Encoder_Name', 'Unknown')
+                        clean_name = "Unknown" if pd.isna(raw_name) else raw_name
+                        sender_name = f"User - {clean_name}" if is_user else "Admin"
+                        
                         st.markdown(f"**{sender_name}** - {row['Timestamp']}\n\n{row['Message']}")
                         
             reply = st.chat_input(f"Reply to {sel_hosp}...")
@@ -1245,20 +1246,16 @@ def admin_chat_view():
                 u_id = hosp_chats.iloc[0]["User_ID"]
                 new_msg = {
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                    "User_ID": u_id, 
-                    "Hospital": sel_hosp, 
-                    "Encoder_Name": "Admin", 
-                    "Sender": "Admin", 
-                    "Message": reply
+                    "User_ID": u_id, "Hospital": sel_hosp, 
+                    "Encoder_Name": "Admin", "Sender": "Admin", "Message": reply
                 }
                 
                 updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
                 conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
                 st.rerun()
         else:
-            # What shows up before they click a hospital
             st.info("👈 Select a hospital from your Inbox to view their chat history and reply.")
-
+            
 # --- 10. THE TRAFFIC CONTROLLER ---
 if "user_id" not in st.session_state: 
     with st.sidebar:
