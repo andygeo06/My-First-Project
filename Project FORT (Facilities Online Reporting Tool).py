@@ -45,7 +45,7 @@ st.markdown(f"""
     /* COMPACT ALERT & BANNER CSS */
     div[data-testid="stAlert"] {{ padding: 0.2rem 0.5rem !important; }}
     div[data-testid="stAlert"] > div {{ align-items: center !important; }}
-    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.2rem !important; line-height: 1 !important; }}
+    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.2rem !important; line-height: 1.4 !important; }}
     
     /* COMPACT CHAT CSS */
     div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
