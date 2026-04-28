@@ -1365,10 +1365,6 @@ else:
         st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
         
     if "current_module" in st.session_state:
-        if not st.session_state.get("isolated_print_html"):
-            if st.button("🏠 Return to Dashboard"): 
-                if "show_print" in st.session_state: del st.session_state.show_print
-                del st.session_state.current_module; st.rerun()
         
         mod = st.session_state.current_module
         if mod == "Mod1": module_scorecard()
