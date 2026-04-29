@@ -16,42 +16,152 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET) ---
 st.markdown(f"""
 <style>
-    .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
-    .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
-    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 8px 15px; border-radius: 8px; border: 1px solid #3B82F6; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 15px; text-align: center; }}
-    .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.1rem; font-weight: bold; }}
-    .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }}
+    /* GLOBAL THEME OVERHAUL */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+    .stApp {{ 
+        background: radial-gradient(circle at top left, #0f172a, #020617); 
+        color: #f1f5f9;
+        font-family: 'Inter', sans-serif;
+    }}
+
+    .block-container {{ 
+        padding-top: 1.5rem !important; 
+        padding-bottom: 4rem !important; 
+    }}
+
+    /* PREMIUM GLASS STICKY HEADER */
+    .sticky-header {{ 
+        position: -webkit-sticky; 
+        position: sticky; 
+        top: 2.8rem; 
+        background: rgba(30, 41, 59, 0.7); 
+        backdrop-filter: blur(12px); 
+        -webkit-backdrop-filter: blur(12px);
+        padding: 12px 20px; 
+        border-radius: 12px; 
+        border: 1px solid rgba(255, 255, 255, 0.1); 
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4); 
+        z-index: 9999; 
+        margin-bottom: 20px; 
+        text-align: center;
+        transition: all 0.3s ease;
+    }}
     
-    /* COMPRESSED HEADERS */
-    .section-header-strat {{ background-color: #1A365D; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 8px; }}
-    .section-header-core {{ background-color: #7B341E; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 8px; }}
-    .section-header-green {{ background-color: #064E3B; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #10B981; margin-bottom: 8px; }}
+    .sticky-title {{ 
+        margin: 0; 
+        color: #ffffff; 
+        font-size: 1.2rem; 
+        font-weight: 700; 
+        letter-spacing: -0.01em;
+    }}
     
-    div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 6px; transition: 0.3s; }}
-    div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
-    div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 10px !important; border-top: 1px solid #30363D; }}
+    .sticky-sub {{ 
+        margin: 2px 0 0 0; 
+        color: #60a5fa; 
+        font-size: 0.7rem; 
+        text-transform: uppercase; 
+        letter-spacing: 0.15em; 
+        font-weight: 600;
+    }}
+
+    /* MODERN GRADIENT SECTION HEADERS */
+    .section-header-strat, .section-header-core, .section-header-green {{ 
+        padding: 8px 16px; 
+        border-radius: 8px 8px 4px 4px; 
+        text-align: left; 
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+    }}
+
+    .section-header-strat {{ 
+        background: linear-gradient(90deg, #1e3a8a 0%, transparent 100%); 
+        border-left: 4px solid #3b82f6; 
+    }}
+    .section-header-core {{ 
+        background: linear-gradient(90deg, #7f1d1d 0%, transparent 100%); 
+        border-left: 4px solid #ef4444; 
+    }}
+    .section-header-green {{ 
+        background: linear-gradient(90deg, #064e3b 0%, transparent 100%); 
+        border-left: 4px solid #10b981; 
+    }}
+
+    /* INTERACTIVE EXPANDER CARDS */
+    div[data-testid="stExpander"] {{ 
+        background-color: rgba(30, 41, 59, 0.4) !important; 
+        border: 1px solid rgba(255, 255, 255, 0.05) !important; 
+        border-radius: 10px !important; 
+        margin-bottom: 8px; 
+        transition: all 0.2s ease-in-out; 
+    }}
+    
+    div[data-testid="stExpander"]:hover {{ 
+        border-color: rgba(59, 130, 246, 0.4) !important; 
+        background-color: rgba(30, 41, 59, 0.6) !important;
+        transform: translateY(-1px);
+    }}
+
+    div[data-testid="stExpander"] summary {{
+        font-weight: 500 !important;
+        color: #e2e8f0 !important;
+    }}
+
+    div[data-testid="stExpander"] div[role="region"] {{ 
+        background-color: transparent !important; 
+        padding: 12px !important; 
+        border-top: 1px solid rgba(255, 255, 255, 0.05); 
+    }}
+
+    /* COMPRESSED ACTION BUTTONS WITH GLOW */
+    div.element-container:has(.marker-green) + div.element-container button,
+    div.element-container:has(.marker-blue) + div.element-container button,
+    div.element-container:has(.marker-red) + div.element-container button,
+    div.element-container:has(.marker-amber) + div.element-container button {{
+        border-radius: 6px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        font-size: 0.75rem !important;
+        height: 2.4em !important;
+        border: none !important;
+        width: 100% !important;
+        transition: all 0.2s ease !important;
+        font-weight: 700 !important;
+    }}
+
+    /* Button Colors */
+    div.element-container:has(.marker-green) + div.element-container button {{ background: linear-gradient(135deg, #166534 0%, #22c55e 100%) !important; color: white !important; }}
+    div.element-container:has(.marker-blue) + div.element-container button {{ background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%) !important; color: white !important; }}
+    div.element-container:has(.marker-red) + div.element-container button {{ background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%) !important; color: white !important; }}
+    div.element-container:has(.marker-amber) + div.element-container button {{ background: linear-gradient(135deg, #92400e 0%, #f59e0b 100%) !important; color: white !important; }}
+
+    button:hover {{ 
+        filter: brightness(1.2);
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.3) !important;
+    }}
+
+    /* COMPACT CHAT & STATUS ALERTS */
+    div[data-testid="stAlert"] {{ 
+        border-radius: 8px !important; 
+        background-color: rgba(15, 23, 42, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        padding: 0.5rem !important;
+    }}
+
+    div[data-testid="stChatMessage"] {{ 
+        background-color: rgba(30, 41, 59, 0.3) !important; 
+        border-radius: 10px !important; 
+        margin-bottom: 6px !important;
+        padding: 0.5rem !important;
+        border: 1px solid rgba(255, 255, 255, 0.03) !important;
+    }}
+    
     div.element-container:has(.marker) {{ display: none !important; }}
-    
-    /* COMPRESSED BUTTON HEIGHTS */
-    div.element-container:has(.marker-green) + div.element-container button {{ background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
-    div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-blue) + div.element-container button {{ background-color: #1A365D !important; color: white !important; border: 1px solid #3B82F6 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
-    div.element-container:has(.marker-blue) + div.element-container button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-red) + div.element-container button {{ background-color: #dc2626 !important; color: white !important; border: 1px solid #ef4444 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
-    div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
-    div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
-    div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
-    
-    /* COMPACT ALERT & BANNER CSS */
-    div[data-testid="stAlert"] {{ padding: 0.2rem 0.5rem !important; }}
-    div[data-testid="stAlert"] > div {{ align-items: center !important; }}
-    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.2rem !important; line-height: 1.4 !important; }}
-    
-    /* COMPACT CHAT CSS */
-    div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
-    div[data-testid="stChatMessageContent"] {{ gap: 0.1rem !important; }}
-    div[data-testid="stChatMessage"] .stMarkdown p {{ margin-bottom: 0.2rem !important; font-size: 0.95em; }}
-    div[data-testid="stChatMessage"] [data-testid="stIconNode"] {{ width: 1.5rem !important; height: 1.5rem !important; }}
 </style>
 """, unsafe_allow_html=True)
 
