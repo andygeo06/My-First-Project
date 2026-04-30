@@ -199,6 +199,15 @@ def subtle_header(title, icon="🔹"):
     </div>
     """, unsafe_allow_html=True)
 
+def render_faq_section():
+    faq_df = get_static_sheet("FAQ")
+    if not faq_df.empty and "Question" in faq_df.columns and "Answer" in faq_df.columns:
+        for index, row in faq_df.iterrows():
+            with st.expander(f"**Q: {row['Question']}**"):
+                st.write(row['Answer'])
+    else:
+        st.info("ℹ️ No FAQs available yet. Check back later!")
+
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
     display_sticky_header()
@@ -1185,13 +1194,21 @@ def dashboard():
 # --- 9.5 SUPPORT CHAT ENGINES ---
 def render_user_sidebar():
     with st.sidebar:
-        st.markdown("### 💬 Live Support Chat")
+        st.markdown(f"### 🏥 {st.session_state.user_info['hosp']}")
+        st.markdown(f"**User:** {st.session_state.user_info['user']}")
+        st.divider()
+
+        # Your existing tabs setup
+        tab1, tab2 = st.tabs(["💬 Live Chat", "❓ FAQ"])
         
-        with st.expander("📚 Frequently Asked Questions", expanded=False):
-            st.markdown("**Q: When is the deadline?**\nA: Check your dashboard for specific module deadlines.")
-            st.markdown("**Q: Can I edit after submitting?**\nA: Once the deadline passes, modules are locked to Read-Only.")
-            st.markdown("**Q: Where do I upload MOVs?**\nA: Use the Google Drive link at the bottom of the Module 3 screen.")
-            st.markdown("**Q: Who do I contact for technical issues?**\nA: Use the chat below! We will respond ASAP.")
+        with tab1:
+            # ... (Leave all your existing Live Chat logic here completely untouched!) ...
+            pass # (Placeholder for your chat code)
+
+        with tab2:
+            st.markdown("### 📚 Help Center")
+            # 👇 THIS IS THE ONLY LINE YOU ADD HERE 👇
+            render_faq_section()
             
         st.caption("⏳ *Note: Messages may take up to 15 seconds to sync across devices.*")
         
