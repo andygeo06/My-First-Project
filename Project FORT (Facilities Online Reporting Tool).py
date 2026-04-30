@@ -13,53 +13,44 @@ st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_sta
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. PREMIUM COMPACT FB DARK MODE CSS ENGINE ---
+# --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET) ---
 st.markdown(f"""
 <style>
-    /* FORCED DARK MODE & FB BASE COLORS */
-    .stApp, .stApp > header {{ background-color: #18191A !important; color: #E4E6EB !important; }}
-    [data-testid="stSidebar"] {{ background-color: #242526 !important; border-right: 1px solid #3E4042 !important; }}
+    .stApp {{ background-color: #0E1117; color: #C9D1D9; }}
     .block-container {{ padding-top: 2.5rem !important; padding-bottom: 2.5rem !important; }}
-    p, span, label, div {{ color: #E4E6EB; }}
-    .stMarkdown p {{ color: #B0B3B8; }}
+    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 8px 15px; border-radius: 8px; border: 1px solid #3B82F6; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); z-index: 9999; margin-bottom: 15px; text-align: center; }}
+    .sticky-title {{ margin: 0; color: #F8FAFC; font-size: 1.1rem; font-weight: bold; }}
+    .sticky-sub {{ margin: 0; color: #94A3B8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }}
     
-    /* INPUT FIELDS OVERRIDES */
-    .stTextInput>div>div>input, .stSelectbox>div>div>div, .stNumberInput>div>div>input, .stTextArea>div>div>textarea {{ 
-        background-color: #3A3B3C !important; color: #E4E6EB !important; border: 1px solid #3E4042 !important; border-radius: 6px !important; 
-    }}
-    .stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus {{ border-color: #2D88FF !important; box-shadow: 0 0 0 1px #2D88FF !important; }}
-
-    /* STICKY HEADER */
-    .sticky-header {{ position: -webkit-sticky; position: sticky; top: 2.8rem; background: rgba(36, 37, 38, 0.95); backdrop-filter: blur(10px); padding: 8px 15px; border-radius: 8px; border: 1px solid #3E4042; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); z-index: 9999; margin-bottom: 15px; text-align: center; }}
-    .sticky-title {{ margin: 0; color: #E4E6EB; font-size: 1.1rem; font-weight: 600; }}
-    .sticky-sub {{ margin: 0; color: #B0B3B8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }}
-    
-    /* COMPRESSED HEADERS (CARD STYLE) */
-    .section-header-strat {{ background-color: #242526; padding: 10px; border-radius: 8px; text-align: left; border-left: 4px solid #2D88FF; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }}
-    .section-header-core {{ background-color: #242526; padding: 10px; border-radius: 8px; text-align: left; border-left: 4px solid #E41E3F; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }}
-    .section-header-green {{ background-color: #242526; padding: 10px; border-radius: 8px; text-align: left; border-left: 4px solid #31A24C; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }}
-    .section-header-strat h3, .section-header-core h3, .section-header-green h3 {{ color: #E4E6EB !important; font-size: 1.1rem !important; font-weight: 600; }}
-    
-    /* EXPANDERS (FB CARDS) */
-    div[data-testid="stExpander"] {{ background-color: #242526 !important; border: 1px solid #3E4042 !important; border-radius: 8px !important; margin-bottom: 8px; transition: 0.2s; }}
-    div[data-testid="stExpander"]:hover {{ border-color: #4E4F50 !important; background-color: #3A3B3C !important; }}
-    div[data-testid="stExpander"] div[role="region"] {{ background-color: #18191A !important; padding: 10px !important; border-top: 1px solid #3E4042; }}
+    /* COMPRESSED HEADERS */
+    .section-header-strat {{ background-color: #1A365D; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #3B82F6; margin-bottom: 8px; }}
+    .section-header-core {{ background-color: #7B341E; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #EF4444; margin-bottom: 8px; }}
+    .section-header-green {{ background-color: #064E3B; padding: 6px; border-radius: 6px 6px 0 0; text-align: center; border-bottom: 3px solid #10B981; margin-bottom: 8px; }}
+    div[data-testid="stExpander"] {{ background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 6px !important; margin-bottom: 6px; transition: 0.3s; }}
+    div[data-testid="stExpander"]:hover {{ border-color: #58A6FF !important; }}
+    div[data-testid="stExpander"] div[role="region"] {{ background-color: #0D1117 !important; padding: 10px !important; border-top: 1px solid #30363D; }}
     div.element-container:has(.marker) {{ display: none !important; }}
     
-    /* COMPACT BUTTONS WITH FB COLORS */
-    div.element-container:has(.marker-green) + div.element-container button {{ background-color: #31A24C !important; color: white !important; border: none !important; border-radius: 6px !important; font-weight: 600 !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.2s !important; }}
-    div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #2BA14A !important; filter: brightness(1.1); }}
-    div.element-container:has(.marker-blue) + div.element-container button {{ background-color: #2D88FF !important; color: white !important; border: none !important; border-radius: 6px !important; font-weight: 600 !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.2s !important; }}
-    div.element-container:has(.marker-blue) + div.element-container button:hover {{ background-color: #1877F2 !important; filter: brightness(1.1); }}
-    div.element-container:has(.marker-red) + div.element-container button {{ background-color: #E41E3F !important; color: white !important; border: none !important; border-radius: 6px !important; font-weight: 600 !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.2s !important; }}
-    div.element-container:has(.marker-red) + div.element-container button:hover {{ filter: brightness(1.1); }}
-    div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #F2A100 !important; color: white !important; border: none !important; border-radius: 6px !important; font-weight: 600 !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.2s !important; }}
-    div.element-container:has(.marker-amber) + div.element-container button:hover {{ filter: brightness(1.1); }}
+    /* COMPRESSED BUTTON HEIGHTS */
+    div.element-container:has(.marker-green) + div.element-container button {{ background-color: #15803d !important; color: white !important; border: 1px solid #22c55e !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-green) + div.element-container button:hover {{ background-color: #166534 !important; border-color: #FFFFFF !important; }}
+    div.element-container:has(.marker-blue) + div.element-container button {{ background-color: #1A365D !important; color: white !important; border: 1px solid #3B82F6 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-blue) + div.element-container button:hover {{ background-color: #2563EB !important; border-color: #FFFFFF !important; }}
+    div.element-container:has(.marker-red) + div.element-container button {{ background-color: #dc2626 !important; color: white !important; border: 1px solid #ef4444 !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-red) + div.element-container button:hover {{ background-color: #991b1b !important; border-color: #FFFFFF !important; }}
+    div.element-container:has(.marker-amber) + div.element-container button {{ background-color: #d97706 !important; color: white !important; border: 1px solid #f59e0b !important; font-weight: bold !important; height: 2.2em !important; min-height: 2.2em !important; width: 100% !important; transition: 0.3s !important; }}
+    div.element-container:has(.marker-amber) + div.element-container button:hover {{ background-color: #b45309 !important; border-color: #FFFFFF !important; }}
     
-    /* COMPACT ALERTS & CHAT */
-    div[data-testid="stAlert"] {{ padding: 0.5rem !important; background-color: #242526 !important; border: 1px solid #3E4042 !important; border-radius: 8px !important; }}
-    div[data-testid="stChatMessage"] {{ padding: 0.5rem !important; background-color: #242526 !important; border-radius: 8px !important; margin-bottom: 5px !important; }}
+    /* COMPACT ALERT & BANNER CSS */
+    div[data-testid="stAlert"] {{ padding: 0.2rem 0.5rem !important; }}
+    div[data-testid="stAlert"] > div {{ align-items: center !important; }}
+    div[data-testid="stAlert"] p {{ margin: 0 !important; padding-bottom: 0.2rem !important; line-height: 1.4 !important; }}
+    
+    /* COMPACT CHAT CSS */
+    div[data-testid="stChatMessage"] {{ padding: 0.5rem 0.5rem !important; }}
     div[data-testid="stChatMessageContent"] {{ gap: 0.1rem !important; }}
+    div[data-testid="stChatMessage"] .stMarkdown p {{ margin-bottom: 0.2rem !important; font-size: 0.95em; }}
+    div[data-testid="stChatMessage"] [data-testid="stIconNode"] {{ width: 1.5rem !important; height: 1.5rem !important; }}
     
 </style>
 """, unsafe_allow_html=True)
@@ -203,8 +194,8 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
 # --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
 def subtle_header(title, icon="🔹"):
     st.markdown(f"""
-    <div style="background-color: #242526; padding: 8px 15px; border-left: 4px solid #2D88FF; border-radius: 6px; margin-bottom: 15px; margin-top: 25px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-        <span style="margin: 0; color: #E4E6EB; font-size: 1.05rem; font-weight: 600;">{icon} {title}</span>
+    <div style="background-color: rgba(59, 130, 246, 0.1); padding: 8px 15px; border-left: 4px solid #3B82F6; border-radius: 4px; margin-bottom: 15px; margin-top: 25px;">
+        <span style="margin: 0; color: #93C5FD; font-size: 1.05rem; font-weight: bold;">{icon} {title}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -806,11 +797,11 @@ def module_gva():
             score_df = pd.DataFrame(score_summary)
             st.dataframe(score_df, use_container_width=True, hide_index=True)
             
-             # Show The Massive Final Score
+            # Show The Massive Final Score
             st.markdown(f"""
-            <div style="background-color: #242526; padding: 20px; border-radius: 8px; border: 2px solid #31A24C; text-align: center; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-                <h3 style="margin: 0; color: #B0B3B8; font-weight: 600;">FINAL GVA SCORE</h3>
-                <h1 style="margin: 5px 0 0 0; color: #31A24C; font-size: 3.2rem;">{total_gva_weighted_score:.2f}%</h1>
+            <div style="background-color: #064E3B; padding: 20px; border-radius: 8px; border: 2px solid #10B981; text-align: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #A7F3D0; font-weight: normal;">FINAL GVA SCORE</h3>
+                <h1 style="margin: 0; color: #FFFFFF; font-size: 3rem;">{total_gva_weighted_score:.2f}%</h1>
             </div>
             """, unsafe_allow_html=True)
             
@@ -987,13 +978,11 @@ def generate_print_view_mod2(d):
 
 # --- 9. ROUTING, LOGIN, & DASHBOARD ---
 def get_row_html(title, deadline, is_locked):
-    bg_color = "#242526"
-    border_color = "#E41E3F" if is_locked else "#31A24C"
+    bg_color = "rgba(239, 68, 68, 0.15)" if is_locked else "rgba(34, 197, 94, 0.15)"
+    border_color = "#EF4444" if is_locked else "#22C55E"
     status_text = "🔒 CLOSED" if is_locked else "🟢 OPEN"
-    text_color = "#E4E6EB"
-    subtext_color = "#B0B3B8"
-    return f"""<div style="background-color: {bg_color}; border-left: 4px solid {border_color}; padding: 12px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-        <div style="flex: 1.5; font-size: 1.05em; font-weight: 600; color: {text_color};">{title}</div><div style="flex: 1; font-family: monospace; color: {subtext_color}; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
+    return f"""<div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <div style="flex: 1.5; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 
 def login_screen():
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
@@ -1182,13 +1171,13 @@ def dashboard():
         st.markdown("### ⏳ Upcoming Modules")
         for m in upcoming:
             st.markdown(f"""
-            <div style="background-color: #242526; border-left: 4px solid #B0B3B8; padding: 12px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-                <div style="flex: 1.5; font-size: 1.05em; font-weight: 600; color: #B0B3B8;">{m["title"]}</div>
-                <div style="flex: 1; font-family: monospace; color: #B0B3B8; text-align: center;">{m["date"]}</div>
-                <div style="flex: 1.5; font-weight: bold; color: #B0B3B8; text-align: right;">⏳ PENDING</div>
+            <div style="background-color: rgba(100, 116, 139, 0.15); border-left: 5px solid #64748B; padding: 8px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <div style="flex: 1.5; font-size: 1.05em; font-weight: bold; color: #94A3B8;">{m["title"]}</div>
+                <div style="flex: 1; font-family: monospace; color: #64748B; text-align: center;">{m["date"]}</div>
+                <div style="flex: 1.5; font-weight: bold; color: #64748B; text-align: right;">⏳ PENDING</div>
             </div>""", unsafe_allow_html=True)
             st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
-            st.markdown("<hr style='margin: 5px 0; border: none;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
         
     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
