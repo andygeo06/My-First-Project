@@ -191,6 +191,16 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
     st.session_state.mod3_print_html = html
     st.rerun()
 
+def render_faq_section():
+    st.markdown("### ❓ Frequently Asked Questions (FAQ)")
+    faq_df = get_static_sheet("FAQ")
+    if not faq_df.empty and "Question" in faq_df.columns and "Answer" in faq_df.columns:
+        for index, row in faq_df.iterrows():
+            with st.expander(f"**Q: {row['Question']}**"):
+                st.write(row['Answer'])
+    else:
+        st.info("ℹ️ No FAQs available yet. Admins can add them via the 'FAQ' sheet in Google Spreadsheet.")
+
 # --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
 def subtle_header(title, icon="🔹"):
     st.markdown(f"""
@@ -1178,7 +1188,15 @@ def dashboard():
             </div>""", unsafe_allow_html=True)
             st.button(f"🔒 {m['id'].upper()} IS UNAVAILABLE", use_container_width=True, disabled=True, key=f"btn_upc_{m['id']}")
             st.markdown("<hr style='margin: 10px 0; border: 1px solid #30363D;'>", unsafe_allow_html=True)
-        
+    
+    # --- FAQ SECTION INJECTED HERE ---
+    st.divider()
+    try:
+        render_faq_section()
+    except Exception:
+        pass # Will safely ignore if render_faq_section isn't pasted yet
+    st.divider()
+    
     st.markdown('<div class="marker marker-amber"></div>', unsafe_allow_html=True)
     if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
         
