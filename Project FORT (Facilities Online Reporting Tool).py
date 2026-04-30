@@ -200,6 +200,7 @@ def subtle_header(title, icon="🔹"):
     """, unsafe_allow_html=True)
 
 def render_faq_section():
+    st.markdown("### 📚 Help Center")
     faq_df = get_static_sheet("FAQ")
     if not faq_df.empty and "Question" in faq_df.columns and "Answer" in faq_df.columns:
         for index, row in faq_df.iterrows():
@@ -1194,60 +1195,64 @@ def dashboard():
 # --- 9.5 SUPPORT CHAT ENGINES ---
 def render_user_sidebar():
     with st.sidebar:
-        st.markdown(f"### 🏥 {st.session_state.user_info['hosp']}")
+        # Clean layout for Hospital & User
+        st.markdown(f"#### 🏥 {st.session_state.user_info['hosp']}")
         st.markdown(f"**User:** {st.session_state.user_info['user']}")
+        
+        # CSS to fix the huge gap in the sidebar
+        st.markdown("""
+            <style>
+                [data-testid="stSidebar"] hr { margin: 0.5em 0; }
+                [data-testid="stTabs"] { margin-top: -10px; }
+            </style>
+        """, unsafe_allow_html=True)
+        
         st.divider()
-
-        # Your existing tabs setup
+        
+        # Perfectly scoped tabs
         tab1, tab2 = st.tabs(["💬 Live Chat", "❓ FAQ"])
         
         with tab1:
-            # ... (Leave all your existing Live Chat logic here completely untouched!) ...
-            pass # (Placeholder for your chat code)
+            st.caption("⏳ *Note: Messages may take up to 15 seconds to sync.*")
+            
+            # Full-width refresh button
+            if st.button("🔄 Refresh Chat Replies", use_container_width=True): st.rerun()
+            
+            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl=1)
+            except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
+                
+            u_id = str(st.session_state.user_id)
+                
+            chat_container = st.container(height=400)
+            with chat_container:
+                if not chat_df.empty and "User_ID" in chat_df.columns:
+                    user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
+                    for _, row in user_chats.iterrows():
+                        with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
+                            raw_name = row.get('Encoder_Name', 'Unknown')
+                            clean_name = "Unknown" if pd.isna(raw_name) else raw_name
+                            sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {clean_name}"
+                            
+                            st.markdown(f"**{sender_label}**\n\n{row['Message']}")
+                            st.caption(row["Timestamp"])
+                else:
+                    st.info("No messages yet. Ask us anything!")
+
+            prompt = st.chat_input("Type your message to HFDB...")
+            if prompt:
+                new_msg = {
+                    "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"), 
+                    "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], 
+                    "Encoder_Name": st.session_state.user_info['user'], 
+                    "Sender": "User", "Message": prompt
+                }
+                if chat_df.empty: updated_df = pd.DataFrame([new_msg])
+                else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+                conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+                st.rerun()
 
         with tab2:
-            st.markdown("### 📚 Help Center")
-            # 👇 THIS IS THE ONLY LINE YOU ADD HERE 👇
             render_faq_section()
-            
-        st.caption("⏳ *Note: Messages may take up to 15 seconds to sync across devices.*")
-        
-        # --- UPGRADED: Full-width clearly labeled refresh button ---
-        if st.button("🔄 Press here to refresh chat replies", use_container_width=True): st.rerun()
-        
-        try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl=1)
-        except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
-            
-        u_id = str(st.session_state.user_id)
-            
-        chat_container = st.container(height=400)
-        with chat_container:
-            if not chat_df.empty and "User_ID" in chat_df.columns:
-                user_chats = chat_df[chat_df["User_ID"].astype(str) == u_id]
-                for _, row in user_chats.iterrows():
-                    with st.chat_message("user" if row["Sender"] == "User" else "assistant"):
-                        # --- UPGRADED: Fixes the 'nan' bug for old messages ---
-                        raw_name = row.get('Encoder_Name', 'Unknown')
-                        clean_name = "Unknown" if pd.isna(raw_name) else raw_name
-                        sender_label = "Admin" if row["Sender"] == "Admin" else f"User - {clean_name}"
-                        
-                        st.markdown(f"**{sender_label}**\n\n{row['Message']}")
-                        st.caption(row["Timestamp"])
-            else:
-                st.info("No messages yet. Ask us anything!")
-
-        prompt = st.chat_input("Type your message to HFDB...")
-        if prompt:
-            new_msg = {
-                "Timestamp": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"), 
-                "User_ID": u_id, "Hospital": st.session_state.user_info['hosp'], 
-                "Encoder_Name": st.session_state.user_info['user'], 
-                "Sender": "User", "Message": prompt
-            }
-            if chat_df.empty: updated_df = pd.DataFrame([new_msg])
-            else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
-            conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
-            st.rerun()
             
 def admin_chat_view():
     st.markdown("<h2>💬 Admin Support Center</h2>", unsafe_allow_html=True)
