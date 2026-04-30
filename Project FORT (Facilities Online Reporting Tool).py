@@ -62,7 +62,7 @@ st.markdown(f"""
     div[data-testid="stChatMessageContent"] {{ gap: 0.1rem !important; }}
     
 </style>
-""")
+""", unsafe_allow_html=True)
 
 # --- 3. SMART MEMORY CACHE ---
 @st.cache_data(ttl="10m")
