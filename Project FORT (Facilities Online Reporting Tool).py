@@ -1127,6 +1127,9 @@ def login_screen():
                         new_row = {"User_ID": new_id, "Hospital_Name": hosp, "Department": dept, "Encoder_Name": user, "Position": pos, "Email": email, "Role": "user", "Access": "Mod1, Mod2, Mod3, Chat"}
                         updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True) if not df.empty else pd.DataFrame([new_row])
                         conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
+    
+                        # 👇 THE MISSING MAGIC LINE 👇
+                        clear_app_memory()
                         
                         # 2. Send the Email
                         email_sent = send_access_code_email(email, user, new_id)
