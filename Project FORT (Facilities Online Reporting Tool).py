@@ -7,6 +7,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from streamlit_gsheets import GSheetsConnection
 from streamlit_autorefresh import st_autorefresh
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
 st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="expanded")
@@ -208,6 +211,46 @@ def render_faq_section():
                 st.write(row['Answer'])
     else:
         st.info("ℹ️ No FAQs available yet. Check back later!")
+
+def send_access_code_email(receiver_email, user_name, access_code):
+    try:
+        # Pulls credentials safely from Streamlit Secrets
+        sender_email = st.secrets.get("EMAIL_SENDER", "")
+        sender_password = st.secrets.get("EMAIL_PASSWORD", "")
+        
+        if not sender_email or not sender_password:
+            st.error("⚠️ Email credentials not configured in Streamlit Secrets!")
+            # Fallback for testing so you aren't locked out before setting up secrets
+            st.info(f"Fallback UI Display - Your Code is: {access_code}") 
+            return False
+
+        msg = MIMEMultipart()
+        msg['From'] = f"HFDB Portal <{sender_email}>"
+        msg['To'] = receiver_email
+        msg['Subject'] = "🔐 Your HFDB Portal Access Code"
+        
+        body = f"""Hello {user_name},
+
+Your registration for the HFDB Online Submission Portal was successful.
+
+Here is your secure Access Code:
+{access_code}
+
+Please keep this code safe. You will use it to log in and submit your facility's data.
+
+Regards,
+HFDB System Administrator"""
+        
+        msg.attach(MIMEText(body, 'plain'))
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"Email failed to send: {e}")
+        return False
 
 # --- 4. MODULE 1: HOSPITAL SCORECARD ---
 def module_scorecard():
@@ -995,144 +1038,106 @@ def get_row_html(title, deadline, is_locked):
         <div style="flex: 1.5; font-size: 1.05em; font-weight: bold; color: #E2E8F0;">{title}</div><div style="flex: 1; font-family: monospace; color: #94A3B8; text-align: center;">{deadline}</div><div style="flex: 1.5; font-weight: bold; color: {border_color}; text-align: right;">{status_text}</div></div>"""
 
 def login_screen():
-    st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Submission Portal</h2>", unsafe_allow_html=True)
     
-    # --- 1. THE "SAVE YOUR LOGIN CODE" SCREEN ---
-    if "pending_id" in st.session_state:
-        st.warning("⚠️ **IMPORTANT: SAVE YOUR LOGIN CODE**")
-        st.markdown(f"""
-            <div style="background-color:#F0B216; padding:30px; border-radius:10px; text-align:center; border: 4px solid #000;">
-                <h2 style="color:black; margin:0;">YOUR UNIQUE LOGIN ID:</h2>
-                <h1 style="color:black; font-family:monospace; background:white; padding:15px; border:2px dashed #000;">{st.session_state.pending_id}</h1>
-                <p style="color:black; font-size:18px;"><b>Copy this code now.</b> You will need this to access your data later.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        if st.button("✅ I HAVE COPIED AND SAVED MY CODE", use_container_width=True, type="primary"):
-            st.session_state.user_id = st.session_state.pending_id
-            st.session_state.user_info = st.session_state.pending_info
-            del st.session_state.pending_id
-            del st.session_state.pending_info
-            st.success("Access Granted. Redirecting to Dashboard...")
-            time.sleep(1)
-            st.rerun()
-        st.stop() 
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        tab1, tab2 = st.tabs(["🔐 Returning User", "📝 New User"])
-        
-        with tab1:
-            with st.form("login_form"):
-                # Clean text input to avoid browser password manager interference
-                access_code = st.text_input("Enter your Access Code")
-                submitted = st.form_submit_button("Secure Login", use_container_width=True)
+    t1, t2 = st.tabs(["🔐 Login", "📝 Register"])
+    with t1:
+        with st.form("login"):
+            code = st.text_input("Access Code", type="password").strip() # Masked for security
+            if st.form_submit_button("Login", type="primary"):
                 
-                if submitted:
-                    code_clean = access_code.strip()
-                    
-                    # --- 2. MASTER ADMIN BYPASS ROSTER (10 ACCOUNTS) ---
-                    admin_roster = {
-                        "ADMIN-SUP3R4DM1N": {"name": "FPMD Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-Sc0r3c4rd": {"name": "Scorecard Administrator", "access": ["Mod1", "Chat"]},
-                        "ADMIN-Mo03": {"name": "MOOE Administrator", "access": ["Mod2", "Chat"]},
-                        "ADMIN-Gr33n": {"name": "GVA Administrator", "access": ["Mod3", "Chat"]},
-                        "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
-                        "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
-                        "ADMIN-07": {"name": "Compliance Officer (Admin 7)", "access": ["Mod3", "Chat"]},
-                        "ADMIN-08": {"name": "IT Support (Admin 8)", "access": ["Chat"]}, 
-                        "ADMIN-09": {"name": "Audit Lead (Admin 9)", "access": ["Mod1", "Mod3", "Chat"]},
-                        "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
+                # --- THE FULL 10-ACCOUNT MASTER ADMIN ROSTER IS RESTORED ---
+                admin_roster = {
+                    "ADMIN-SUP3R4DM1N": {"name": "FPMD Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-Sc0r3c4rd": {"name": "Scorecard Administrator", "access": ["Mod1", "Chat"]},
+                    "ADMIN-Mo03": {"name": "MOOE Administrator", "access": ["Mod2", "Chat"]},
+                    "ADMIN-Gr33n": {"name": "GVA Administrator", "access": ["Mod3", "Chat"]},
+                    "ADMIN-04": {"name": "DOH Executive (Admin 4)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-05": {"name": "Module 1&2 Manager (Admin 5)", "access": ["Mod1", "Mod2", "Chat"]},
+                    "ADMIN-06": {"name": "Regional Director (Admin 6)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
+                    "ADMIN-07": {"name": "Compliance Officer (Admin 7)", "access": ["Mod3", "Chat"]},
+                    "ADMIN-08": {"name": "IT Support (Admin 8)", "access": ["Chat"]}, 
+                    "ADMIN-09": {"name": "Audit Lead (Admin 9)", "access": ["Mod1", "Mod3", "Chat"]},
+                    "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
+                }
+                
+                if code in admin_roster:
+                    st.session_state.user_id = code
+                    admin_data = admin_roster[code]
+                    st.session_state.user_info = {
+                        "user": admin_data["name"],
+                        "role": "admin",
+                        "hosp": "DOH Central Office",
+                        "dept": "HFDB",
+                        "access": admin_data["access"]
                     }
-                    
-                    if code_clean in admin_roster:
-                        st.session_state.user_id = code_clean
-                        admin_data = admin_roster[code_clean]
+                    st.rerun()
+                
+                # Regular user check
+                df = get_static_sheet("User_Profiles")
+                if not df.empty:
+                    match = df[df["User_ID"].astype(str).str.strip() == code]
+                    if not match.empty:
+                        u = match.iloc[0]
+                        st.session_state.user_id = code
                         st.session_state.user_info = {
-                            "user": admin_data["name"],
-                            "role": "admin",
-                            "hosp": "DOH Central Office",
-                            "dept": "HFDB",
-                            "access": admin_data["access"]
+                            "user": u.get("Encoder_Name", "Unknown"), 
+                            "role": u.get("Role", "user"), 
+                            "hosp": u.get("Hospital_Name", "N/A"), 
+                            "dept": u.get("Department", "General"), 
+                            "pos": u.get("Position", "Encoder"), 
+                            "access": [m.strip() for m in str(u.get("Access", "")).split(",")]
                         }
                         st.rerun()
-                        
-                    # --- 3. REGULAR USER DATABASE CHECK ---
-                    # Using the function name 'get_static_sheet' from your baseline
-                    accounts_df = get_static_sheet("User_Profiles")
-                    if not accounts_df.empty and "User_ID" in accounts_df.columns:
-                        accounts_df["User_ID"] = accounts_df["User_ID"].astype(str).str.strip()
-                        match = accounts_df[accounts_df["User_ID"] == code_clean]
-                        
-                        if not match.empty:
-                            user_data = match.iloc[0]
-                            st.session_state.user_id = user_data["User_ID"]
-                            access_str = str(user_data.get("Access", "")).strip()
-                            st.session_state.user_info = {
-                                "user": user_data.get("Encoder_Name", "Unknown"),
-                                "role": user_data.get("Role", "user"),
-                                "hosp": user_data.get("Hospital_Name", "N/A"),
-                                "dept": user_data.get("Department", "General"),
-                                "pos": user_data.get("Position", "Encoder"),
-                                "access": [m.strip() for m in access_str.split(",")] if access_str else []
-                            }
-                            st.rerun()
-                        else: st.error("❌ Invalid Access Code.")
-                    else: st.error("Database connection error or 'User_ID' column missing.")
-                    
-        with tab2:
-            st.info("First time here? Generate your unique access code below.")
-            try:
-                # Fetching from Facility_List as per your baseline
-                hosp_df = get_static_sheet("Facility_List") 
-                if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
-                    hosp_list = ["-- Select Hospital --"] + hosp_df["Facility_Name"].dropna().unique().tolist()
-                elif not hosp_df.empty:
-                    hosp_list = ["-- Select Hospital --"] + hosp_df.iloc[:, 0].dropna().unique().tolist()
-                else:
-                    hosp_list = ["-- Select Hospital --", "List Unavailable"]
-            except:
-                hosp_list = ["-- Select Hospital --", "Error Loading List"]
+                    else: st.error("❌ Invalid Access Code. Please check your email and try again.")
 
-            with st.form("register_form"):
-                new_hosp = st.selectbox("Hospital Name", hosp_list)
-                new_dept = st.text_input("Department / Unit")
-                new_encoder = st.text_input("Encoder Name")
-                new_designation = st.text_input("Position / Designation")
-                
-                reg_submit = st.form_submit_button("Generate Login Code", use_container_width=True)
-                
-                if reg_submit:
-                    if new_hosp == "-- Select Hospital --" or not new_dept or not new_encoder or not new_designation:
-                        st.error("⚠️ Please fill in all fields.")
-                    else:
-                        # Baseline randomizer: HFDB-YEAR-10CHARS
-                        current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
-                        random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
-                        new_code = f"HFDB-{current_year}-{random_chars}"
+    with t2:
+        st.info("First time here? Register to receive your unique Access Code via email.")
+        try:
+            hosp_df = get_static_sheet("Facility_List") 
+            if not hosp_df.empty and "Facility_Name" in hosp_df.columns:
+                hosp_list = ["-- Select Hospital --"] + hosp_df["Facility_Name"].dropna().unique().tolist()
+            elif not hosp_df.empty:
+                hosp_list = ["-- Select Hospital --"] + hosp_df.iloc[:, 0].dropna().unique().tolist()
+            else:
+                hosp_list = ["-- Select Hospital --", "List Unavailable"]
+        except:
+            hosp_list = ["-- Select Hospital --", "Error Loading List"]
+
+        with st.form("reg"):
+            hosp = st.selectbox("Hospital Name", hosp_list)
+            dept = st.text_input("Department / Unit")
+            user = st.text_input("Encoder Name")
+            pos = st.text_input("Position / Designation")
+            email = st.text_input("Email Address") # NEW EMAIL FIELD
+            
+            if st.form_submit_button("Register & Send Code", use_container_width=True):
+                if hosp == "-- Select Hospital --" or not dept or not user or not pos or not email:
+                    st.error("⚠️ Please fill in all fields.")
+                elif "@" not in email:
+                    st.error("⚠️ Please enter a valid email address.")
+                else:
+                    current_year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y")
+                    random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
+                    new_id = f"HFDB-{current_year}-{random_chars}"
+                    
+                    # 1. Update Database (Now includes Email)
+                    try:
+                        df = get_static_sheet("User_Profiles")
+                        new_row = {"User_ID": new_id, "Hospital_Name": hosp, "Department": dept, "Encoder_Name": user, "Position": pos, "Email": email, "Role": "user", "Access": "Mod1, Mod2, Mod3, Chat"}
+                        updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True) if not df.empty else pd.DataFrame([new_row])
+                        conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
                         
-                        st.session_state.pending_id = new_code
-                        st.session_state.pending_info = {
-                            "user": new_encoder, "role": "user", "hosp": new_hosp, "dept": new_dept,
-                            "pos": new_designation, "access": ["Mod1", "Mod2", "Mod3", "Chat"]
-                        }
+                        # 2. Send the Email
+                        email_sent = send_access_code_email(email, user, new_id)
                         
-                        try:
-                            accounts_df = get_static_sheet("User_Profiles")
-                            new_row = {
-                                "User_ID": new_code, 
-                                "Hospital_Name": new_hosp, 
-                                "Department": new_dept, 
-                                "Encoder_Name": new_encoder, 
-                                "Position": new_designation, 
-                                "Role": "user", 
-                                "Access": "Mod1, Mod2, Mod3, Chat"
-                            }
-                            updated_df = pd.concat([accounts_df, pd.DataFrame([new_row])], ignore_index=True) if not accounts_df.empty else pd.DataFrame([new_row])
-                            conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
-                        except Exception as e:
-                            st.error(f"Failed to save user. Error: {e}")
-                        st.rerun()
+                        # 3. Notify User
+                        if email_sent:
+                            st.success(f"✅ Registration successful! Your secure access code has been sent to **{email}**. Please check your inbox (and spam folder) to log in.")
+                            time.sleep(4) # Give them a few seconds to read the success message before clearing
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to save user. Error: {e}")
                         
 def dashboard():
     u = st.session_state.user_info
