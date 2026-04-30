@@ -1369,3 +1369,5 @@ else:
     else: 
         if st.session_state.user_info.get("role") == "admin": admin_dashboard()
         else: dashboard()
+
+st.write("My Secrets Dictionary looks like:", st.secrets)
