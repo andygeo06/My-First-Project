@@ -54,76 +54,50 @@ try:
     ws_out = doc.worksheet("OUT")
     ws_user = doc.worksheet("USER")
     
-    # 2. PURE 2D ARRAY EXTRACTION (Bypasses merged cell confusion)
+    # 2. PURE 2D ARRAY EXTRACTION
     data_in = ws_in.get_all_values()
     data_out = ws_out.get_all_values()
     data_user = ws_user.get_all_values()
     
-    # Define Row 1 as the absolute headers
-    headers_in = data_in[0]
-    headers_out = data_out[0]
-    headers_user = data_user[0]
+    # FORCE GRID WIDTH: Guarantee every row is 20 columns wide (A through T)
+    MIN_COLS = 20
+    pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]   # STARTS AT ROW 4
+    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]] # STARTS AT ROW 3
+    pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
-    # Pad data rows to match header length (Stops missing column crashes)
-    pad_in = [r + [""] * (len(headers_in) - len(r)) for r in data_in[3:]]   # STARTS AT ROW 4
-    pad_out = [r + [""] * (len(headers_out) - len(r)) for r in data_out[2:]] # STARTS AT ROW 3
-    pad_user = [r + [""] * (len(headers_user) - len(r)) for r in data_user[1:]]
+    # Build Dataframes using strict integer indices (0 = A, 1 = B, etc.)
+    df_in_raw = pd.DataFrame(pad_in)
+    df_out_raw = pd.DataFrame(pad_out)
+    user_df = pd.DataFrame(pad_user)
     
-    # Build Dataframes using our clean slices
-    df_in_raw = pd.DataFrame(pad_in, columns=headers_in)
-    df_out_raw = pd.DataFrame(pad_out, columns=headers_out)
-    user_df = pd.DataFrame(pad_user, columns=headers_user)
-    
-    # --- THE GHOST HUNTER FUNCTION ---
-    def find_col(df, keyword):
-        for col in df.columns:
-            if keyword.lower() in str(col).lower(): 
-                return col
-        df[keyword.upper()] = "" 
-        return keyword.upper()
-
-    # Ensure linked columns exist for UI
-    for col in ['LINKED PMR DTRAK', 'LINKED PMR SUBJECT']:
-        if col not in df_in_raw.columns:
-            df_in_raw[col] = ""
-
-    # Format main Search Grids (Grabs first 14 columns)
+    # Format main Search Grids
     df_in = df_in_raw.iloc[:, :14].fillna("")
+    df_in.columns = [str(i) for i in range(14)] # Force string names for Streamlit UI
+    
     df_out = df_out_raw.iloc[:, :14].fillna("")
+    df_out.columns = [str(i) for i in range(14)]
     
-    # 3. VIRTUAL NOM (Using Ghost Hunter)
-    doc_type_col = find_col(df_in_raw, "document type")
-    nom_mask = df_in_raw[doc_type_col].astype(str).str.contains('Notice of Meeting', case=False, na=False)
+    # 3. VIRTUAL NOM
+    # Column F is Index 5 (Document Type)
+    nom_mask = df_in_raw[5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
     
-    nom_cols = [
-        find_col(df_in_raw, "date receiv"),
-        find_col(df_in_raw, "dtrak no"),
-        find_col(df_in_raw, "control no"),
-        find_col(df_in_raw, "subject"),
-        find_col(df_in_raw, "originating"),
-        find_col(df_in_raw, "division"),
-        find_col(df_in_raw, "staff assign"),
-        find_col(df_in_raw, "admin note"),
-        find_col(df_in_raw, "staff note"),
-        "LINKED PMR DTRAK", 
-        "LINKED PMR SUBJECT"
-    ]
-            
-    df_nom = df_in_raw[nom_mask][nom_cols].fillna("").reset_index()
+    # STRICT TARGETS: A(0), C(2), D(3), E(4), G(6), K(10), L(11), N(13), Q(16)
+    df_nom = df_in_raw[nom_mask][[0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index()
+    
+    # Add placeholders for the linked write-backs
+    df_nom["Linked PMR DTRAK"] = ""
+    df_nom["Linked PMR Subject"] = ""
+    
+    # Rename for the UI display
     df_nom_ui = df_nom.copy()
     df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
     # 4. VIRTUAL PMR
-    subj_col = find_col(df_in_raw, "subject")
-    pmr_mask = df_in_raw[subj_col].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
+    # Column E is Index 4 (Subject)
+    pmr_mask = df_in_raw[4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
     
-    pmr_cols = [
-        find_col(df_in_raw, "date receiv"), 
-        find_col(df_in_raw, "dtrak no"), 
-        find_col(df_in_raw, "control no"), 
-        subj_col
-    ]
-    df_pmr = df_in_raw[pmr_mask][pmr_cols].fillna("").reset_index(drop=True)
+    # STRICT TARGETS: A(0), C(2), D(3), E(4)
+    df_pmr = df_in_raw[pmr_mask][[0, 2, 3, 4]].fillna("").reset_index(drop=True)
     df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
 
 except Exception as e:
@@ -223,17 +197,9 @@ with col_main:
                         
                         with st.spinner("Writing to Google Sheets..."):
                             try:
-                                # Dynamically calculates exactly which columns to write to!
-                                try:
-                                    write_col_dtrak = headers_in.index('LINKED PMR DTRAK') + 1
-                                    write_col_subj = headers_in.index('LINKED PMR SUBJECT') + 1
-                                except ValueError:
-                                    # If you haven't typed these headers in GSheets yet, it adds them to the end automatically
-                                    write_col_dtrak = len(headers_in) + 1
-                                    write_col_subj = len(headers_in) + 2
-                                    
-                                ws_in.update_cell(actual_sheet_row, write_col_dtrak, pmr_dtrak)
-                                ws_in.update_cell(actual_sheet_row, write_col_subj, pmr_subj)
+                                # Write strictly to Column R (18) and Column S (19)
+                                ws_in.update_cell(actual_sheet_row, 18, pmr_dtrak)
+                                ws_in.update_cell(actual_sheet_row, 19, pmr_subj)
                                 
                                 st.balloons()
                                 st.success("✅ Permanently Linked in GSheets!")
