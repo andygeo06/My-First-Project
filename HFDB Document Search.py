@@ -199,7 +199,7 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
-   # Map the 9 columns provided by your Google Sheet Query
+    # Map the 9 columns provided by your Google Sheet Query
     config_nom = {
         df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), # A
         df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        # C
@@ -255,8 +255,6 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                # Inside 'with sub_col_link', update these indices:
-
                 # In the 9-column NOM result: DTRAK is index 1, Subject is index 3
                 dtrak = current_nom.iloc[1]
                 subject = current_nom.iloc[3]
@@ -265,11 +263,11 @@ with col_main:
 
                 # Update your PMR dropdown based on its sheet structure
                 # If PMR sheet has [Date, DTRAK, Control, Subject], use indices 1 and 3
-            pmr_options = ["--- Select PMR to Assign ---"] + (
+                pmr_options = ["--- Select PMR to Assign ---"] + (
                     df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
                 
-                    selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
+                selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
                 
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
