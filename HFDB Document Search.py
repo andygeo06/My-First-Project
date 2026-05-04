@@ -8,24 +8,22 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
-   /* 1. COMPACT TOP & LAYOUT FIXES */
+    /* 1. COMPACT TOP & LAYOUT FIXES */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
     
-    /* Pull content up but leave just enough room for the glow not to be cut */
     .block-container { 
-        padding-top: 2rem !important;   /* Added 2rem of safe space */
-        margin-top: -3.8rem !important; /* Kept the aggressive pull-up */
+        padding-top: 2rem !important; 
+        margin-top: -3.8rem !important; 
         padding-bottom: 8rem !important; 
     }
 
-    /* Force the first element (the title) to ignore extra padding */
     [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0px !important;
         padding-top: 0px !important;
     }
 
-    /* 2. THE SENTINEL LINE (Your custom glowing divider) */
+    /* 2. THE SENTINEL LINE */
     .sentinel-line {
         border: 0;
         height: 1px;
@@ -56,6 +54,12 @@ st.markdown("""
         border-radius: 15px; 
         border: 1px solid #00ffcc;
         background-color: rgba(0, 255, 204, 0.03);
+    }
+
+    /* Tabs formatting for mobile so 3 tabs fit */
+    @media (max-width: 768px) {
+        .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; }
+        .stTabs [data-baseweb="tab"] p { font-size: 13px !important; }
     }
 
     /* 5. LIGHT MODE ADAPTIVE */
@@ -94,14 +98,11 @@ st.markdown("""
         font-weight: bold; 
         margin-bottom: 15px; 
         animation: pulse 1.5s infinite;
-        display: block; /* Show by default */
+        display: block; 
     }
 
-    /* HIDE the hint when the screen is desktop-sized (wider than 768px) */
     @media (min-width: 768px) {
-        .mobile-hint {
-            display: none !important;
-        }
+        .mobile-hint { display: none !important; }
     }
 
     @keyframes pulse {
@@ -125,8 +126,14 @@ try:
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
+    # NEW: Load NOM and PMR sheets
+    df_pmr_raw = load_sheet_data(SHEET_URL, "PMR")
+    df_nom_raw = load_sheet_data(SHEET_URL, "NOM")
+    
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
+    df_pmr = df_pmr_raw.iloc[:, :4].fillna("")
+    df_nom = df_nom_raw.iloc[:, :9].fillna("")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -155,9 +162,8 @@ col_main, col_action = st.columns([3.5, 1], gap="small")
 with col_main:
     st.title("HFDB Documents")
     
-    # Logic for Mobile Hint
-    # We check if any checkboxes are ticked before showing the hint
-    tab_in, tab_out = st.tabs(["📥 INCOMING", "📤 OUTGOING"])
+    # ADDED: 3rd Tab for NOMs
+    tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
     config_in = {
         df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
@@ -193,6 +199,18 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
+    config_nom = {
+        df_nom.columns[0]: st.column_config.TextColumn("Received", width="small"),
+        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),
+        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),
+        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),
+        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),
+        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),
+        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),
+        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"),
+        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"),
+    }
+
     with tab_in:
         q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
@@ -210,10 +228,57 @@ with col_main:
             on_select="rerun", selection_mode="multi-row", 
             column_config=config_out, key="out_grid"
         )
+        
+    with tab_nom:
+        q_nom = st.text_input("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title or Date...", key="nom_search")
+        filtered_nom = df_nom[df_nom.astype(str).apply(lambda x: x.str.contains(q_nom, case=False)).any(axis=1)] if q_nom else df_nom
+        
+        # Inner layout to split NOM list and PMR Linker
+        sub_col_nom, sub_col_link = st.columns([2.5, 1], gap="medium")
+        
+        with sub_col_nom:
+            st.markdown("##### 📅 Meetings Log")
+            selection_nom = st.dataframe(
+                filtered_nom, use_container_width=True, hide_index=True,
+                on_select="rerun", selection_mode="single-row", 
+                column_config=config_nom, key="nom_grid"
+            )
+            
+        with sub_col_link:
+            st.markdown("##### 🔗 Link Report")
+            st.markdown('<div class="action-panel" style="padding:15px; margin-top:0px;">', unsafe_allow_html=True)
+            
+            sel_nom_rows = selection_nom.selection.rows
+            
+            if len(sel_nom_rows) > 0:
+                selected_idx = sel_nom_rows[0]
+                current_nom = filtered_nom.iloc[selected_idx]
+                
+                # Fetch Subject and DTRAK using exact index locations based on your provided schema
+                dtrak = current_nom.iloc[1]
+                subject = current_nom.iloc[3]
+                
+                st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
+                
+                # Compile PMR list (Date + Subject)
+                pmr_options = ["--- Select PMR to Assign ---"] + (
+                    df_pmr.iloc[:, 0].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
+                ).tolist()
+                
+                selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
+                
+                if st.button("CONFIRM LINK", key="link_btn"):
+                    if selected_pmr != pmr_options[0]:
+                        st.balloons()
+                        st.success(f"Linked! (Note: System write-back setup required to save to GSheets)")
+                    else:
+                        st.warning("Please choose a valid PMR.")
+            else:
+                st.info("Tap a row in the Meetings Log to link a PMR.")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
-    # --- DYNAMIC MOBILE PROMPT ---
-    # This only shows if the user has selected something but hasn't reached the bottom yet
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     
@@ -224,7 +289,7 @@ with col_action:
     st.header("📤 File Request")
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
-    user_name = st.selectbox("Select Your Name in the Dropdown", names_list)
+    user_name = st.selectbox("Select Your Name in the Dropdown", names_list, label_visibility="collapsed")
     
     st.divider()
     
