@@ -203,7 +203,7 @@ with col_main:
                                     # If found, update the existing row
                                     ws_link.update_cell(cell.row, 2, pmr_dtrak)
                                     ws_link.update_cell(cell.row, 3, pmr_subj)
-                                except gspread.exceptions.CellNotFound:
+                                except gspread.CellNotFound:
                                     # If not found, add a brand new row to the bottom
                                     ws_link.append_row([nom_dtrak, pmr_dtrak, pmr_subj])
                                 
