@@ -137,8 +137,8 @@ try:
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
-    df_pmr = df_pmr_raw.iloc[:, [2, 4]].fillna("")
-    df_nom = df_nom_raw.iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("")
+    df_pmr = df_pmr_raw.fillna("")
+    df_nom = df_nom_raw.fillna("")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -258,18 +258,17 @@ with col_main:
             if len(sel_nom_rows) > 0:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
+                # Inside 'with sub_col_link', update these three lines:
     
-                # In our new 11-column df_nom:
-                # DTRAK is at index 1, Subject is at index 3
+                # 1. Get DTRAK (Index 1) and Subject (Index 3) from the selected NOM row
                 dtrak = current_nom.iloc[1]
                 subject = current_nom.iloc[3]
-    
+
                 st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
-    
-                # In our new 2-column df_pmr:
-                # Column 2 (Index 0) and Column 4 (Index 1)
+
+                # 2. Update dropdown to show PMR DTRAK (Index 1) and Subject (Index 3)
                 pmr_options = ["--- Select PMR to Assign ---"] + (
-                    df_pmr.iloc[:, 0].astype(str) + " | " + df_pmr.iloc[:, 1].astype(str)
+                df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
     
                 selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
