@@ -132,8 +132,8 @@ try:
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
-    df_pmr = df_pmr_raw.iloc[:, [2, 4]].fillna("")
-    df_nom = df_nom_raw.iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("")
+    df_pmr = df_pmr_raw.fillna("")
+    df_nom = df_nom_raw.fillna("")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -199,16 +199,17 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
+   # Map the 9 columns provided by your Google Sheet Query
     config_nom = {
-        df_nom.columns[0]: st.column_config.TextColumn("Received", width="small"),
-        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),
-        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),
-        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),
-        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),
-        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),
-        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),
-        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"),
-        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"),
+        df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), # A
+        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        # C
+        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),      # D
+        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),      # E
+        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),       # G
+        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),     # K
+        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),# L
+        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"), # N
+        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"), # Q
     }
 
     with tab_in:
@@ -254,15 +255,18 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                # Fetch Subject and DTRAK using exact index locations based on your provided schema
+                # Inside 'with sub_col_link', update these indices:
+
+                # In the 9-column NOM result: DTRAK is index 1, Subject is index 3
                 dtrak = current_nom.iloc[1]
                 subject = current_nom.iloc[3]
-                
+
                 st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
-                
-                # Compile PMR list (Date + Subject)
-                pmr_options = ["--- Select PMR to Assign ---"] + (
-                    df_pmr.iloc[:, 0].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
+
+                # Update your PMR dropdown based on its sheet structure
+                # If PMR sheet has [Date, DTRAK, Control, Subject], use indices 1 and 3
+            pmr_options = ["--- Select PMR to Assign ---"] + (
+                    df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
                 
                 selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
