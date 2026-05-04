@@ -3,3 +3,4 @@ pandas
 st-gsheets-connection
 streamlit-autorefresh
 gspread
+oauth2client
