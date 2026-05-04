@@ -46,6 +46,7 @@ def get_gspread_client():
 try:
     client = get_gspread_client()
     
+    # 1. Direct URL Authentication
     SHEET_URL = "https://docs.google.com/spreadsheets/d/16EM2haAGx1dvofOTvtrw6crcv09i4ZLo-3uRlFYt3jo/edit?usp=sharing"
     doc = client.open_by_url(SHEET_URL)
     
@@ -54,39 +55,70 @@ try:
     ws_out = doc.worksheet("OUT")
     ws_user = doc.worksheet("USER")
     
-    # Convert to Pandas Dataframes for the UI (gspread gets ALL columns automatically, fixing the Staff Notes issue!)
+    # Convert to Pandas Dataframes
     df_in_raw = pd.DataFrame(ws_in.get_all_records())
     df_out_raw = pd.DataFrame(ws_out.get_all_records())
     user_df = pd.DataFrame(ws_user.get_all_records())
     
-    # 1. Format main Search Grids
-    df_in = df_in_raw.iloc[:, :14].fillna("")
-    df_out = df_out_raw.iloc[:, :14].fillna("")
-    
-    # 2. VIRTUAL NOM (From the raw IN sheet)
-    nom_mask = df_in_raw['DOCUMENT TYPE'].astype(str).str.contains('Notice of Meeting', case=False, na=False)
-    # We grab exactly the named columns to avoid any index shifting issues
-    nom_cols = ['DATE RECEIVED', 'DTRAK NO.', 'OFFICE CONTROL NO.', 'SUBJECT', 'ORIGINATING OFFICE', 'DIVISION/ UNIT/ COMMITTEE', 'TECHNICAL STAFF ASSIGNED', 'ADMIN NOTES', 'STAFF NOTES', 'LINKED PMR DTRAK', 'LINKED PMR SUBJECT']
-    
-    # Ensure the linked columns exist in the dataframe before slicing
+    # --- THE GHOST HUNTER FUNCTION ---
+    # Finds columns safely, ignoring typos, spaces, or exact capitalization
+    def find_col(df, keyword):
+        for col in df.columns:
+            if keyword.lower() in str(col).lower(): 
+                return col
+        df[keyword.upper()] = "" # Prevent crash if entirely missing
+        return keyword.upper()
+
+    # Ensure linked columns exist
     for col in ['LINKED PMR DTRAK', 'LINKED PMR SUBJECT']:
         if col not in df_in_raw.columns:
             df_in_raw[col] = ""
+
+    # Format main Search Grids
+    df_in = df_in_raw.iloc[:, :14].fillna("")
+    df_out = df_out_raw.iloc[:, :14].fillna("")
+    
+    # 2. VIRTUAL NOM (Using Ghost Hunter for extreme stability)
+    doc_type_col = find_col(df_in_raw, "document type")
+    nom_mask = df_in_raw[doc_type_col].astype(str).str.contains('Notice of Meeting', case=False, na=False)
+    
+    nom_cols = [
+        find_col(df_in_raw, "date receiv"),
+        find_col(df_in_raw, "dtrak no"),
+        find_col(df_in_raw, "control no"),
+        find_col(df_in_raw, "subject"),
+        find_col(df_in_raw, "originating"),
+        find_col(df_in_raw, "division"),
+        find_col(df_in_raw, "staff assign"),
+        find_col(df_in_raw, "admin note"),
+        find_col(df_in_raw, "staff note"),
+        "LINKED PMR DTRAK", 
+        "LINKED PMR SUBJECT"
+    ]
             
     df_nom = df_in_raw[nom_mask][nom_cols].fillna("").reset_index()
+    
     # Rename for the UI display
     df_nom_ui = df_nom.copy()
     df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
     # 3. VIRTUAL PMR
-    pmr_mask = df_in_raw['SUBJECT'].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
-    df_pmr = df_in_raw[pmr_mask][['DATE RECEIVED', 'DTRAK NO.', 'OFFICE CONTROL NO.', 'SUBJECT']].fillna("").reset_index(drop=True)
+    subj_col = find_col(df_in_raw, "subject")
+    pmr_mask = df_in_raw[subj_col].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
+    
+    pmr_cols = [
+        find_col(df_in_raw, "date receiv"), 
+        find_col(df_in_raw, "dtrak no"), 
+        find_col(df_in_raw, "control no"), 
+        subj_col
+    ]
+    df_pmr = df_in_raw[pmr_mask][pmr_cols].fillna("").reset_index(drop=True)
     df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
 
 except Exception as e:
-    st.error(f"⚠️ API Authentication Error. Ensure GCP Service Account is set up! \n\n {e}")
+    st.error(f"⚠️ App Error: \n\n {e}")
     st.stop()
-
+    
 # --- 3. SIGNAL FUNCTION ---
 def send_signal(user_name, user_email, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
