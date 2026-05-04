@@ -7,9 +7,9 @@ import re
 # --- 1. PAGE CONFIG, THEME & SESSION STATE ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
-# Initialize Session State to store Linked Reports
-if "linked_reports" not in st.session_state:
-    st.session_state.linked_reports = []
+# UPGRADE: Session State is now a dictionary for instant inline matching
+if "linked_pmrs" not in st.session_state:
+    st.session_state.linked_pmrs = {}
 
 st.markdown("""
     <style>
@@ -80,31 +80,35 @@ def load_sheet_data(url, sheet_name):
 try:
     SHEET_URL = st.secrets["gsheets_url"]
     
-    # Load the standard search tabs for your IN/OUT data grids
     df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # 1. NEW: Load the raw 'IN' sheet to get full access to Column Q (Staff Notes)
+    # 1. Load the true MASTER IN sheet
     df_master_in = load_sheet_data(SHEET_URL, "IN")
     
-    # Pad df_master_in just in case the final columns are completely blank in GSheets
-    cols_count = len(df_master_in.columns)
-    if cols_count <= 16:
-        for i in range(cols_count, 17):
-            df_master_in[f"BlankCol_{i}"] = ""
+    # THE "GHOST COLUMN" FIX: Bruteforce pad the table to guarantee Index 16 exists
+    while len(df_master_in.columns) < 17:
+        df_master_in[f"BlankCol_{len(df_master_in.columns)}"] = ""
     
-    # Format the main dataframes (limit to 14 columns as before)
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     
-    # 2. VIRTUAL NOM: Filter the raw 'IN' sheet (df_master_in) instead of INCOMING SEARCH
+    # 2. VIRTUAL NOM
     nom_mask = df_master_in.iloc[:, 5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
     df_nom = df_master_in[nom_mask].iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index(drop=True)
     
-    # 3. VIRTUAL PMR: Filter the raw 'IN' sheet (df_master_in)
+    # Explicitly name the columns so Streamlit knows exactly what to render
+    df_nom.columns = ["Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes"]
+    
+    # THE "INLINE MERGE": Dynamically add session data to the end of the dataframe
+    df_nom["Linked PMR DTRAK"] = df_nom["DTRAK No."].apply(lambda x: st.session_state.linked_pmrs.get(x, {}).get("dtrak", ""))
+    df_nom["Linked PMR Subject"] = df_nom["DTRAK No."].apply(lambda x: st.session_state.linked_pmrs.get(x, {}).get("subject", ""))
+    
+    # 3. VIRTUAL PMR
     pmr_mask = df_master_in.iloc[:, 4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
     df_pmr = df_master_in[pmr_mask].iloc[:, [0, 2, 3, 4]].fillna("").reset_index(drop=True) 
+    df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
 
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
@@ -170,16 +174,20 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
+    # Because we explicitly named the columns, this configuration is now bulletproof
     config_nom = {
-        df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), 
-        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        
-        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),      
-        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),      
-        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),       
-        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),     
-        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),
-        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"), 
-        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"), 
+        "Date Received": st.column_config.TextColumn("Date Received", width="small"),
+        "DTRAK No.": st.column_config.TextColumn("DTRAK No.", width=110),
+        "Control No.": st.column_config.TextColumn("Control No.", width=110),
+        "Subject": st.column_config.TextColumn("Subject", width="large"),
+        "Origin": st.column_config.TextColumn("Origin", width="small"),
+        "Division": st.column_config.TextColumn("Division", width="small"),
+        "Staff Assigned": st.column_config.TextColumn("Staff Assigned", width="small"),
+        "Admin Notes": st.column_config.TextColumn("Admin Notes", width="medium"),
+        "Staff Notes": st.column_config.TextColumn("Staff Notes", width="medium"),
+        # The new inline Linked PMR columns!
+        "Linked PMR DTRAK": st.column_config.TextColumn("🔗 Linked PMR", width=110),
+        "Linked PMR Subject": st.column_config.TextColumn("🔗 PMR Subject", width="large"),
     }
 
     with tab_in:
@@ -200,18 +208,8 @@ with col_main:
         
         with sub_col_nom:
             st.markdown("##### 📅 Meetings Log")
+            # The table now automatically includes the Linked PMR columns at the end!
             selection_nom = st.dataframe(filtered_nom, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=config_nom, key="nom_grid")
-            
-            # --- DISPLAY LINKED REPORTS ---
-            if len(st.session_state.linked_reports) > 0:
-                st.markdown('<div class="sentinel-line"></div>', unsafe_allow_html=True)
-                st.markdown("##### 📎 Linked Reports (Current Session)")
-                linked_df = pd.DataFrame(st.session_state.linked_reports)
-                st.dataframe(linked_df, use_container_width=True, hide_index=True)
-                
-                # Download Button for the linked data
-                csv = linked_df.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Links (CSV)", data=csv, file_name="Linked_Reports.csv", mime="text/csv")
             
         with sub_col_link:
             st.markdown("##### 🔗 Link Report")
@@ -223,34 +221,30 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                nom_dtrak = current_nom.iloc[1]
-                nom_subj = current_nom.iloc[3]
+                # Using our explicit names instead of blind indices
+                nom_dtrak = current_nom["DTRAK No."]
+                nom_subj = current_nom["Subject"]
 
                 st.info(f"**Selected NOM:**\n{nom_dtrak}\n{nom_subj}")
 
-                # Populate PMR Dropdown from our Virtual PMR Table
+                # Populate Dropdown using explicit column names
                 pmr_options = ["--- Select PMR to Assign ---"] + (
-                    df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
+                    df_pmr["DTRAK"].astype(str) + " | " + df_pmr["Subject"].astype(str)
                 ).tolist()
                 
                 selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
                 
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
-                        # Split the dropdown text back into DTRAK and Subject
                         pmr_parts = selected_pmr.split(" | ", 1)
                         pmr_dtrak = pmr_parts[0]
                         pmr_subj = pmr_parts[1] if len(pmr_parts) > 1 else ""
                         
-                        # Save to Session State
-                        st.session_state.linked_reports.append({
-                            "Meeting DTRAK": nom_dtrak,
-                            "Meeting Subject": nom_subj,
-                            "Report DTRAK": pmr_dtrak,
-                            "Report Subject": pmr_subj
-                        })
+                        # Save linkage to Session State (Triggers a rerun and updates the table instantly)
+                        st.session_state.linked_pmrs[nom_dtrak] = {"dtrak": pmr_dtrak, "subject": pmr_subj}
+                        
                         st.balloons()
-                        st.success(f"Linked! Look below the log to view/download.")
+                        st.rerun() # Forces the UI to refresh immediately so the new column populates
                     else:
                         st.warning("Please choose a valid PMR.")
             else:
