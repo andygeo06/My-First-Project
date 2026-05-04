@@ -125,15 +125,23 @@ try:
     df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
-    
-    # NEW: Load NOM and PMR sheets
     df_pmr_raw = load_sheet_data(SHEET_URL, "PMR")
     df_nom_raw = load_sheet_data(SHEET_URL, "NOM")
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     df_pmr = df_pmr_raw.fillna("")
-    df_nom = df_nom_raw.fillna("")
+    
+    # THE PADDING FIX: If columns like "Staff Notes" are blank, Pandas drops them.
+    # We force the dataframe to have at least 17 columns so index 16 always works.
+    cols_count = len(df_nom_raw.columns)
+    if cols_count <= 16:
+        for i in range(cols_count, 17):
+            df_nom_raw[f"BlankCol_{i}"] = ""
+            
+    # Now safely extract EXACTLY the 9 columns you requested
+    df_nom = df_nom_raw.iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("")
+    
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -162,7 +170,6 @@ col_main, col_action = st.columns([3.5, 1], gap="small")
 with col_main:
     st.title("HFDB Documents")
     
-    # ADDED: 3rd Tab for NOMs
     tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
     config_in = {
@@ -199,17 +206,17 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
-    # Map the 9 columns provided by your Google Sheet Query
+    # Map our new safe 9-column extraction perfectly
     config_nom = {
-        df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), # A
-        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        # C
-        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),      # D
-        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),      # E
-        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),       # G
-        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),     # K
-        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),# L
-        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"), # N
-        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"), # Q
+        df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), 
+        df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        
+        df_nom.columns[2]: st.column_config.TextColumn("Control No.", width=110),      
+        df_nom.columns[3]: st.column_config.TextColumn("Subject", width="large"),      
+        df_nom.columns[4]: st.column_config.TextColumn("Origin", width="small"),       
+        df_nom.columns[5]: st.column_config.TextColumn("Division", width="small"),     
+        df_nom.columns[6]: st.column_config.TextColumn("Staff Assigned", width="small"),
+        df_nom.columns[7]: st.column_config.TextColumn("Admin Notes", width="medium"), 
+        df_nom.columns[8]: st.column_config.TextColumn("Staff Notes", width="medium"), 
     }
 
     with tab_in:
@@ -234,7 +241,6 @@ with col_main:
         q_nom = st.text_input("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title or Date...", key="nom_search")
         filtered_nom = df_nom[df_nom.astype(str).apply(lambda x: x.str.contains(q_nom, case=False)).any(axis=1)] if q_nom else df_nom
         
-        # Inner layout to split NOM list and PMR Linker
         sub_col_nom, sub_col_link = st.columns([2.5, 1], gap="medium")
         
         with sub_col_nom:
@@ -255,14 +261,13 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                # In the 9-column NOM result: DTRAK is index 1, Subject is index 3
+                # DTRAK is now safely at index 1, Subject safely at index 3
                 dtrak = current_nom.iloc[1]
                 subject = current_nom.iloc[3]
 
                 st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
 
-                # Update your PMR dropdown based on its sheet structure
-                # If PMR sheet has [Date, DTRAK, Control, Subject], use indices 1 and 3
+                # Using indices 1 (DTRAK) and 3 (Subject) for the PMR list
                 pmr_options = ["--- Select PMR to Assign ---"] + (
                     df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
@@ -272,7 +277,7 @@ with col_main:
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
                         st.balloons()
-                        st.success(f"Linked! (Note: System write-back setup required to save to GSheets)")
+                        st.success(f"Linked! (System write-back setup required to save to GSheets)")
                     else:
                         st.warning("Please choose a valid PMR.")
             else:
