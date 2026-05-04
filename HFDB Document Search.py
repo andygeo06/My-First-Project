@@ -4,108 +4,61 @@ import smtplib
 from email.mime.text import MIMEText
 import re
 
-# --- 1. PAGE CONFIG & THEME ---
+# --- 1. PAGE CONFIG, THEME & SESSION STATE ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
+
+# Initialize Session State to store Linked Reports
+if "linked_reports" not in st.session_state:
+    st.session_state.linked_reports = []
 
 st.markdown("""
     <style>
-    /* 1. COMPACT TOP & LAYOUT FIXES */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
+    .block-container { padding-top: 2rem !important; margin-top: -3.8rem !important; padding-bottom: 8rem !important; }
+    [data-testid="stVerticalBlock"] > div:first-child { margin-top: 0px !important; padding-top: 0px !important; }
     
-    .block-container { 
-        padding-top: 2rem !important; 
-        margin-top: -3.8rem !important; 
-        padding-bottom: 8rem !important; 
-    }
-
-    [data-testid="stVerticalBlock"] > div:first-child {
-        margin-top: 0px !important;
-        padding-top: 0px !important;
-    }
-
-    /* 2. THE SENTINEL LINE */
     .sentinel-line {
-        border: 0;
-        height: 1px;
+        border: 0; height: 1px;
         background: linear-gradient(to right, rgba(0, 255, 204, 0), rgba(0, 255, 204, 0.8), rgba(0, 255, 204, 0));
-        margin: 5px 0 15px 0;
-        box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
+        margin: 5px 0 15px 0; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
     }
-
-    /* 3. THE WHITE FONT + THIN CYAN GLOW */
     html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
         color: #ffffff !important;
-        text-shadow: 
-            0 0 5px rgba(0, 255, 204, 0.8), 
-            0 0 10px rgba(0, 255, 204, 0.3) !important;
+        text-shadow: 0 0 5px rgba(0, 255, 204, 0.8), 0 0 10px rgba(0, 255, 204, 0.3) !important;
     }
-
-    /* 4. INPUT BOXES & PANEL OUTLINES */
     .stTextInput > div > div > input { 
-        border-radius: 10px; 
-        border: 1px solid #00ffcc !important; 
-        background-color: transparent !important;
-        color: #ffffff !important;
+        border-radius: 10px; border: 1px solid #00ffcc !important; 
+        background-color: transparent !important; color: #ffffff !important;
         box-shadow: 0 0 5px rgba(0, 255, 204, 0.2) !important;
     }
-    
     .action-panel { 
-        padding: 20px; 
-        border-radius: 15px; 
-        border: 1px solid #00ffcc;
+        padding: 20px; border-radius: 15px; border: 1px solid #00ffcc;
         background-color: rgba(0, 255, 204, 0.03);
     }
-
-    /* Tabs formatting for mobile so 3 tabs fit */
     @media (max-width: 768px) {
         .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; }
         .stTabs [data-baseweb="tab"] p { font-size: 13px !important; }
     }
-
-    /* 5. LIGHT MODE ADAPTIVE */
     @media (prefers-color-scheme: light) {
         [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; }
         html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-            color: #1f2937 !important;
-            text-shadow: 0 0 3px rgba(0, 138, 123, 0.2) !important;
+            color: #1f2937 !important; text-shadow: 0 0 3px rgba(0, 138, 123, 0.2) !important;
         }
-        .stTextInput > div > div > input { 
-            border: 1px solid #008a7b !important; 
-            color: #1f2937 !important;
-        }
+        .stTextInput > div > div > input { border: 1px solid #008a7b !important; color: #1f2937 !important; }
     }
-
-    /* 6. BUTTONS */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: #000000 !important; 
-        text-shadow: none !important; 
-        font-weight: bold; 
-        border-radius: 12px; 
-        height: 50px; 
-        width: 100%; 
-        border: none;
+        color: #000000 !important; text-shadow: none !important; font-weight: bold; 
+        border-radius: 12px; height: 50px; width: 100%; border: none;
     }
-
-    /* 7. PULSING INDICATOR (Mobile Only) */
     .mobile-hint {
-        background: #007bff; 
-        color: #ffffff !important; 
+        background: #007bff; color: #ffffff !important; 
         text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
-        padding: 10px; 
-        border-radius: 10px; 
-        text-align: center; 
-        font-weight: bold; 
-        margin-bottom: 15px; 
-        animation: pulse 1.5s infinite;
-        display: block; 
+        padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; 
+        margin-bottom: 15px; animation: pulse 1.5s infinite; display: block; 
     }
-
-    @media (min-width: 768px) {
-        .mobile-hint { display: none !important; }
-    }
-
+    @media (min-width: 768px) { .mobile-hint { display: none !important; } }
     @keyframes pulse {
         0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
         50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); }
@@ -114,38 +67,43 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATA LOADING ---
-@st.cache_data(ttl=300)
+# --- 2. DATA LOADING & VIRTUAL FILTERING ---
 def load_sheet_data(url, sheet_name):
-    # This regex extracts ONLY the core Document ID, stripping away all #gid parameters
     match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
-    if not match:
-        st.error("Invalid Google Sheets URL format.")
-        return pd.DataFrame()
-        
+    if not match: return pd.DataFrame()
     doc_id = match.group(1)
     safe_name = sheet_name.replace(" ", "%20")
-    
-    # We build a pristine URL that relies strictly on the sheet name
-    csv_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/gviz/tq?tqx=out:csv&sheet={safe_name}"
-    return pd.read_csv(csv_url)
+    csv_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv&sheet={safe_name}"
+    try: return pd.read_csv(csv_url)
+    except: return pd.DataFrame()
 
 try:
     SHEET_URL = st.secrets["gsheets_url"]
+    
+    # Only load IN, OUT, and USER. We deleted NOM and PMR sheets!
     df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    df_pmr_raw = load_sheet_data(SHEET_URL, "PMR")
-    df_nom_raw = load_sheet_data(SHEET_URL, "NOM")
+    # 1. Pad the raw IN sheet in case columns 14, 15, or 16 are completely blank in GSheets
+    cols_count = len(df_in_raw.columns)
+    if cols_count <= 16:
+        for i in range(cols_count, 17):
+            df_in_raw[f"BlankCol_{i}"] = ""
     
+    # 2. Extract standard IN and OUT for the main tabs
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     
-    # Grab exact columns
-    df_pmr = df_pmr_raw.iloc[:, :4].fillna("")
-    df_nom = df_nom_raw.iloc[:, :9].fillna("")
+    # 3. VIRTUAL NOM: Filter IN sheet where Column 5 (Doc Type) is 'Notice of Meeting'
+    # Then extract exactly the 9 columns you want
+    nom_mask = df_in_raw.iloc[:, 5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
+    df_nom = df_in_raw[nom_mask].iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index(drop=True)
     
+    # 4. VIRTUAL PMR: Filter IN sheet where Column 4 (Subject) contains 'PMR' or 'MOM'
+    pmr_mask = df_in_raw.iloc[:, 4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
+    df_pmr = df_in_raw[pmr_mask].iloc[:, [0, 2, 3, 4]].fillna("").reset_index(drop=True) # Date, DTRAK, Control, Subject
+
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -210,7 +168,6 @@ with col_main:
         df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
     }
 
-    # Map the exact 9 columns your Google Sheet Query produces
     config_nom = {
         df_nom.columns[0]: st.column_config.TextColumn("Date Received", width="small"), 
         df_nom.columns[1]: st.column_config.TextColumn("DTRAK No.", width=110),        
@@ -226,20 +183,12 @@ with col_main:
     with tab_in:
         q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
         filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
-        selection_in = st.dataframe(
-            filtered_in, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", 
-            column_config=config_in, key="in_grid"
-        )
+        selection_in = st.dataframe(filtered_in, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid")
 
     with tab_out:
         q_out = st.text_input("Search Outgoing Documents", placeholder="🔍 Search...", key="out_search")
         filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
-        selection_out = st.dataframe(
-            filtered_out, use_container_width=True, hide_index=True,
-            on_select="rerun", selection_mode="multi-row", 
-            column_config=config_out, key="out_grid"
-        )
+        selection_out = st.dataframe(filtered_out, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid")
         
     with tab_nom:
         q_nom = st.text_input("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title or Date...", key="nom_search")
@@ -249,11 +198,18 @@ with col_main:
         
         with sub_col_nom:
             st.markdown("##### 📅 Meetings Log")
-            selection_nom = st.dataframe(
-                filtered_nom, use_container_width=True, hide_index=True,
-                on_select="rerun", selection_mode="single-row", 
-                column_config=config_nom, key="nom_grid"
-            )
+            selection_nom = st.dataframe(filtered_nom, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=config_nom, key="nom_grid")
+            
+            # --- DISPLAY LINKED REPORTS ---
+            if len(st.session_state.linked_reports) > 0:
+                st.markdown('<div class="sentinel-line"></div>', unsafe_allow_html=True)
+                st.markdown("##### 📎 Linked Reports (Current Session)")
+                linked_df = pd.DataFrame(st.session_state.linked_reports)
+                st.dataframe(linked_df, use_container_width=True, hide_index=True)
+                
+                # Download Button for the linked data
+                csv = linked_df.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Links (CSV)", data=csv, file_name="Linked_Reports.csv", mime="text/csv")
             
         with sub_col_link:
             st.markdown("##### 🔗 Link Report")
@@ -265,13 +221,12 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                # DTRAK is perfectly aligned at index 1, Subject at index 3
-                dtrak = current_nom.iloc[1]
-                subject = current_nom.iloc[3]
+                nom_dtrak = current_nom.iloc[1]
+                nom_subj = current_nom.iloc[3]
 
-                st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
+                st.info(f"**Selected NOM:**\n{nom_dtrak}\n{nom_subj}")
 
-                # Using indices 1 (DTRAK) and 3 (Subject) for the 4-column PMR list
+                # Populate PMR Dropdown from our Virtual PMR Table
                 pmr_options = ["--- Select PMR to Assign ---"] + (
                     df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
@@ -280,19 +235,29 @@ with col_main:
                 
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
+                        # Split the dropdown text back into DTRAK and Subject
+                        pmr_parts = selected_pmr.split(" | ", 1)
+                        pmr_dtrak = pmr_parts[0]
+                        pmr_subj = pmr_parts[1] if len(pmr_parts) > 1 else ""
+                        
+                        # Save to Session State
+                        st.session_state.linked_reports.append({
+                            "Meeting DTRAK": nom_dtrak,
+                            "Meeting Subject": nom_subj,
+                            "Report DTRAK": pmr_dtrak,
+                            "Report Subject": pmr_subj
+                        })
                         st.balloons()
-                        st.success(f"Linked! (System write-back setup required to save to GSheets)")
+                        st.success(f"Linked! Look below the log to view/download.")
                     else:
                         st.warning("Please choose a valid PMR.")
             else:
                 st.info("Tap a row in the Meetings Log to link a PMR.")
-            
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
-    
     if len(sel_in) > 0 or len(sel_out) > 0:
         st.markdown('<div class="mobile-hint">👇 SCROLL DOWN TO FINISH REQUEST</div>', unsafe_allow_html=True)
 
@@ -301,7 +266,6 @@ with col_action:
     
     names_list = [""] + user_df.iloc[:, 0].dropna().tolist()
     user_name = st.selectbox("Select Your Name in the Dropdown", names_list, label_visibility="collapsed")
-    
     st.divider()
     
     if len(sel_in) > 0 or len(sel_out) > 0:
@@ -311,19 +275,14 @@ with col_action:
         selected_dtraks = []
         if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
         if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
-        
-        for d in selected_dtraks:
-            st.info(f"📄 {d}")
+        for d in selected_dtraks: st.info(f"📄 {d}")
         
         if st.button("SEND TO MY EMAIL"):
-            if not user_name:
-                st.error("Select name!")
+            if not user_name: st.error("Select name!")
             else:
                 with st.spinner("Processing..."):
-                    try:
-                        user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
-                    except:
-                        user_email = None
+                    try: user_email = user_df[user_df.iloc[:, 0] == user_name].iloc[0, 1]
+                    except: user_email = None
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
