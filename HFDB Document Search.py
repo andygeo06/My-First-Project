@@ -132,8 +132,8 @@ try:
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
-    df_pmr = df_pmr_raw.iloc[:, :4].fillna("")
-    df_nom = df_nom_raw.iloc[:, :9].fillna("")
+    df_pmr = df_pmr_raw.iloc[:, [2, 4]].fillna("")
+    df_nom = df_nom_raw.iloc[:, [0, 2, 3, 4, 5, 6, 10, 11, 12, 13, 16]].fillna("")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
