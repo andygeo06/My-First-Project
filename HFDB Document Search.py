@@ -45,8 +45,6 @@ def get_gspread_client():
 
 try:
     client = get_gspread_client()
-    
-    # 1. Direct URL Authentication
     SHEET_URL = "https://docs.google.com/spreadsheets/d/16EM2haAGx1dvofOTvtrw6crcv09i4ZLo-3uRlFYt3jo/edit?usp=sharing"
     doc = client.open_by_url(SHEET_URL)
     
@@ -54,49 +52,51 @@ try:
     ws_out = doc.worksheet("OUT")
     ws_user = doc.worksheet("USER")
     
-    # 2. PURE 2D ARRAY EXTRACTION
+    # NEW: Connect to the Bot's Database Tab
+    ws_link = doc.worksheet("LINK_DB")
+    
     data_in = ws_in.get_all_values()
     data_out = ws_out.get_all_values()
     data_user = ws_user.get_all_values()
+    data_link = ws_link.get_all_values()
     
-    # FORCE GRID WIDTH: Guarantee every row is 20 columns wide (A through T)
+    # FORCE GRID WIDTH for Main Sheets
     MIN_COLS = 20
-    pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]   # STARTS AT ROW 4
-    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]] # STARTS AT ROW 3
+    pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
+    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
-    # Build Dataframes using strict integer indices (0 = A, 1 = B, etc.)
     df_in_raw = pd.DataFrame(pad_in)
     df_out_raw = pd.DataFrame(pad_out)
     user_df = pd.DataFrame(pad_user)
     
     # Format main Search Grids
     df_in = df_in_raw.iloc[:, :14].fillna("")
-    df_in.columns = [str(i) for i in range(14)] # Force string names for Streamlit UI
-    
+    df_in.columns = [str(i) for i in range(14)]
     df_out = df_out_raw.iloc[:, :14].fillna("")
     df_out.columns = [str(i) for i in range(14)]
     
+    # --- BUILD THE LINK DICTIONARY ---
+    # This reads your LINK_DB and creates a super-fast memory map
+    link_dict = {}
+    if len(data_link) > 1:
+        for row in data_link[1:]:
+            if len(row) >= 3:
+                link_dict[row[0]] = {"dtrak": row[1], "subject": row[2]}
+
     # 3. VIRTUAL NOM
-    # Column F is Index 5 (Document Type)
     nom_mask = df_in_raw[5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
-    
-    # STRICT TARGETS: A(0), C(2), D(3), E(4), G(6), K(10), L(11), N(13), Q(16)
     df_nom = df_in_raw[nom_mask][[0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index()
     
-    # Add placeholders for the linked write-backs
-    df_nom["Linked PMR DTRAK"] = ""
-    df_nom["Linked PMR Subject"] = ""
+    # NEW: Map the database links directly to the DTRAK column (Index 2 is DTRAK NO.)
+    df_nom["Linked PMR DTRAK"] = df_nom[2].astype(str).apply(lambda x: link_dict.get(x, {}).get("dtrak", ""))
+    df_nom["Linked PMR Subject"] = df_nom[2].astype(str).apply(lambda x: link_dict.get(x, {}).get("subject", ""))
     
-    # Rename for the UI display
     df_nom_ui = df_nom.copy()
     df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
     # 4. VIRTUAL PMR
-    # Column E is Index 4 (Subject)
     pmr_mask = df_in_raw[4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
-    
-    # STRICT TARGETS: A(0), C(2), D(3), E(4)
     df_pmr = df_in_raw[pmr_mask][[0, 2, 3, 4]].fillna("").reset_index(drop=True)
     df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
 
@@ -195,17 +195,23 @@ with col_main:
                         pmr_dtrak = pmr_parts[0]
                         pmr_subj = pmr_parts[1] if len(pmr_parts) > 1 else ""
                         
-                        with st.spinner("Writing to Google Sheets..."):
+                        with st.spinner("Saving to Link Database..."):
                             try:
-                                # Write strictly to Column R (18) and Column S (19)
-                                ws_in.update_cell(actual_sheet_row, 18, pmr_dtrak)
-                                ws_in.update_cell(actual_sheet_row, 19, pmr_subj)
+                                # We try to find if this NOM already has a link in the DB
+                                try:
+                                    cell = ws_link.find(nom_dtrak, in_column=1)
+                                    # If found, update the existing row
+                                    ws_link.update_cell(cell.row, 2, pmr_dtrak)
+                                    ws_link.update_cell(cell.row, 3, pmr_subj)
+                                except gspread.exceptions.CellNotFound:
+                                    # If not found, add a brand new row to the bottom
+                                    ws_link.append_row([nom_dtrak, pmr_dtrak, pmr_subj])
                                 
                                 st.balloons()
-                                st.success("✅ Permanently Linked in GSheets!")
+                                st.success("✅ Safely Saved to Link DB!")
                                 st.rerun() 
                             except Exception as write_err:
-                                st.error(f"Write failed: {write_err}")
+                                st.error(f"Database write failed: {write_err}")
                     else:
                         st.warning("Please choose a valid PMR.")
             else:
