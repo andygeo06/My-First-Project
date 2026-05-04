@@ -137,8 +137,8 @@ try:
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
-    df_pmr = df_pmr_raw.iloc[:, :4].fillna("")
-    df_nom = df_nom_raw.iloc[:, :9].fillna("")
+    df_pmr = df_pmr_raw.iloc[:, [2, 4]].fillna("")
+    df_nom = df_nom_raw.iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("")
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
     st.stop()
@@ -258,20 +258,22 @@ with col_main:
             if len(sel_nom_rows) > 0:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
-                
-                # DTRAK is index 1 (Column C), Subject is index 3 (Column E)
+    
+                # In our new 11-column df_nom:
+                # DTRAK is at index 1, Subject is at index 3
                 dtrak = current_nom.iloc[1]
                 subject = current_nom.iloc[3]
-                
+    
                 st.info(f"**Selected NOM:**\n{dtrak}\n{subject}")
-                
-                # FIX 2: Explicitly fetch DTRAK (index 1) and Subject (index 3) from the PMR sheet
-                # If this still pulls the control number instead of the subject, simply change `iloc[:, 3]` to `iloc[:, 2]`!
+    
+                # In our new 2-column df_pmr:
+                # Column 2 (Index 0) and Column 4 (Index 1)
                 pmr_options = ["--- Select PMR to Assign ---"] + (
-                    df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
+                    df_pmr.iloc[:, 0].astype(str) + " | " + df_pmr.iloc[:, 1].astype(str)
                 ).tolist()
-                
+    
                 selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
+                # ... rest of your button logic
                 
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
