@@ -80,29 +80,31 @@ def load_sheet_data(url, sheet_name):
 try:
     SHEET_URL = st.secrets["gsheets_url"]
     
-    # Only load IN, OUT, and USER. We deleted NOM and PMR sheets!
+    # Load the standard search tabs for your IN/OUT data grids
     df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
     df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
     user_df = load_sheet_data(SHEET_URL, "USER")
     
-    # 1. Pad the raw IN sheet in case columns 14, 15, or 16 are completely blank in GSheets
-    cols_count = len(df_in_raw.columns)
+    # 1. NEW: Load the raw 'IN' sheet to get full access to Column Q (Staff Notes)
+    df_master_in = load_sheet_data(SHEET_URL, "IN")
+    
+    # Pad df_master_in just in case the final columns are completely blank in GSheets
+    cols_count = len(df_master_in.columns)
     if cols_count <= 16:
         for i in range(cols_count, 17):
-            df_in_raw[f"BlankCol_{i}"] = ""
+            df_master_in[f"BlankCol_{i}"] = ""
     
-    # 2. Extract standard IN and OUT for the main tabs
+    # Format the main dataframes (limit to 14 columns as before)
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     
-    # 3. VIRTUAL NOM: Filter IN sheet where Column 5 (Doc Type) is 'Notice of Meeting'
-    # Then extract exactly the 9 columns you want
-    nom_mask = df_in_raw.iloc[:, 5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
-    df_nom = df_in_raw[nom_mask].iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index(drop=True)
+    # 2. VIRTUAL NOM: Filter the raw 'IN' sheet (df_master_in) instead of INCOMING SEARCH
+    nom_mask = df_master_in.iloc[:, 5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
+    df_nom = df_master_in[nom_mask].iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index(drop=True)
     
-    # 4. VIRTUAL PMR: Filter IN sheet where Column 4 (Subject) contains 'PMR' or 'MOM'
-    pmr_mask = df_in_raw.iloc[:, 4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
-    df_pmr = df_in_raw[pmr_mask].iloc[:, [0, 2, 3, 4]].fillna("").reset_index(drop=True) # Date, DTRAK, Control, Subject
+    # 3. VIRTUAL PMR: Filter the raw 'IN' sheet (df_master_in)
+    pmr_mask = df_master_in.iloc[:, 4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
+    df_pmr = df_master_in[pmr_mask].iloc[:, [0, 2, 3, 4]].fillna("").reset_index(drop=True) 
 
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
