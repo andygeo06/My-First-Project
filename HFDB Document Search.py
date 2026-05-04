@@ -2,14 +2,11 @@ import streamlit as st
 import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
-import re
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# --- 1. PAGE CONFIG, THEME & SESSION STATE ---
+# --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
-
-# UPGRADE: Session State is now a dictionary for instant inline matching
-if "linked_pmrs" not in st.session_state:
-    st.session_state.linked_pmrs = {}
 
 st.markdown("""
     <style>
@@ -24,94 +21,71 @@ st.markdown("""
         margin: 5px 0 15px 0; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
     }
     html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-        color: #ffffff !important;
-        text-shadow: 0 0 5px rgba(0, 255, 204, 0.8), 0 0 10px rgba(0, 255, 204, 0.3) !important;
+        color: #ffffff !important; text-shadow: 0 0 5px rgba(0, 255, 204, 0.8), 0 0 10px rgba(0, 255, 204, 0.3) !important;
     }
     .stTextInput > div > div > input { 
-        border-radius: 10px; border: 1px solid #00ffcc !important; 
-        background-color: transparent !important; color: #ffffff !important;
-        box-shadow: 0 0 5px rgba(0, 255, 204, 0.2) !important;
+        border-radius: 10px; border: 1px solid #00ffcc !important; background-color: transparent !important; color: #ffffff !important; box-shadow: 0 0 5px rgba(0, 255, 204, 0.2) !important;
     }
-    .action-panel { 
-        padding: 20px; border-radius: 15px; border: 1px solid #00ffcc;
-        background-color: rgba(0, 255, 204, 0.03);
-    }
-    @media (max-width: 768px) {
-        .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; }
-        .stTabs [data-baseweb="tab"] p { font-size: 13px !important; }
-    }
-    @media (prefers-color-scheme: light) {
-        [data-testid="stAppViewContainer"] { background-color: #f0f2f6 !important; }
-        html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-            color: #1f2937 !important; text-shadow: 0 0 3px rgba(0, 138, 123, 0.2) !important;
-        }
-        .stTextInput > div > div > input { border: 1px solid #008a7b !important; color: #1f2937 !important; }
-    }
-    .stButton > button { 
-        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
-        color: #000000 !important; text-shadow: none !important; font-weight: bold; 
-        border-radius: 12px; height: 50px; width: 100%; border: none;
-    }
-    .mobile-hint {
-        background: #007bff; color: #ffffff !important; 
-        text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
-        padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; 
-        margin-bottom: 15px; animation: pulse 1.5s infinite; display: block; 
-    }
+    .action-panel { padding: 20px; border-radius: 15px; border: 1px solid #00ffcc; background-color: rgba(0, 255, 204, 0.03); }
+    @media (max-width: 768px) { .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; } .stTabs [data-baseweb="tab"] p { font-size: 13px !important; } }
+    .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: #000000 !important; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; }
+    .mobile-hint { background: #007bff; color: #ffffff !important; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; animation: pulse 1.5s infinite; display: block; }
     @media (min-width: 768px) { .mobile-hint { display: none !important; } }
-    @keyframes pulse {
-        0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
-        50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); }
-        100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); }
-    }
+    @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } 50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); } 100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATA LOADING & VIRTUAL FILTERING ---
-def load_sheet_data(url, sheet_name):
-    match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
-    if not match: return pd.DataFrame()
-    doc_id = match.group(1)
-    safe_name = sheet_name.replace(" ", "%20")
-    csv_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv&sheet={safe_name}"
-    try: return pd.read_csv(csv_url)
-    except: return pd.DataFrame()
+# --- 2. GSPREAD AUTHENTICATION & LOADING ---
+# We use st.cache_resource for the client so we don't authenticate on every single click
+@st.cache_resource
+def get_gspread_client():
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+    return gspread.authorize(creds)
 
 try:
-    SHEET_URL = st.secrets["gsheets_url"]
+    client = get_gspread_client()
     
-    df_in_raw = load_sheet_data(SHEET_URL, "INCOMING SEARCH")
-    df_out_raw = load_sheet_data(SHEET_URL, "OUTGOING SEARCH")
-    user_df = load_sheet_data(SHEET_URL, "USER")
+    # Replace this with the exact name of your Google Sheet document
+    SHEET_NAME = "2026 Receiving/Releasing" 
+    doc = client.open(SHEET_NAME)
     
-    # 1. Load the true MASTER IN sheet
-    df_master_in = load_sheet_data(SHEET_URL, "IN")
+    # Load Worksheets
+    ws_in = doc.worksheet("IN")
+    ws_out = doc.worksheet("OUT")
+    ws_user = doc.worksheet("USER")
     
-    # THE "GHOST COLUMN" FIX: Bruteforce pad the table to guarantee Index 16 exists
-    while len(df_master_in.columns) < 17:
-        df_master_in[f"BlankCol_{len(df_master_in.columns)}"] = ""
+    # Convert to Pandas Dataframes for the UI (gspread gets ALL columns automatically, fixing the Staff Notes issue!)
+    df_in_raw = pd.DataFrame(ws_in.get_all_records())
+    df_out_raw = pd.DataFrame(ws_out.get_all_records())
+    user_df = pd.DataFrame(ws_user.get_all_records())
     
+    # 1. Format main Search Grids
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     
-    # 2. VIRTUAL NOM
-    nom_mask = df_master_in.iloc[:, 5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
-    df_nom = df_master_in[nom_mask].iloc[:, [0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index(drop=True)
+    # 2. VIRTUAL NOM (From the raw IN sheet)
+    nom_mask = df_in_raw['DOCUMENT TYPE'].astype(str).str.contains('Notice of Meeting', case=False, na=False)
+    # We grab exactly the named columns to avoid any index shifting issues
+    nom_cols = ['DATE RECEIVED', 'DTRAK NO.', 'OFFICE CONTROL NO.', 'SUBJECT', 'ORIGINATING OFFICE', 'DIVISION/ UNIT/ COMMITTEE', 'TECHNICAL STAFF ASSIGNED', 'ADMIN NOTES', 'STAFF NOTES', 'LINKED PMR DTRAK', 'LINKED PMR SUBJECT']
     
-    # Explicitly name the columns so Streamlit knows exactly what to render
-    df_nom.columns = ["Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes"]
-    
-    # THE "INLINE MERGE": Dynamically add session data to the end of the dataframe
-    df_nom["Linked PMR DTRAK"] = df_nom["DTRAK No."].apply(lambda x: st.session_state.linked_pmrs.get(x, {}).get("dtrak", ""))
-    df_nom["Linked PMR Subject"] = df_nom["DTRAK No."].apply(lambda x: st.session_state.linked_pmrs.get(x, {}).get("subject", ""))
+    # Ensure the linked columns exist in the dataframe before slicing
+    for col in ['LINKED PMR DTRAK', 'LINKED PMR SUBJECT']:
+        if col not in df_in_raw.columns:
+            df_in_raw[col] = ""
+            
+    df_nom = df_in_raw[nom_mask][nom_cols].fillna("").reset_index()
+    # Rename for the UI display
+    df_nom_ui = df_nom.copy()
+    df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
     # 3. VIRTUAL PMR
-    pmr_mask = df_master_in.iloc[:, 4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
-    df_pmr = df_master_in[pmr_mask].iloc[:, [0, 2, 3, 4]].fillna("").reset_index(drop=True) 
+    pmr_mask = df_in_raw['SUBJECT'].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
+    df_pmr = df_in_raw[pmr_mask][['DATE RECEIVED', 'DTRAK NO.', 'OFFICE CONTROL NO.', 'SUBJECT']].fillna("").reset_index(drop=True)
     df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
 
 except Exception as e:
-    st.error(f"⚠️ Connection Error: {e}")
+    st.error(f"⚠️ API Authentication Error. Ensure GCP Service Account is set up! \n\n {e}")
     st.stop()
 
 # --- 3. SIGNAL FUNCTION ---
@@ -123,8 +97,7 @@ def send_signal(user_name, user_email, dtrak_list):
         msg['Subject'] = str(dtrak)
         msg['From'] = f"Sentinel Cloud <{bot_email}>"
         msg['To'] = bot_email
-        if user_email and str(user_email) != 'nan':
-            msg['Reply-To'] = user_email
+        if user_email and str(user_email) != 'nan': msg['Reply-To'] = user_email
         try:
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.login(bot_email, bot_pw)
@@ -137,45 +110,13 @@ col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
     st.title("HFDB Documents")
-    
     tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
-    config_in = {
-        df_in.columns[0]: st.column_config.TextColumn("Received", width="small"),
-        df_in.columns[1]: st.column_config.TextColumn("Time", width=45),
-        df_in.columns[2]: st.column_config.TextColumn("DTRAK No.", width=110),
-        df_in.columns[3]: st.column_config.TextColumn("Control No.", width=110),
-        df_in.columns[4]: st.column_config.TextColumn("Subject", width="large"),
-        df_in.columns[5]: st.column_config.TextColumn("Doc Type", width="small"),
-        df_in.columns[6]: st.column_config.TextColumn("Origin", width="small"),
-        df_in.columns[7]: st.column_config.TextColumn("Acted", width="small"),
-        df_in.columns[8]: st.column_config.TextColumn("Time", width=45),
-        df_in.columns[9]: st.column_config.TextColumn("Sent", width="small"),
-        df_in.columns[10]: st.column_config.TextColumn("Division", width="small"),
-        df_in.columns[11]: st.column_config.TextColumn("Staff", width="small"),
-        df_in.columns[12]: st.column_config.TextColumn("Tag", width="small"),
-        df_in.columns[13]: st.column_config.TextColumn("Action Taken", width="large"),
-    }
+    config_in = { df_in.columns[i]: st.column_config.TextColumn(list(["Received","Time","DTRAK No.","Control No.","Subject","Doc Type","Origin","Acted","Time","Sent","Division","Staff","Tag","Action Taken"])[i]) for i in range(14) }
+    config_out = { df_out.columns[i]: st.column_config.TextColumn(list(["Date","Time","Control No.","Subject","Former DTRAK","Current DTRAK","Doc Type","Staff","Action Taken","Date Acted","Time","Status","Admin Date","Admin Time"])[i]) for i in range(14) }
 
-    config_out = {
-        df_out.columns[0]: st.column_config.TextColumn("Date", width="small"),
-        df_out.columns[1]: st.column_config.TextColumn("Time", width=45),
-        df_out.columns[2]: st.column_config.TextColumn("Control No.", width=110),
-        df_out.columns[3]: st.column_config.TextColumn("Subject", width="large"),
-        df_out.columns[4]: st.column_config.TextColumn("Former DTRAK", width=110),
-        df_out.columns[5]: st.column_config.TextColumn("Current DTRAK", width=110),
-        df_out.columns[6]: st.column_config.TextColumn("Doc Type", width="small"),
-        df_out.columns[7]: st.column_config.TextColumn("Staff", width="small"),
-        df_out.columns[8]: st.column_config.TextColumn("Action Taken", width="large"),
-        df_out.columns[9]: st.column_config.TextColumn("Date Acted", width="small"),
-        df_out.columns[10]: st.column_config.TextColumn("Time", width=45),
-        df_out.columns[11]: st.column_config.TextColumn("Status", width="small"),
-        df_out.columns[12]: st.column_config.TextColumn("Admin Date", width="small"),
-        df_out.columns[13]: st.column_config.TextColumn("Admin Time", width=45),
-    }
-
-    # Because we explicitly named the columns, this configuration is now bulletproof
     config_nom = {
+        "Original_Row": None, # Hide the technical index
         "Date Received": st.column_config.TextColumn("Date Received", width="small"),
         "DTRAK No.": st.column_config.TextColumn("DTRAK No.", width=110),
         "Control No.": st.column_config.TextColumn("Control No.", width=110),
@@ -185,9 +126,8 @@ with col_main:
         "Staff Assigned": st.column_config.TextColumn("Staff Assigned", width="small"),
         "Admin Notes": st.column_config.TextColumn("Admin Notes", width="medium"),
         "Staff Notes": st.column_config.TextColumn("Staff Notes", width="medium"),
-        # The new inline Linked PMR columns!
-        "Linked PMR DTRAK": st.column_config.TextColumn("🔗 Linked PMR", width=110),
-        "Linked PMR Subject": st.column_config.TextColumn("🔗 PMR Subject", width="large"),
+        "🔗 Linked PMR": st.column_config.TextColumn("🔗 Linked PMR", width=110),
+        "🔗 PMR Subject": st.column_config.TextColumn("🔗 PMR Subject", width="large"),
     }
 
     with tab_in:
@@ -202,13 +142,12 @@ with col_main:
         
     with tab_nom:
         q_nom = st.text_input("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title or Date...", key="nom_search")
-        filtered_nom = df_nom[df_nom.astype(str).apply(lambda x: x.str.contains(q_nom, case=False)).any(axis=1)] if q_nom else df_nom
+        filtered_nom = df_nom_ui[df_nom_ui.astype(str).apply(lambda x: x.str.contains(q_nom, case=False)).any(axis=1)] if q_nom else df_nom_ui
         
         sub_col_nom, sub_col_link = st.columns([2.5, 1], gap="medium")
         
         with sub_col_nom:
             st.markdown("##### 📅 Meetings Log")
-            # The table now automatically includes the Linked PMR columns at the end!
             selection_nom = st.dataframe(filtered_nom, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", column_config=config_nom, key="nom_grid")
             
         with sub_col_link:
@@ -221,13 +160,13 @@ with col_main:
                 selected_idx = sel_nom_rows[0]
                 current_nom = filtered_nom.iloc[selected_idx]
                 
-                # Using our explicit names instead of blind indices
                 nom_dtrak = current_nom["DTRAK No."]
                 nom_subj = current_nom["Subject"]
+                # gspread includes the header row, so we add 2 to convert Pandas index to Google Sheet Row Number
+                actual_sheet_row = current_nom["Original_Row"] + 2 
 
                 st.info(f"**Selected NOM:**\n{nom_dtrak}\n{nom_subj}")
 
-                # Populate Dropdown using explicit column names
                 pmr_options = ["--- Select PMR to Assign ---"] + (
                     df_pmr["DTRAK"].astype(str) + " | " + df_pmr["Subject"].astype(str)
                 ).tolist()
@@ -240,11 +179,19 @@ with col_main:
                         pmr_dtrak = pmr_parts[0]
                         pmr_subj = pmr_parts[1] if len(pmr_parts) > 1 else ""
                         
-                        # Save linkage to Session State (Triggers a rerun and updates the table instantly)
-                        st.session_state.linked_pmrs[nom_dtrak] = {"dtrak": pmr_dtrak, "subject": pmr_subj}
-                        
-                        st.balloons()
-                        st.rerun() # Forces the UI to refresh immediately so the new column populates
+                        with st.spinner("Writing to Google Sheets..."):
+                            try:
+                                # We find exactly which columns in GSheets correspond to our new Linked headers
+                                # Assuming they are added at the end (e.g., Column S and T). 
+                                # Let's assume Column Q is Staff Notes, so we write to R and S
+                                ws_in.update_cell(actual_sheet_row, 18, pmr_dtrak) # Column R
+                                ws_in.update_cell(actual_sheet_row, 19, pmr_subj)  # Column S
+                                
+                                st.balloons()
+                                st.success("✅ Permanently Linked in GSheets!")
+                                st.rerun() # Refresh app to show new data
+                            except Exception as write_err:
+                                st.error(f"Write failed: {write_err}")
                     else:
                         st.warning("Please choose a valid PMR.")
             else:
@@ -252,6 +199,7 @@ with col_main:
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
+    # --- File Request Panel remains unchanged ---
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     if len(sel_in) > 0 or len(sel_out) > 0:
