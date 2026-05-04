@@ -269,7 +269,7 @@ with col_main:
                     df_pmr.iloc[:, 1].astype(str) + " | " + df_pmr.iloc[:, 3].astype(str)
                 ).tolist()
                 
-            selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
+                    selected_pmr = st.selectbox("Assign PMR:", pmr_options, label_visibility="collapsed")
                 
                 if st.button("CONFIRM LINK", key="link_btn"):
                     if selected_pmr != pmr_options[0]:
