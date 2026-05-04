@@ -50,35 +50,48 @@ try:
     SHEET_URL = "https://docs.google.com/spreadsheets/d/16EM2haAGx1dvofOTvtrw6crcv09i4ZLo-3uRlFYt3jo/edit?usp=sharing"
     doc = client.open_by_url(SHEET_URL)
     
-    # Load Worksheets
     ws_in = doc.worksheet("IN")
     ws_out = doc.worksheet("OUT")
     ws_user = doc.worksheet("USER")
     
-    # Convert to Pandas Dataframes
-    df_in_raw = pd.DataFrame(ws_in.get_all_records())
-    df_out_raw = pd.DataFrame(ws_out.get_all_records())
-    user_df = pd.DataFrame(ws_user.get_all_records())
+    # 2. PURE 2D ARRAY EXTRACTION (Bypasses merged cell confusion)
+    data_in = ws_in.get_all_values()
+    data_out = ws_out.get_all_values()
+    data_user = ws_user.get_all_values()
+    
+    # Define Row 1 as the absolute headers
+    headers_in = data_in[0]
+    headers_out = data_out[0]
+    headers_user = data_user[0]
+    
+    # Pad data rows to match header length (Stops missing column crashes)
+    pad_in = [r + [""] * (len(headers_in) - len(r)) for r in data_in[3:]]   # STARTS AT ROW 4
+    pad_out = [r + [""] * (len(headers_out) - len(r)) for r in data_out[2:]] # STARTS AT ROW 3
+    pad_user = [r + [""] * (len(headers_user) - len(r)) for r in data_user[1:]]
+    
+    # Build Dataframes using our clean slices
+    df_in_raw = pd.DataFrame(pad_in, columns=headers_in)
+    df_out_raw = pd.DataFrame(pad_out, columns=headers_out)
+    user_df = pd.DataFrame(pad_user, columns=headers_user)
     
     # --- THE GHOST HUNTER FUNCTION ---
-    # Finds columns safely, ignoring typos, spaces, or exact capitalization
     def find_col(df, keyword):
         for col in df.columns:
             if keyword.lower() in str(col).lower(): 
                 return col
-        df[keyword.upper()] = "" # Prevent crash if entirely missing
+        df[keyword.upper()] = "" 
         return keyword.upper()
 
-    # Ensure linked columns exist
+    # Ensure linked columns exist for UI
     for col in ['LINKED PMR DTRAK', 'LINKED PMR SUBJECT']:
         if col not in df_in_raw.columns:
             df_in_raw[col] = ""
 
-    # Format main Search Grids
+    # Format main Search Grids (Grabs first 14 columns)
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_out = df_out_raw.iloc[:, :14].fillna("")
     
-    # 2. VIRTUAL NOM (Using Ghost Hunter for extreme stability)
+    # 3. VIRTUAL NOM (Using Ghost Hunter)
     doc_type_col = find_col(df_in_raw, "document type")
     nom_mask = df_in_raw[doc_type_col].astype(str).str.contains('Notice of Meeting', case=False, na=False)
     
@@ -97,12 +110,10 @@ try:
     ]
             
     df_nom = df_in_raw[nom_mask][nom_cols].fillna("").reset_index()
-    
-    # Rename for the UI display
     df_nom_ui = df_nom.copy()
     df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
-    # 3. VIRTUAL PMR
+    # 4. VIRTUAL PMR
     subj_col = find_col(df_in_raw, "subject")
     pmr_mask = df_in_raw[subj_col].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
     
@@ -193,8 +204,8 @@ with col_main:
                 
                 nom_dtrak = current_nom["DTRAK No."]
                 nom_subj = current_nom["Subject"]
-                # gspread includes the header row, so we add 2 to convert Pandas index to Google Sheet Row Number
-                actual_sheet_row = current_nom["Original_Row"] + 2 
+                # We add 4 because our Pandas Index 0 now represents Row 4 in Google Sheets
+                actual_sheet_row = int(current_nom["Original_Row"]) + 4 
 
                 st.info(f"**Selected NOM:**\n{nom_dtrak}\n{nom_subj}")
 
@@ -212,15 +223,21 @@ with col_main:
                         
                         with st.spinner("Writing to Google Sheets..."):
                             try:
-                                # We find exactly which columns in GSheets correspond to our new Linked headers
-                                # Assuming they are added at the end (e.g., Column S and T). 
-                                # Let's assume Column Q is Staff Notes, so we write to R and S
-                                ws_in.update_cell(actual_sheet_row, 18, pmr_dtrak) # Column R
-                                ws_in.update_cell(actual_sheet_row, 19, pmr_subj)  # Column S
+                                # Dynamically calculates exactly which columns to write to!
+                                try:
+                                    write_col_dtrak = headers_in.index('LINKED PMR DTRAK') + 1
+                                    write_col_subj = headers_in.index('LINKED PMR SUBJECT') + 1
+                                except ValueError:
+                                    # If you haven't typed these headers in GSheets yet, it adds them to the end automatically
+                                    write_col_dtrak = len(headers_in) + 1
+                                    write_col_subj = len(headers_in) + 2
+                                    
+                                ws_in.update_cell(actual_sheet_row, write_col_dtrak, pmr_dtrak)
+                                ws_in.update_cell(actual_sheet_row, write_col_subj, pmr_subj)
                                 
                                 st.balloons()
                                 st.success("✅ Permanently Linked in GSheets!")
-                                st.rerun() # Refresh app to show new data
+                                st.rerun() 
                             except Exception as write_err:
                                 st.error(f"Write failed: {write_err}")
                     else:
