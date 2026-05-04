@@ -197,14 +197,14 @@ with col_main:
                         
                         with st.spinner("Saving to Link Database..."):
                             try:
-                                # We try to find if this NOM already has a link in the DB
+                                # We search for the NOM_DTRAK in Column 1
                                 try:
-                                    cell = ws_link.find(nom_dtrak, in_column=1)
-                                    # If found, update the existing row
+                                    cell = ws_link.find(nom_dtrak)
+                                    # If found, update the row
                                     ws_link.update_cell(cell.row, 2, pmr_dtrak)
                                     ws_link.update_cell(cell.row, 3, pmr_subj)
-                                except gspread.CellNotFound:
-                                    # If not found, add a brand new row to the bottom
+                                except:
+                                    # If not found (any error), we append a new row
                                     ws_link.append_row([nom_dtrak, pmr_dtrak, pmr_subj])
                                 
                                 st.balloons()
