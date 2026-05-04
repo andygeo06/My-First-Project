@@ -46,9 +46,8 @@ def get_gspread_client():
 try:
     client = get_gspread_client()
     
-    # Replace this with the exact name of your Google Sheet document
-    SHEET_NAME = "2026 Receiving/Releasing" 
-    doc = client.open(SHEET_NAME)
+    SHEET_URL = st.secrets["https://docs.google.com/spreadsheets/d/16EM2haAGx1dvofOTvtrw6crcv09i4ZLo-3uRlFYt3jo/edit?usp=sharing"]
+    doc = client.open_by_url(SHEET_URL)
     
     # Load Worksheets
     ws_in = doc.worksheet("IN")
