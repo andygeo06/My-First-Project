@@ -10,28 +10,57 @@ st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
+    /* Hide default Streamlit headers and footers for a clean app feel */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
     .block-container { padding-top: 2rem !important; margin-top: -3.8rem !important; padding-bottom: 8rem !important; }
     [data-testid="stVerticalBlock"] > div:first-child { margin-top: 0px !important; padding-top: 0px !important; }
     
-    .sentinel-line {
-        border: 0; height: 1px;
-        background: linear-gradient(to right, rgba(0, 255, 204, 0), rgba(0, 255, 204, 0.8), rgba(0, 255, 204, 0));
-        margin: 5px 0 15px 0; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
-    }
-    html, body, [class*="st-"], .stMarkdown, h1, h2, h3, p, label {
-        color: #ffffff !important; text-shadow: 0 0 5px rgba(0, 255, 204, 0.8), 0 0 10px rgba(0, 255, 204, 0.3) !important;
-    }
+    /* Search Bar Styling - Adaptive borders with no forced text color */
     .stTextInput > div > div > input { 
-        border-radius: 10px; border: 1px solid #00ffcc !important; background-color: transparent !important; color: #ffffff !important; box-shadow: 0 0 5px rgba(0, 255, 204, 0.2) !important;
+        border-radius: 10px; 
+        border: 2px solid rgba(0, 150, 255, 0.4) !important; 
+        background-color: transparent !important; 
+        box-shadow: 0 0 8px rgba(0, 150, 255, 0.1) !important;
     }
-    .action-panel { padding: 20px; border-radius: 15px; border: 1px solid #00ffcc; background-color: rgba(0, 255, 204, 0.03); }
-    @media (max-width: 768px) { .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; } .stTabs [data-baseweb="tab"] p { font-size: 13px !important; } }
-    .stButton > button { background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: #000000 !important; font-weight: bold; border-radius: 12px; height: 50px; width: 100%; border: none; }
-    .mobile-hint { background: #007bff; color: #ffffff !important; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; animation: pulse 1.5s infinite; display: block; }
+    
+    /* Action Panel - Uses semi-transparent colors so it looks soft in light mode and sleek in dark mode */
+    .action-panel { 
+        padding: 20px; 
+        border-radius: 15px; 
+        border: 1px solid rgba(0, 150, 255, 0.3); 
+        background-color: rgba(0, 150, 255, 0.05); 
+    }
+    
+    /* Responsive Tabs for Mobile */
+    @media (max-width: 768px) { 
+        .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; } 
+        .stTabs [data-baseweb="tab"] p { font-size: 13px !important; } 
+    }
+    
+    /* Global Primary Button Gradient - White text always looks good on this blue gradient */
+    .stButton > button { 
+        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
+        color: #ffffff !important; 
+        font-weight: bold; 
+        border-radius: 12px; 
+        height: 50px; 
+        width: 100%; 
+        border: none; 
+    }
+    
+    /* Mobile Hint Animation */
+    .mobile-hint { 
+        background: #007bff; color: #ffffff !important; padding: 10px; 
+        border-radius: 10px; text-align: center; font-weight: bold; 
+        margin-bottom: 15px; animation: pulse 1.5s infinite; display: block; 
+    }
     @media (min-width: 768px) { .mobile-hint { display: none !important; } }
-    @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } 50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); } 100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } }
+    @keyframes pulse { 
+        0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } 
+        50% { transform: scale(0.98); box-shadow: 0 0 15px rgba(0, 123, 255, 0.7); } 
+        100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 123, 255, 0.4); } 
+    }
     </style>
 """, unsafe_allow_html=True)
 
