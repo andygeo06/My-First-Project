@@ -13,7 +13,13 @@ from email.mime.multipart import MIMEMultipart
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
 st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="expanded")
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1YSiRzktbwF6Ptwq98xzFkmbY4x61zbz5uD80mTubaqM/edit?usp=sharing"
+
+# Fetch Sheet URL securely from secrets
+SHEET_URL = st.secrets.get("HFDB_SHEET_URL", "")
+if not SHEET_URL:
+    st.error("⚠️ Database connection missing. Please configure HFDB_SHEET_URL in secrets.")
+    st.stop()
+
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- 2. PREMIUM COMPACT CSS ENGINE (SILVER BULLET) ---
@@ -155,7 +161,11 @@ def render_upload_section(module_name):
     st.divider()
     st.markdown("### 📤 FINAL STEP: Upload Signed PDF Submission")
     st.info("Please print the documents, secure the required signatures, and upload the scanned PDF.")
-    st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", "https://drive.google.com/drive/folders/15_dWyeXPxKXfGXekKgiLOaJ-9rIwthti?usp=drive_link")
+    
+    # Fetch Drive Link securely from secrets (defaults to '#' if not set)
+    drive_link = st.secrets.get("HFDB_DRIVE_FOLDER", "#")
+    st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", drive_link)
+    
     pdf_link = st.text_input("Paste Google Drive File Link Here:", placeholder="https://drive.google.com/file/d/...")
     if st.button("💾 Save Drive Link", type="secondary", key=f"btn_save_link_{module_name}"):
         if pdf_link:
@@ -484,7 +494,7 @@ def module_census_data():
     final_data = {
         "LV_26": lv_26, "RM_LV26": rm_lv26, "LV_27": lv_27, "RM_LV27": rm_lv27,
         "ABC_25": res_beds["ABC_25"], "RM_ABC_25": res_beds["RM_ABC_25"], "ABC_26": res_beds["ABC_26"], "RM_ABC_26": res_beds["RM_ABC_26"],
-        "LAW_25": res_beds["LAW_25"], "RM_LAW_25": res_beds["RM_LAW_25"], "LAW_26": res_beds["LAW_26"], "RM_LAW_26": res_beds["RM_LAW_26"],
+        "LAW_25": res_beds["LAW_25"], "RM_LAW_25": res_beds["RM_LAW_25"], "LAW_26": res_beds["LAW_26"], "RM_LAW_26": res_beds["LAW_26"],
         "ABC_27": abc_27, "RM_ABC27": rm_abc27, "IBC_25": ibc_25, "RM_IBC25": rm_ibc25,
         "APEX": apex, "RM_APEX": rm_apex, "HCPN_COUNT": hcpn_count, "RM_HCPN": rm_hcpn,
         "BUCAS": bucas, "RM_BUCAS": rm_bucas, "COORDS": coords, "RM_COORDS": rm_coords,
