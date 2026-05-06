@@ -74,7 +74,7 @@ def get_gspread_client():
 
 try:
     client = get_gspread_client()
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/16EM2haAGx1dvofOTvtrw6crcv09i4ZLo-3uRlFYt3jo/edit?usp=sharing"
+    SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
     
     ws_in = doc.worksheet("IN")
