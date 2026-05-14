@@ -4,6 +4,7 @@ import smtplib
 from email.mime.text import MIMEText
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import re
 
 # --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
@@ -17,7 +18,7 @@ st.markdown("""
     [data-testid="stVerticalBlock"] > div:first-child { margin-top: 0px !important; padding-top: 0px !important; }
     
     /* Search Bar Styling - Adaptive borders with no forced text color */
-    .stTextInput > div > div > input { 
+    .stTextArea > div > div > textarea { 
         border-radius: 10px; 
         border: 2px solid rgba(0, 150, 255, 0.4) !important; 
         background-color: transparent !important; 
@@ -65,7 +66,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GSPREAD AUTHENTICATION & LOADING ---
-# We use st.cache_resource for the client so we don't authenticate on every single click
 @st.cache_resource
 def get_gspread_client():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -81,7 +81,6 @@ try:
     ws_out = doc.worksheet("OUT")
     ws_user = doc.worksheet("USER")
     
-    # NEW: Connect to the Bot's Database Tab
     ws_link = doc.worksheet("LINK_DB")
     
     data_in = ws_in.get_all_values()
@@ -89,7 +88,6 @@ try:
     data_user = ws_user.get_all_values()
     data_link = ws_link.get_all_values()
     
-    # FORCE GRID WIDTH for Main Sheets
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
@@ -99,32 +97,26 @@ try:
     df_out_raw = pd.DataFrame(pad_out)
     user_df = pd.DataFrame(pad_user)
     
-    # Format main Search Grids
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_in.columns = [str(i) for i in range(14)]
     df_out = df_out_raw.iloc[:, :14].fillna("")
     df_out.columns = [str(i) for i in range(14)]
     
-    # --- BUILD THE LINK DICTIONARY ---
-    # This reads your LINK_DB and creates a super-fast memory map
     link_dict = {}
     if len(data_link) > 1:
         for row in data_link[1:]:
             if len(row) >= 3:
                 link_dict[row[0]] = {"dtrak": row[1], "subject": row[2]}
 
-    # 3. VIRTUAL NOM
     nom_mask = df_in_raw[5].astype(str).str.contains('Notice of Meeting', case=False, na=False)
     df_nom = df_in_raw[nom_mask][[0, 2, 3, 4, 6, 10, 11, 13, 16]].fillna("").reset_index()
     
-    # NEW: Map the database links directly to the DTRAK column (Index 2 is DTRAK NO.)
     df_nom["Linked PMR DTRAK"] = df_nom[2].astype(str).apply(lambda x: link_dict.get(x, {}).get("dtrak", ""))
     df_nom["Linked PMR Subject"] = df_nom[2].astype(str).apply(lambda x: link_dict.get(x, {}).get("subject", ""))
     
     df_nom_ui = df_nom.copy()
     df_nom_ui.columns = ["Original_Row", "Date Received", "DTRAK No.", "Control No.", "Subject", "Origin", "Division", "Staff Assigned", "Admin Notes", "Staff Notes", "🔗 Linked PMR", "🔗 PMR Subject"]
     
-    # 4. VIRTUAL PMR
     pmr_mask = df_in_raw[4].astype(str).str.contains('PMR|MOM', case=False, regex=True, na=False)
     df_pmr = df_in_raw[pmr_mask][[0, 2, 3, 4]].fillna("").reset_index(drop=True)
     df_pmr.columns = ["Date", "DTRAK", "Control", "Subject"]
@@ -150,6 +142,20 @@ def send_signal(user_name, user_email, dtrak_list):
         except: return False
     return True
 
+# --- NEW: MASS SEARCH HELPER FUNCTION ---
+def mass_search_filter(df, query):
+    if not query:
+        return df
+        
+    search_terms = [term.strip() for term in re.split(r'[\n\t,]+', query) if term.strip()]
+    
+    if not search_terms:
+        return df
+        
+    pattern = '|'.join([re.escape(term) for term in search_terms])
+    
+    return df[df.astype(str).apply(lambda x: x.str.contains(pattern, case=False, regex=True)).any(axis=1)]
+
 # --- 4. THE UI LAYOUT ---
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
@@ -161,7 +167,7 @@ with col_main:
     config_out = { df_out.columns[i]: st.column_config.TextColumn(list(["Date","Time","Control No.","Subject","Former DTRAK","Current DTRAK","Doc Type","Staff","Action Taken","Date Acted","Time","Status","Admin Date","Admin Time"])[i]) for i in range(14) }
 
     config_nom = {
-        "Original_Row": None, # Hide the technical index
+        "Original_Row": None, 
         "Date Received": st.column_config.TextColumn("Date Received", width="small"),
         "DTRAK No.": st.column_config.TextColumn("DTRAK No.", width=110),
         "Control No.": st.column_config.TextColumn("Control No.", width=110),
@@ -176,18 +182,18 @@ with col_main:
     }
 
     with tab_in:
-        q_in = st.text_input("Search Incoming Documents", placeholder="🔍 Search...", key="in_search")
-        filtered_in = df_in[df_in.astype(str).apply(lambda x: x.str.contains(q_in, case=False)).any(axis=1)] if q_in else df_in
+        q_in = st.text_area("Search Incoming Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="in_search", height=68)
+        filtered_in = mass_search_filter(df_in, q_in)
         selection_in = st.dataframe(filtered_in, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid")
 
     with tab_out:
-        q_out = st.text_input("Search Outgoing Documents", placeholder="🔍 Search...", key="out_search")
-        filtered_out = df_out[df_out.astype(str).apply(lambda x: x.str.contains(q_out, case=False)).any(axis=1)] if q_out else df_out
+        q_out = st.text_area("Search Outgoing Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="out_search", height=68)
+        filtered_out = mass_search_filter(df_out, q_out)
         selection_out = st.dataframe(filtered_out, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid")
         
     with tab_nom:
-        q_nom = st.text_input("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title or Date...", key="nom_search")
-        filtered_nom = df_nom_ui[df_nom_ui.astype(str).apply(lambda x: x.str.contains(q_nom, case=False)).any(axis=1)] if q_nom else df_nom_ui
+        q_nom = st.text_area("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title, Date, or Paste multiple Codes...", key="nom_search", height=68)
+        filtered_nom = mass_search_filter(df_nom_ui, q_nom)
         
         sub_col_nom, sub_col_link = st.columns([2.5, 1], gap="medium")
         
@@ -207,7 +213,6 @@ with col_main:
                 
                 nom_dtrak = current_nom["DTRAK No."]
                 nom_subj = current_nom["Subject"]
-                # We add 4 because our Pandas Index 0 now represents Row 4 in Google Sheets
                 actual_sheet_row = int(current_nom["Original_Row"]) + 4 
 
                 st.info(f"**Selected NOM:**\n{nom_dtrak}\n{nom_subj}")
@@ -226,14 +231,11 @@ with col_main:
                         
                         with st.spinner("Saving to Link Database..."):
                             try:
-                                # We search for the NOM_DTRAK in Column 1
                                 try:
                                     cell = ws_link.find(nom_dtrak)
-                                    # If found, update the row
                                     ws_link.update_cell(cell.row, 2, pmr_dtrak)
                                     ws_link.update_cell(cell.row, 3, pmr_subj)
                                 except:
-                                    # If not found (any error), we append a new row
                                     ws_link.append_row([nom_dtrak, pmr_dtrak, pmr_subj])
                                 
                                 st.balloons()
@@ -248,7 +250,6 @@ with col_main:
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
-    # --- File Request Panel remains unchanged ---
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     if len(sel_in) > 0 or len(sel_out) > 0:
