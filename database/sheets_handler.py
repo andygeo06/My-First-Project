@@ -135,43 +135,36 @@ def process_registration_or_recovery(name_of_staff):
 # -----------------------------------------------------------------------------
 # CONFERENCE ROOM MODULE BACKEND OPERATIONS
 # -----------------------------------------------------------------------------
-@st.cache_data(ttl="1m") # Short cache for fluid schedule viewing
+@st.cache_data(ttl="1m")
 def get_conference_data():
     """Fetches the CONFERENCE ROOM sheet data and standardizes headers."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl="1m")
-        expected = ["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
-        if df.empty:
-            return pd.DataFrame(columns=expected)
-        # Pad columns if needed
+        expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
+        if df.empty: return pd.DataFrame(columns=expected)
+        
+        # Pad columns dynamically to 7
         if len(df.columns) < len(expected):
-            for i in range(len(df.columns), len(expected)):
-                df[f"col_{i}"] = ""
-        df = df.iloc[:, :6]
+            for i in range(len(df.columns), len(expected)): df[f"col_{i}"] = ""
+        df = df.iloc[:, :7]
         df.columns = expected
         return df
     except Exception:
-        # Fallback to blank structural framework if worksheet is fresh/empty
-        return pd.DataFrame(columns=["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"])
+        return pd.DataFrame(columns=["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"])
 
-def add_conference_booking(date, activity, time_slot, requested_by, division):
+def add_conference_booking(date, room, activity, time_slot, requested_by, division):
     """Inserts a temporary 'Pending' booking row into the sheet."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
-        expected = ["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
-        if not df.empty:
-            df.columns = expected[:len(df.columns)]
+        expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
+        if not df.empty: df.columns = expected[:len(df.columns)]
         
-        # Build new structural row
         new_row = pd.DataFrame([{
-            "Date": str(date),
-            "Activity Name": str(activity),
-            "Time Slot": str(time_slot),
-            "Requested By": str(requested_by),
-            "Division": str(division),
-            "Status": "Pending" # Forced temporary status on entry
+            "Date": str(date), "Room": str(room), "Activity Name": str(activity),
+            "Time Slot": str(time_slot), "Requested By": str(requested_by),
+            "Division": str(division), "Status": "Pending"
         }])
         
         df = pd.concat([df, new_row], ignore_index=True)
@@ -187,8 +180,7 @@ def confirm_conference_booking(row_index):
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
-        # Flip target cell flag safely by row location index
-        df.iloc[row_index, 5] = "Confirmed"
+        df.iloc[row_index, 6] = "Confirmed" # Status is now at index 6 (Col G)
         conn.update(worksheet="CONFERENCE ROOM", data=df)
         st.cache_data.clear()
         return True
