@@ -137,14 +137,14 @@ def process_registration_or_recovery(name_of_staff):
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl="1m")
 def get_conference_data():
-    """Fetches the CONFERENCE ROOM sheet data and standardizes headers."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl="1m")
+        # Clean out completely empty Google Sheet rows
+        df = df.dropna(how="all")
         expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
         if df.empty: return pd.DataFrame(columns=expected)
         
-        # Pad columns dynamically to 7
         if len(df.columns) < len(expected):
             for i in range(len(df.columns), len(expected)): df[f"col_{i}"] = ""
         df = df.iloc[:, :7]
@@ -154,10 +154,10 @@ def get_conference_data():
         return pd.DataFrame(columns=["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"])
 
 def add_conference_booking(date, room, activity, time_slot, requested_by, division):
-    """Inserts a temporary 'Pending' booking row into the sheet."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
+        df = df.dropna(how="all") # Prevent appending below 1000 empty rows
         expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
         if not df.empty: df.columns = expected[:len(df.columns)]
         
@@ -175,15 +175,27 @@ def add_conference_booking(date, room, activity, time_slot, requested_by, divisi
         st.error(f"Booking registration error: {e}")
         return False
 
-def confirm_conference_booking(row_index):
-    """Promotes a temporary reservation row to 'Confirmed' state."""
+def confirm_conference_booking(activity_name, date_str):
+    """Promotes reservation by exact Value Match instead of Row Index."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
-        df.iloc[row_index, 6] = "Confirmed" # Status is now at index 6 (Col G)
-        conn.update(worksheet="CONFERENCE ROOM", data=df)
-        st.cache_data.clear()
-        return True
+        
+        # Ensure we have at least 7 columns to prevent out-of-bounds errors
+        if len(df.columns) < 7:
+            for i in range(len(df.columns), 7): df[f"col_{i}"] = ""
+            
+        # Find the specific row by matching the Activity Name and Date
+        mask = (df.iloc[:, 2].astype(str).str.strip() == str(activity_name).strip()) & \
+               (df.iloc[:, 0].astype(str).str.strip() == str(date_str).strip())
+        
+        if mask.any():
+            match_idx = df[mask].index[0] # Get the true Google Sheets row number
+            df.iloc[match_idx, 6] = "Confirmed" # Column 7 (Index 6) is Status
+            conn.update(worksheet="CONFERENCE ROOM", data=df)
+            st.cache_data.clear()
+            return True
+        return False
     except Exception as e:
         st.error(f"Approval transmission error: {e}")
         return False
