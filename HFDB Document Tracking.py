@@ -21,8 +21,8 @@ st.markdown("""
         
         /* Force the sidebar to be significantly narrower (~250px) */
         section[data-testid="stSidebar"] {
-            min-width: 250px !important;
-            max-width: 250px !important;
+            min-width: 200px !important;
+            max-width: 200px !important;
         }
         /* Transparent backgrounds ensure native Light/Dark theme compatibility */
     </style>
