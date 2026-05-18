@@ -231,7 +231,6 @@ def render_dashboard():
         a1_note, master_df = sheets_handler.get_incoming_data()
         doc_types, doc_tags = sheets_handler.get_dropdown_lists()
         
-        # Extract STAFF lists for Column K and L mapping
         staff_df = sheets_handler.get_staff_data()
         divisions_list = staff_df["Division"].dropna().unique().tolist()
         staff_list = staff_df["Name of Staff"].dropna().unique().tolist()
@@ -243,6 +242,15 @@ def render_dashboard():
             # 2. Extract Columns based on the A-X layout structure
             edit_cols = master_df.columns[:17].tolist()
             form_cols = master_df.columns[17:].tolist()
+            
+            # Identify columns by their exact Google Sheet Letter Indices
+            # A=0, C=2, D=3, E=4, F=5, G=6, M=12, O=14, P=15, Q=16
+            visible_indices = [0, 2, 3, 4, 5, 6, 12, 14, 15, 16]
+            allowed_edit_indices = [14, 15, 16] # O, P, Q
+            
+            # Map indices safely to actual column names
+            visible_cols = [master_df.columns[i] for i in visible_indices if i < len(master_df.columns)]
+            allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices if i < len(master_df.columns)]
             
             # 3. RBAC Filtering & Permission Setting
             if role in ["Super Admin", "Admin"]:
@@ -256,28 +264,25 @@ def render_dashboard():
                 div_col_name = master_df.columns[10]
                 view_df = master_df[master_df[div_col_name].astype(str).str.strip() == user['division'].strip()].copy()
                 
-                allowed_edit_indices = [11, 12, 14, 15, 16]
-                allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices if i < len(master_df.columns)]
-                
-                disabled_cols = [c for c in edit_cols if c not in allowed_edit_names]
-                view_df = view_df[edit_cols] 
+                # Slice view to ONLY the specifically requested columns
+                view_df = view_df[visible_cols]
+                disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
                 
             else: # Staff
                 st.info(f"🔒 Staff Access: Read/Write filtered for **{user['name']}**")
                 staff_col_name = master_df.columns[11]
                 view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['name'].strip()].copy()
                 
-                allowed_edit_indices = [14, 15, 16]
-                allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices if i < len(master_df.columns)]
-                
-                disabled_cols = [c for c in edit_cols if c not in allowed_edit_names]
-                view_df = view_df[edit_cols]
+                # Slice view to ONLY the specifically requested columns
+                view_df = view_df[visible_cols]
+                disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
 
-            # 4. FIX: Safely convert date strings to actual Datetime objects so Streamlit DateColumn doesn't crash
-            date_col_indices = [0, 7, 9, 14]
-            for i in date_col_indices:
-                if i < len(view_df.columns):
-                    col = view_df.columns[i]
+            # 4. Safely convert date strings to actual Datetime objects
+            # Date columns: A(0), H(7), J(9), O(14)
+            date_col_names = [master_df.columns[i] for i in [0, 7, 9, 14] if i < len(master_df.columns)]
+            
+            for col in date_col_names:
+                if col in view_df.columns:
                     view_df[col] = pd.to_datetime(view_df[col], errors='coerce')
 
             # 5. Configure Column Types
@@ -308,14 +313,13 @@ def render_dashboard():
             # 7. Recombine and Save Logic
             if st.button("💾 Sync Updates to Master Sheet", type="primary"):
                 with st.spinner("Stitching data and syncing to Google Workspace..."):
-                    # FIX: Convert Datetimes back to clean strings ("YYYY-MM-DD" or "") to save cleanly to Google Sheets
-                    for i in date_col_indices:
-                        if i < len(edited_view.columns):
-                            col = edited_view.columns[i]
+                    # Convert Datetimes back to clean strings ("YYYY-MM-DD" or "")
+                    for col in date_col_names:
+                        if col in edited_view.columns:
                             edited_view[col] = pd.to_datetime(edited_view[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna("")
                     
                     master_df.update(edited_view)
-                    master_df = master_df.fillna("") # Catch any stray blanks to prevent API issues
+                    master_df = master_df.fillna("") 
                     
                     if sheets_handler.update_incoming_data(master_df):
                         st.success("INCOMING Tracker successfully updated!")
