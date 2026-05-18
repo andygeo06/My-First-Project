@@ -131,3 +131,67 @@ def process_registration_or_recovery(name_of_staff):
         return "CREATED", new_code
     except Exception as e:
         return "WRITE_FAIL", str(e)
+
+# -----------------------------------------------------------------------------
+# CONFERENCE ROOM MODULE BACKEND OPERATIONS
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl="1m") # Short cache for fluid schedule viewing
+def get_conference_data():
+    """Fetches the CONFERENCE ROOM sheet data and standardizes headers."""
+    conn = get_connection()
+    try:
+        df = conn.read(worksheet="CONFERENCE ROOM", ttl="1m")
+        expected = ["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
+        if df.empty:
+            return pd.DataFrame(columns=expected)
+        # Pad columns if needed
+        if len(df.columns) < len(expected):
+            for i in range(len(df.columns), len(expected)):
+                df[f"col_{i}"] = ""
+        df = df.iloc[:, :6]
+        df.columns = expected
+        return df
+    except Exception:
+        # Fallback to blank structural framework if worksheet is fresh/empty
+        return pd.DataFrame(columns=["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"])
+
+def add_conference_booking(date, activity, time_slot, requested_by, division):
+    """Inserts a temporary 'Pending' booking row into the sheet."""
+    conn = get_connection()
+    try:
+        df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
+        expected = ["Date", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
+        if not df.empty:
+            df.columns = expected[:len(df.columns)]
+        
+        # Build new structural row
+        new_row = pd.DataFrame([{
+            "Date": str(date),
+            "Activity Name": str(activity),
+            "Time Slot": str(time_slot),
+            "Requested By": str(requested_by),
+            "Division": str(division),
+            "Status": "Pending" # Forced temporary status on entry
+        }])
+        
+        df = pd.concat([df, new_row], ignore_index=True)
+        conn.update(worksheet="CONFERENCE ROOM", data=df)
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Booking registration error: {e}")
+        return False
+
+def confirm_conference_booking(row_index):
+    """Promotes a temporary reservation row to 'Confirmed' state."""
+    conn = get_connection()
+    try:
+        df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
+        # Flip target cell flag safely by row location index
+        df.iloc[row_index, 5] = "Confirmed"
+        conn.update(worksheet="CONFERENCE ROOM", data=df)
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Approval transmission error: {e}")
+        return False
