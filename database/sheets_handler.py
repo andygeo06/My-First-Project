@@ -29,7 +29,6 @@ def sanitize_and_pad_dataframe(df):
 # AUTOMATED EMAIL ENGINE
 # -----------------------------------------------------------------------------
 def send_credential_email(to_email, staff_name, code, is_recovery=False):
-    """Sends account codes via secure SMTP email connection."""
     try:
         smtp_server = st.secrets["email"]["smtp_server"]
         port = int(st.secrets["email"]["port"])
@@ -74,7 +73,6 @@ def get_staff_data():
         return pd.DataFrame(columns=["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"])
 
 def get_all_staff_names():
-    """Returns a clean list of all staff names for the lookup menu."""
     df = get_staff_data()
     return df["Name of Staff"].tolist()
 
@@ -96,15 +94,12 @@ def authenticate_user(login_code):
     return None
 
 def process_registration_or_recovery(name_of_staff):
-    """Intercepts request to determine if user needs a new code or a recovery email."""
     conn = get_connection()
     df = conn.read(worksheet="STAFF", ttl=0)
     df = sanitize_and_pad_dataframe(df)
     
-    # Locate targeted row
     row_match = df[df["Name of Staff"] == name_of_staff]
-    if row_match.empty:
-        return "ERROR", "Staff member not found in baseline registry."
+    if row_match.empty: return "ERROR", "Staff member not found in baseline registry."
         
     user_row = row_match.iloc[0]
     existing_code = str(user_row["Code"]).strip()
@@ -113,14 +108,11 @@ def process_registration_or_recovery(name_of_staff):
     if not email_target or pd.isna(email_target) or str(email_target).lower() == "nan":
         return "NO_EMAIL", f"No valid email found on sheet for {name_of_staff}. Contact your Admin."
 
-    # CASE A: USER ALREADY HAS A VALID CODE -> TRIGGER RECOVERY EMAIL ONLY
     if existing_code and existing_code != "nan" and existing_code != "":
         email_success = send_credential_email(email_target, name_of_staff, existing_code, is_recovery=True)
-        if email_success:
-            return "RECOVERED", email_target
+        if email_success: return "RECOVERED", email_target
         return "EMAIL_FAIL", "Database found your code, but SMTP server failed to send email."
         
-    # CASE B: BRAND NEW USER -> GENERATE, SAVE, AND EMAIL
     new_code = f"HFDB-{''.join(random.choices(string.ascii_letters + string.digits, k=12))}"
     df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
     
@@ -140,7 +132,6 @@ def get_conference_data():
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl="1m")
-        # Clean out completely empty Google Sheet rows
         df = df.dropna(how="all")
         expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
         if df.empty: return pd.DataFrame(columns=expected)
@@ -157,7 +148,7 @@ def add_conference_booking(date, room, activity, time_slot, requested_by, divisi
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
-        df = df.dropna(how="all") # Prevent appending below 1000 empty rows
+        df = df.dropna(how="all") 
         expected = ["Date", "Room", "Activity Name", "Time Slot", "Requested By", "Division", "Status"]
         if not df.empty: df.columns = expected[:len(df.columns)]
         
@@ -176,26 +167,49 @@ def add_conference_booking(date, room, activity, time_slot, requested_by, divisi
         return False
 
 def confirm_conference_booking(activity_name, date_str):
-    """Promotes reservation by exact Value Match instead of Row Index."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="CONFERENCE ROOM", ttl=0)
-        
-        # Ensure we have at least 7 columns to prevent out-of-bounds errors
         if len(df.columns) < 7:
             for i in range(len(df.columns), 7): df[f"col_{i}"] = ""
             
-        # Find the specific row by matching the Activity Name and Date
         mask = (df.iloc[:, 2].astype(str).str.strip() == str(activity_name).strip()) & \
                (df.iloc[:, 0].astype(str).str.strip() == str(date_str).strip())
         
         if mask.any():
-            match_idx = df[mask].index[0] # Get the true Google Sheets row number
-            df.iloc[match_idx, 6] = "Confirmed" # Column 7 (Index 6) is Status
+            match_idx = df[mask].index[0] 
+            df.iloc[match_idx, 6] = "Confirmed"
             conn.update(worksheet="CONFERENCE ROOM", data=df)
             st.cache_data.clear()
             return True
         return False
     except Exception as e:
         st.error(f"Approval transmission error: {e}")
+        return False
+
+# -----------------------------------------------------------------------------
+# GENERIC EDITOR OPERATIONS (Staff, Holidays, DD)
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl="2m")
+def get_generic_sheet(sheet_name):
+    """Fetches any given worksheet and cleans empty rows."""
+    conn = get_connection()
+    try:
+        df = conn.read(worksheet=sheet_name, ttl="2m")
+        df = df.dropna(how="all") # Drop completely empty rows
+        df = df.fillna("")        # Replace NaN with empty strings for clean UI editing
+        return df
+    except Exception as e:
+        st.error(f"Failed to load generic worksheet '{sheet_name}': {e}")
+        return pd.DataFrame()
+
+def update_generic_sheet(sheet_name, dataframe):
+    """Pushes a modified DataFrame back to its respective Google Sheet."""
+    conn = get_connection()
+    try:
+        conn.update(worksheet=sheet_name, data=dataframe)
+        st.cache_data.clear() # Obliterate cache so all users see changes instantly
+        return True
+    except Exception as e:
+        st.error(f"Failed to save changes to '{sheet_name}': {e}")
         return False
