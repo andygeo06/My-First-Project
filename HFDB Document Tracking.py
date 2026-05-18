@@ -5,10 +5,19 @@ from datetime import datetime, timedelta, time
 
 st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
+# Custom CSS for an ultra-wide data layout
 st.markdown("""
     <style>
-        .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; padding-left: 3rem !important; padding-right: 3rem !important; max-width: 1250px !important; margin: 0 auto !important; }
-        [data-testid="stVerticalBlock"] { gap: 1rem !important; }
+        /* Unleash the full screen width, leaving only a tiny 1rem edge buffer */
+        .block-container { 
+            padding-top: 1.5rem !important; 
+            padding-bottom: 2rem !important; 
+            padding-left: 1rem !important; 
+            padding-right: 1rem !important; 
+            max-width: 100% !important; 
+        }
+        /* Tighten vertical spacing between elements */
+        [data-testid="stVerticalBlock"] { gap: 0.75rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
