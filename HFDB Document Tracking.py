@@ -1,95 +1,154 @@
 import streamlit as st
-import pandas as pd
-import random
-import string
-from streamlit_gsheets import GSheetsConnection
+from database import sheets_handler
+
+# Page config set to wide, but custom CSS below will tame the width
+st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
 # -----------------------------------------------------------------------------
-# CORE CONNECTION
+# CUSTOM CSS: REDUCE MARGINS & TIGHTEN LOOK
 # -----------------------------------------------------------------------------
-def get_connection():
-    """Initializes and returns the Google Sheets connection."""
-    return st.connection("gsheets", type=GSheetsConnection)
-
-# -----------------------------------------------------------------------------
-# READ OPERATIONS (Cached to save API tokens)
-# -----------------------------------------------------------------------------
-@st.cache_data(ttl="10m") 
-def get_staff_data():
-    """Pulls the STAFF tab. Adapts to the 7-column structure (A to G)."""
-    conn = get_connection()
-    try:
-        # Read columns A through G (0 to 6)
-        df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5, 6], ttl="10m")
-        df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
-        df = df.dropna(subset=["Name of Staff"]) # Clean empty rows
-        return df
-    except Exception as e:
-        st.error(f"Failed to load STAFF sheet: {e}")
-        return pd.DataFrame(columns=["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"])
-
-def get_unregistered_staff():
-    """Returns a list of names from the STAFF tab that don't have a login code yet."""
-    df = get_staff_data()
-    unregistered = df[df["Code"].isna() | (df["Code"] == "")]
-    return unregistered["Name of Staff"].tolist()
-
-# -----------------------------------------------------------------------------
-# AUTHENTICATION LOGIC
-# -----------------------------------------------------------------------------
-def authenticate_user(login_code):
-    """
-    Checks the entered code against the DB. 
-    Returns a dict with comprehensive user info if valid, or None.
-    """
-    df = get_staff_data()
-    
-    match = df[df["Code"] == login_code]
-    
-    if not match.empty:
-        user_info = match.iloc[0]
-        return {
-            "division": user_info["Division"],
-            "nickname": user_info["Nickname"],
-            "name": user_info["Name of Staff"],
-            "staff_email": user_info["Staff Email"],
-            "division_email": user_info["Division Email"],
-            "code": user_info["Code"],
-            "category": user_info["Category"] # Explicit category tracking
+st.markdown("""
+    <style>
+        /* Tighten margins and set a beautiful, readable maximum screen width */
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 3rem !important;
+            padding-right: 3rem !important;
+            max-width: 1250px !important;
+            margin: 0 auto !important;
         }
-    return None
+        /* Tighten spacing between elements slightly */
+        [data-testid="stVerticalBlock"] {
+            gap: 1rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# WRITE OPERATIONS (Sign-up)
+# SESSION STATE MANAGEMENT
 # -----------------------------------------------------------------------------
-def generate_hfdb_code():
-    """Generates a random code like HFDB-0AKjd88sk211"""
-    suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-    return f"HFDB-{suffix}"
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_info" not in st.session_state:
+    st.session_state.user_info = None
+if "new_code" not in st.session_state:
+    st.session_state.new_code = None
 
-def register_new_user(name_of_staff):
-    """
-    Generates a code, updates the sheet, and clears the cache.
-    Returns the newly generated code so the user can copy it.
-    """
-    new_code = generate_hfdb_code()
-    conn = get_connection()
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.user_info = None
+    st.rerun()
+
+def get_access_level(user_info):
+    """Returns the explicit user role from the Category column (Col G)."""
+    category = user_info.get("category")
+    return str(category).strip() if category else "Staff"
+
+# -----------------------------------------------------------------------------
+# AUTHENTICATION UI (Login & Sign Up)
+# -----------------------------------------------------------------------------
+def render_auth_page():
+    st.title("🗂️ HFDB Document Tracking System")
+    st.divider()
     
-    # 1. Get current data (bypass cache to ensure we have latest)
-    df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5, 6], ttl=0)
-    df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
+    # CRITICAL SCREEN FREEZE FOR NEW REGISTRATION CODE
+    if st.session_state.new_code:
+        st.error("⚠️ CRITICAL: Copy and save this code immediately. It will not be shown again.")
+        st.markdown(
+            f"<h1 style='text-align: center; font-size: 65px; color: #4CAF50; background-color: #f0f2f6; padding: 20px; border-radius: 10px; font-family: monospace;'>{st.session_state.new_code}</h1>", 
+            unsafe_allow_html=True
+        )
+        if st.button("I have securely copied my code. Proceed to Login.", use_container_width=True, type="primary"):
+            st.session_state.new_code = None
+            st.rerun()
+        return
+
+    col1, col2 = st.columns(2, gap="large")
     
-    # 2. Find the row with the matching Name and update the Code column
-    df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
-    
-    # 3. Write back to Google Sheets
-    try:
-        conn.update(worksheet="STAFF", data=df)
+    with col1:
+        st.subheader("Login")
+        with st.form("login_form"):
+            login_code = st.text_input("Enter your HFDB Code", type="password")
+            submitted = st.form_submit_button("Access Dashboard", use_container_width=True)
+            if submitted:
+                user = sheets_handler.authenticate_user(login_code)
+                if user:
+                    st.session_state.logged_in = True
+                    st.session_state.user_info = user
+                    st.rerun()
+                else:
+                    st.error("Invalid Code. Please verify your credentials.")
+            
+    with col2:
+        st.subheader("First Time Registration")
+        unregistered = sheets_handler.get_unregistered_staff()
         
-        # 4. Clear the cache so the new user instantly shows as registered
-        st.cache_data.clear()
+        if unregistered:
+            selected_name = st.selectbox("Select your name from the staff registry", unregistered)
+            if st.button("Generate My Login Code", use_container_width=True):
+                with st.spinner("Generating secure code..."):
+                    code = sheets_handler.register_new_user(selected_name)
+                    if code:
+                        st.session_state.new_code = code
+                        st.rerun()
+        else:
+            st.success("All current staff members have been registered.")
+
+# -----------------------------------------------------------------------------
+# MAIN DASHBOARD ROUTER (Logged In View)
+# -----------------------------------------------------------------------------
+def render_dashboard():
+    user = st.session_state.user_info
+    role = get_access_level(user)
+    
+    # 1. SIDEBAR NAVIGATION
+    st.sidebar.title(f"👤 {user['nickname']}")
+    st.sidebar.caption(f"Role: **{role}**\n\nDiv: **{user['division']}**")
+    st.sidebar.divider()
+    
+    # Dynamically assign workspace menus based on exact roles
+    if role == "Super Admin":
+        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'STAFF', 'HOLIDAYS', 'REPORTS', 'DD']
+    elif role == "Admin":
+        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
+    elif role == "DC":
+        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
+    else: 
+        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM']
         
-        return new_code
-    except Exception as e:
-        st.error(f"Failed to register user in database: {e}")
-        return None
+    selected_view = st.sidebar.radio("Navigation Menu", tabs)
+    st.sidebar.divider()
+    if st.sidebar.button("Logout", use_container_width=True, type="secondary"):
+        logout()
+
+    # 2. GLOBAL SEARCHBAR (Top of screen)
+    st.text_input("🔍 Global Document Search", placeholder="Search across files by DTRAK NO., Subject, or Office Control No...")
+    st.divider()
+    
+    # 3. PAGE CONTENT PLACEHOLDER
+    st.header(f"🗂️ {selected_view} Workspace")
+    
+    # Access rights indicator for our roadmap reference
+    if selected_view in ['INCOMING', 'OUTGOING']:
+        if role in ["Super Admin", "Admin"]:
+            st.info("⚡ Mode: Full Read & Write Access (All Entries)")
+        elif role == "DC":
+            st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
+        else:
+            st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
+    elif selected_view == 'CONFERENCE ROOM':
+        if role in ["Super Admin", "Admin"]:
+            st.info("⚡ Mode: Read & Write Access")
+        else:
+            st.info("👁️ Mode: Read-Only Access")
+    else:
+        st.info("⚡ Mode: View Active")
+
+# -----------------------------------------------------------------------------
+# APP RUNNER
+# -----------------------------------------------------------------------------
+if st.session_state.logged_in:
+    render_dashboard()
+else:
+    render_auth_page()
