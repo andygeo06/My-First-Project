@@ -2,40 +2,67 @@ import streamlit as st
 import pandas as pd
 import random
 import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
-# CORE CONNECTION
+# CORE CONNECTION & UTILS
 # -----------------------------------------------------------------------------
 def get_connection():
-    """Initializes and returns the Google Sheets connection."""
     return st.connection("gsheets", type=GSheetsConnection)
 
 def sanitize_and_pad_dataframe(df):
-    """Dynamically pads columns to guarantee a 7-column layout (A to G)."""
     expected_cols = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
     current_col_count = len(df.columns)
-    
-    # If Google returns fewer columns than expected, pad the rest with blanks
     if current_col_count < len(expected_cols):
         for i in range(current_col_count, len(expected_cols)):
             df[f"padded_col_{i}"] = ""
-            
-    # Slice down to exactly the first 7 columns and assign standard headers
     df = df.iloc[:, :7]
     df.columns = expected_cols
-    
-    # FIX: Force text columns to 'object' type so Pandas allows string insertions
     df["Code"] = df["Code"].astype(object)
     df["Category"] = df["Category"].astype(object)
     return df
 
 # -----------------------------------------------------------------------------
-# READ OPERATIONS (Cached to save API tokens)
+# AUTOMATED EMAIL ENGINE
+# -----------------------------------------------------------------------------
+def send_credential_email(to_email, staff_name, code, is_recovery=False):
+    """Sends account codes via secure SMTP email connection."""
+    try:
+        smtp_server = st.secrets["email"]["smtp_server"]
+        port = int(st.secrets["email"]["port"])
+        sender_email = st.secrets["email"]["sender_email"]
+        sender_password = st.secrets["email"]["sender_password"]
+        
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = str(to_email).strip()
+        
+        if is_recovery:
+            msg['Subject'] = "🔐 HFDB Tracking System - Account Code Recovery"
+            body = f"Hello {staff_name},\n\nYou requested your existing access credentials for the HFDB Document Tracking System.\n\nYour Access Code is: {code}\n\nUse this code to log in to your dashboard. Please keep it secure."
+        else:
+            msg['Subject'] = "🎉 HFDB Tracking System - New Account Registration"
+            body = f"Hello {staff_name},\n\nWelcome to the HFDB Document Tracking System! Your account has been initialized.\n\nYour Access Code is: {code}\n\nPlease keep this code secure."
+            
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with smtplib.SMTP(smtp_server, port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"📧 Email delivery system failure: {e}")
+        return False
+
+# -----------------------------------------------------------------------------
+# DATA READ OPERATIONS
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl="10m") 
 def get_staff_data():
-    """Pulls the STAFF tab dynamically without hardcoded index limits."""
     conn = get_connection()
     try:
         df = conn.read(worksheet="STAFF", ttl="10m")
@@ -46,57 +73,61 @@ def get_staff_data():
         st.error(f"Failed to load STAFF sheet: {e}")
         return pd.DataFrame(columns=["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"])
 
-def get_unregistered_staff():
-    """Returns a list of names from the STAFF tab that don't have a login code yet."""
+def get_all_staff_names():
+    """Returns a clean list of all staff names for the lookup menu."""
     df = get_staff_data()
-    unregistered = df[df["Code"].isna() | (df["Code"] == "") | (df["Code"].astype(str).str.strip() == "nan") | (df["Code"].astype(str).str.strip() == "")]
-    return unregistered["Name of Staff"].tolist()
+    return df["Name of Staff"].tolist()
 
 # -----------------------------------------------------------------------------
-# AUTHENTICATION LOGIC
+# AUTHENTICATION & PROCESSING INTERCEPT
 # -----------------------------------------------------------------------------
 def authenticate_user(login_code):
-    """Checks the entered code against the DB. Returns user info dict or None."""
     df = get_staff_data()
     df["Code"] = df["Code"].astype(str).str.strip()
     match = df[df["Code"] == str(login_code).strip()]
-    
     if not match.empty:
         user_info = match.iloc[0]
         return {
-            "division": user_info["Division"],
-            "nickname": user_info["Nickname"],
-            "name": user_info["Name of Staff"],
-            "staff_email": user_info["Staff Email"],
-            "division_email": user_info["Division Email"],
-            "code": user_info["Code"],
+            "division": user_info["Division"], "nickname": user_info["Nickname"],
+            "name": user_info["Name of Staff"], "staff_email": user_info["Staff Email"],
+            "division_email": user_info["Division Email"], "code": user_info["Code"],
             "category": user_info["Category"]
         }
     return None
 
-# -----------------------------------------------------------------------------
-# WRITE OPERATIONS (Sign-up)
-# -----------------------------------------------------------------------------
-def generate_hfdb_code():
-    """Generates a random code like HFDB-0AKjd88sk211"""
-    suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-    return f"HFDB-{suffix}"
-
-def register_new_user(name_of_staff):
-    """Generates a code, updates the sheet, and clears the cache."""
-    new_code = generate_hfdb_code()
+def process_registration_or_recovery(name_of_staff):
+    """Intercepts request to determine if user needs a new code or a recovery email."""
     conn = get_connection()
+    df = conn.read(worksheet="STAFF", ttl=0)
+    df = sanitize_and_pad_dataframe(df)
+    
+    # Locate targeted row
+    row_match = df[df["Name of Staff"] == name_of_staff]
+    if row_match.empty:
+        return "ERROR", "Staff member not found in baseline registry."
+        
+    user_row = row_match.iloc[0]
+    existing_code = str(user_row["Code"]).strip()
+    email_target = user_row["Staff Email"]
+    
+    if not email_target or pd.isna(email_target) or str(email_target).lower() == "nan":
+        return "NO_EMAIL", f"No valid email found on sheet for {name_of_staff}. Contact your Admin."
+
+    # CASE A: USER ALREADY HAS A VALID CODE -> TRIGGER RECOVERY EMAIL ONLY
+    if existing_code and existing_code != "nan" and existing_code != "":
+        email_success = send_credential_email(email_target, name_of_staff, existing_code, is_recovery=True)
+        if email_success:
+            return "RECOVERED", email_target
+        return "EMAIL_FAIL", "Database found your code, but SMTP server failed to send email."
+        
+    # CASE B: BRAND NEW USER -> GENERATE, SAVE, AND EMAIL
+    new_code = f"HFDB-{''.join(random.choices(string.ascii_letters + string.digits, k=12))}"
+    df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
     
     try:
-        df = conn.read(worksheet="STAFF", ttl=0)
-        df = sanitize_and_pad_dataframe(df)
-        
-        # Insert the newly minted code into the matched row safely
-        df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
-        
         conn.update(worksheet="STAFF", data=df)
         st.cache_data.clear()
-        return new_code
+        send_credential_email(email_target, name_of_staff, new_code, is_recovery=False)
+        return "CREATED", new_code
     except Exception as e:
-        st.error(f"Failed to register user in database: {e}")
-        return None
+        return "WRITE_FAIL", str(e)
