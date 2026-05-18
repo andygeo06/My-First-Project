@@ -261,8 +261,6 @@ def update_incoming_data(master_dataframe):
     conn = get_connection()
     try:
         # Write the dataframe back. 
-        # Note: Ensure formulas in R-X are built using ARRAYFORMULA in Row 2 
-        # so they aren't destroyed by row-level updates.
         conn.update(worksheet="INCOMING", data=master_dataframe)
         st.cache_data.clear()
         return True
