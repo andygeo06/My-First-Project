@@ -154,69 +154,82 @@ def render_dashboard():
 
     # 4. WORKSPACE CONTENT ROUTER
     if selected_view == 'CONFERENCE ROOM':
-        current_year = datetime.now().year
-        st.subheader(f"📅 Schedule Calendar Matrix — Fiscal Year {current_year}")
+        st.subheader("📅 Live Room Availability Matrix (Rolling 30 Days)")
         
-        view_col, form_col = st.columns([2, 1], gap="large")
+        # 1. THE VISUAL MATRIX GRID
+        raw_schedule = sheets_handler.get_conference_data()
+        
+        # Generate a clean 30-day calendar base
+        today = datetime.now().date()
+        date_range = [today + timedelta(days=i) for i in range(30)]
+        matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM)", "Large Room (PM)", "Small Room (AM)", "Small Room (PM)"])
+        matrix_df.fillna("Free", inplace=True)
+        matrix_df.index.name = "Date"
+        
+        # Plot data onto the matrix grid
+        if not raw_schedule.empty:
+            for idx, row in raw_schedule.iterrows():
+                try:
+                    r_date = pd.to_datetime(row["Date"]).date()
+                    if r_date in matrix_df.index:
+                        room = str(row["Room"]).strip()
+                        slot = str(row["Time Slot"]).strip()
+                        status_icon = "✅" if str(row["Status"]).strip() == "Confirmed" else "⏳"
+                        cell_text = f"{status_icon} {row['Activity Name']} ({row['Requested By']})"
+                        
+                        # Populate the correct cell coordinates
+                        if "Large" in room:
+                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (AM)"] = cell_text
+                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (PM)"] = cell_text
+                        elif "Small" in room:
+                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Small Room (AM)"] = cell_text
+                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Small Room (PM)"] = cell_text
+                except Exception:
+                    pass
+        
+        # Format the Date index for beautiful display
+        display_df = matrix_df.reset_index()
+        display_df["Date"] = display_df["Date"].apply(lambda x: x.strftime('%b %d (%a)'))
+        
+        # Render the interactive grid
+        st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+        
+        st.divider()
+
+        # 2. ACTIONS TOOLBAR (Form & Approvals)
+        form_col, apprv_col = st.columns([1, 1], gap="large")
         
         with form_col:
-            st.markdown("### 📝 Reservation Request")
+            st.markdown("### 📝 Submit Reservation")
             with st.form("booking_form", clear_on_submit=True):
-                chosen_date = st.date_input(
-                    "Target Date", 
-                    min_value=datetime(current_year, 1, 1), 
-                    max_value=datetime(current_year, 12, 31)
-                )
-                slot = st.selectbox("Preferred Window", ["Whole Day", "Morning (8AM - 12PM)", "Afternoon (1PM - 5PM)"])
-                activity = st.text_input("Activity/Meeting Title", placeholder="e.g., Division General Assembly")
+                chosen_date = st.date_input("Target Date", min_value=today)
+                room_choice = st.selectbox("Target Facility", ["Large Conference Room", "Small Conference Room"])
+                slot = st.selectbox("Preferred Window", ["AM (8:00 - 12:00)", "PM (1:00 - 5:00)", "Whole Day"])
+                activity = st.text_input("Activity/Meeting Title")
                 
-                submit_booking = st.form_submit_button("Submit Temporary Booking", use_container_width=True)
-                if submit_booking:
+                if st.form_submit_button("Book Temporary Slot", use_container_width=True):
                     if activity.strip() == "":
                         st.warning("Action halted: Activity Title cannot be empty.")
                     else:
-                        with st.spinner("Logging reservation query..."):
-                            success = sheets_handler.add_conference_booking(
-                                chosen_date, activity, slot, user['nickname'], user['division']
-                            )
-                            if success:
-                                st.success("🎉 Request logged! Awaiting Admin authorization.")
-                                st.rerun()
+                        with st.spinner("Locking coordinates..."):
+                            success = sheets_handler.add_conference_booking(chosen_date, room_choice, activity, slot, user['nickname'], user['division'])
+                            if success: st.rerun()
 
-        with view_col:
-            st.markdown("### 📑 Master Booking Timeline")
-            raw_schedule = sheets_handler.get_conference_data()
-            
-            if raw_schedule.empty:
-                st.info("No bookings recorded for this period.")
+        with apprv_col:
+            st.markdown("### 🔑 Admin Approval Queue")
+            if role in ["Super Admin", "Admin"]:
+                pending_df = raw_schedule[raw_schedule["Status"] == "Pending"]
+                if pending_df.empty:
+                    st.success("No pending requests in the queue. All clear!")
+                else:
+                    for idx, row in pending_df.iterrows():
+                        st.info(f"**{row['Activity Name']}**\n\n📅 {row['Date']} | 🚪 {row['Room']} ({row['Time Slot']}) | 👤 {row['Requested By']}")
+                        if st.button(f"Approve Booking", key=f"apprv_{idx}", type="primary"):
+                            with st.spinner("Authorizing..."):
+                                sheets_handler.confirm_conference_booking(idx)
+                                st.rerun()
             else:
-                raw_schedule["Date"] = pd.to_datetime(raw_schedule["Date"]).dt.date
-                raw_schedule = raw_schedule.sort_values(by="Date", ascending=True)
-                
-                for idx, row in raw_schedule.iterrows():
-                    is_confirmed = str(row["Status"]).strip() == "Confirmed"
-                    border_color = "#4CAF50" if is_confirmed else "#FFC107"
-                    bg_color = "#e8f5e9" if is_confirmed else "#fffde7"
-                    badge_label = "✅ Confirmed" if is_confirmed else "⏳ Temporary / Pending Approval"
-                    
-                    st.markdown(f"""
-                        <div style="border-left: 6px solid {border_color}; background-color: {bg_color}; padding: 12px 16px; border-radius: 4px; margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <strong>📅 {row['Date'].strftime('%A, %b %d, %Y')}</strong>
-                                <span style="color: {border_color}; font-weight: bold; font-size: 0.85em;">{badge_label}</span>
-                            </div>
-                            <div style="font-size: 1.15em; font-weight: 600; margin: 4px 0;">🏷️ {row['Activity Name']}</div>
-                            <div style="font-size: 0.9em; color: #555;">⏱️ Timeframe: {row['Time Slot']} | 👤 Care of: {row['Requested By']} ({row['Division']})</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Escalated confirmation panel for Admin & Super Admin
-                    if role in ["Super Admin", "Admin"] and not is_confirmed:
-                        if st.button(f"Approve & Hardcode Reservation: '{row['Activity Name']}'", key=f"apprv_{idx}"):
-                            with st.spinner("Locking structural cell block..."):
-                                if sheets_handler.confirm_conference_booking(idx):
-                                    st.success("Schedule locked into master database grid!")
-                                    st.rerun()
+                st.info("Your view is restricted. Only Admins can approve pending (⏳) reservations.")
 
     elif selected_view in ['INCOMING', 'OUTGOING']:
         if role == "Admin": 
