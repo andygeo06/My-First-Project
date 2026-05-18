@@ -146,32 +146,37 @@ def render_dashboard():
         
         raw_schedule = sheets_handler.get_conference_data()
         today = datetime.now().date()
-        date_range = [today + timedelta(days=i) for i in range(30)]
-        matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM 8-12NN)", "Large Room (PM 1-5PM)", "Small Room (AM 8-12NN)", "Small Room (PM 1-5PM)"])
+        
+        # FIX: Force strict string format ('YYYY-MM-DD') for perfect index mapping
+        date_range = [(today + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(30)]
+        matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM)", "Large Room (PM)", "Small Room (AM)", "Small Room (PM)"])
         matrix_df.fillna("Free", inplace=True)
         matrix_df.index.name = "Date"
         
         if not raw_schedule.empty:
             for idx, row in raw_schedule.iterrows():
                 try:
-                    r_date = pd.to_datetime(row["Date"]).date()
-                    if r_date in matrix_df.index:
+                    # FIX: Convert Google Sheet date to the exact same string format
+                    r_date_str = pd.to_datetime(row["Date"]).strftime('%Y-%m-%d')
+                    
+                    if r_date_str in matrix_df.index:
                         room = str(row["Room"]).strip()
                         slot = str(row["Time Slot"]).strip()
                         status_icon = "✅" if str(row["Status"]).strip() == "Confirmed" else "⏳"
                         cell_text = f"{status_icon} {row['Activity Name']} ({row['Requested By']})"
                         
                         if "Large" in room:
-                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (AM)"] = cell_text
-                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (PM)"] = cell_text
+                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date_str, "Large Room (AM)"] = cell_text
+                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date_str, "Large Room (PM)"] = cell_text
                         elif "Small" in room:
-                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Small Room (AM)"] = cell_text
-                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Small Room (PM)"] = cell_text
+                            if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date_str, "Small Room (AM)"] = cell_text
+                            if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date_str, "Small Room (PM)"] = cell_text
                 except Exception:
                     pass
         
         display_df = matrix_df.reset_index()
-        display_df["Date"] = display_df["Date"].apply(lambda x: x.strftime('%b %d (%a)'))
+        # Convert strings back to pretty visual dates for the final UI output
+        display_df["Date"] = pd.to_datetime(display_df["Date"]).dt.strftime('%b %d (%a)')
         
         st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
         st.divider()
@@ -205,7 +210,8 @@ def render_dashboard():
                         st.info(f"**{row['Activity Name']}**\n\n📅 {row['Date']} | 🚪 {row['Room']} ({row['Time Slot']}) | 👤 {row['Requested By']}")
                         if st.button(f"Approve Booking", key=f"apprv_{idx}", type="primary"):
                             with st.spinner("Authorizing..."):
-                                sheets_handler.confirm_conference_booking(idx)
+                                # FIX: Pass explicit exact values to guarantee perfect targeting
+                                sheets_handler.confirm_conference_booking(row['Activity Name'], row['Date'])
                                 st.rerun()
             else:
                 st.info("Your view is restricted. Only Admins can approve pending (⏳) reservations.")
