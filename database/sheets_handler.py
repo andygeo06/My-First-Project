@@ -11,18 +11,36 @@ def get_connection():
     """Initializes and returns the Google Sheets connection."""
     return st.connection("gsheets", type=GSheetsConnection)
 
+def sanitize_and_pad_dataframe(df):
+    """Dynamically pads columns to guarantee a 7-column layout (A to G)."""
+    expected_cols = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
+    current_col_count = len(df.columns)
+    
+    # If Google returns fewer columns than expected, pad the rest with blanks
+    if current_col_count < len(expected_cols):
+        for i in range(current_col_count, len(expected_cols)):
+            df[f"padded_col_{i}"] = ""
+            
+    # Slice down to exactly the first 7 columns and assign standard headers
+    df = df.iloc[:, :7]
+    df.columns = expected_cols
+    
+    # FIX: Force text columns to 'object' type so Pandas allows string insertions
+    df["Code"] = df["Code"].astype(object)
+    df["Category"] = df["Category"].astype(object)
+    return df
+
 # -----------------------------------------------------------------------------
 # READ OPERATIONS (Cached to save API tokens)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl="10m") 
 def get_staff_data():
-    """Pulls the STAFF tab. Adapts to the 7-column structure (A to G)."""
+    """Pulls the STAFF tab dynamically without hardcoded index limits."""
     conn = get_connection()
     try:
-        # Read columns A through G (0 to 6)
-        df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5, 6], ttl="10m")
-        df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
-        df = df.dropna(subset=["Name of Staff"]) # Clean empty rows
+        df = conn.read(worksheet="STAFF", ttl="10m")
+        df = sanitize_and_pad_dataframe(df)
+        df = df.dropna(subset=["Name of Staff"])
         return df
     except Exception as e:
         st.error(f"Failed to load STAFF sheet: {e}")
@@ -31,7 +49,7 @@ def get_staff_data():
 def get_unregistered_staff():
     """Returns a list of names from the STAFF tab that don't have a login code yet."""
     df = get_staff_data()
-    unregistered = df[df["Code"].isna() | (df["Code"] == "")]
+    unregistered = df[df["Code"].isna() | (df["Code"] == "") | (df["Code"].astype(str).str.strip() == "nan") | (df["Code"].astype(str).str.strip() == "")]
     return unregistered["Name of Staff"].tolist()
 
 # -----------------------------------------------------------------------------
@@ -40,7 +58,8 @@ def get_unregistered_staff():
 def authenticate_user(login_code):
     """Checks the entered code against the DB. Returns user info dict or None."""
     df = get_staff_data()
-    match = df[df["Code"] == login_code]
+    df["Code"] = df["Code"].astype(str).str.strip()
+    match = df[df["Code"] == str(login_code).strip()]
     
     if not match.empty:
         user_info = match.iloc[0]
@@ -68,16 +87,15 @@ def register_new_user(name_of_staff):
     new_code = generate_hfdb_code()
     conn = get_connection()
     
-    # Get current data fresh
-    df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5, 6], ttl=0)
-    df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code", "Category"]
-    
-    # Find row and update code
-    df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
-    
     try:
+        df = conn.read(worksheet="STAFF", ttl=0)
+        df = sanitize_and_pad_dataframe(df)
+        
+        # Insert the newly minted code into the matched row safely
+        df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
+        
         conn.update(worksheet="STAFF", data=df)
-        st.cache_data.clear() # Wipe cache so login works immediately
+        st.cache_data.clear()
         return new_code
     except Exception as e:
         st.error(f"Failed to register user in database: {e}")
