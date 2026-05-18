@@ -249,7 +249,7 @@ def render_dashboard():
         
         staff_df = sheets_handler.get_staff_data()
         divisions_list = staff_df["Division"].dropna().unique().tolist()
-        staff_list = staff_df["Name of Staff"].dropna().unique().tolist()
+        staff_list = staff_df["Nickname"].dropna().unique().tolist() # <--- Now uses Nicknames!
         time_options = ["AM", "PM"]
         
         if master_df.empty:
@@ -285,9 +285,10 @@ def render_dashboard():
                 disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
                 
             else: # Staff
-                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['name']}**")
+                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['nickname']}**")
                 staff_col_name = master_df.columns[11]
-                view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['name'].strip()].copy()
+                # Filter by exact Nickname match
+                view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['nickname'].strip()].copy()
                 
                 # Slice view to ONLY the specifically requested columns
                 view_df = view_df[visible_cols]
