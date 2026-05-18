@@ -5,10 +5,10 @@ from datetime import datetime, timedelta, time
 
 st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
-# Custom CSS for an ultra-wide data layout
+# Custom CSS for an ultra-wide, adaptive layout
 st.markdown("""
     <style>
-        /* Unleash the full screen width, leaving only a tiny 1rem edge buffer */
+        /* Unleash the full screen width with minimal padding */
         .block-container { 
             padding-top: 1.5rem !important; 
             padding-bottom: 2rem !important; 
@@ -18,6 +18,13 @@ st.markdown("""
         }
         /* Tighten vertical spacing between elements */
         [data-testid="stVerticalBlock"] { gap: 0.75rem !important; }
+        
+        /* Force the sidebar to be significantly narrower (~250px) */
+        section[data-testid="stSidebar"] {
+            min-width: 250px !important;
+            max-width: 250px !important;
+        }
+        /* Transparent backgrounds ensure native Light/Dark theme compatibility */
     </style>
 """, unsafe_allow_html=True)
 
@@ -314,6 +321,7 @@ def render_dashboard():
                 view_df,
                 column_config=col_config,
                 disabled=disabled_cols,
+                hide_index=True,
                 num_rows="dynamic" if role in ["Super Admin", "Admin"] else "fixed",
                 use_container_width=True,
                 height=600
