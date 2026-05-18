@@ -8,9 +8,9 @@ st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon
 # Custom CSS for an ultra-wide, adaptive layout
 st.markdown("""
     <style>
-        /* Unleash the full screen width with minimal padding */
+        /* Unleash the full screen width and CRUSH the top padding to pull the header up */
         .block-container { 
-            padding-top: 1.5rem !important; 
+            padding-top: 0rem !important; 
             padding-bottom: 2rem !important; 
             padding-left: 1rem !important; 
             padding-right: 1rem !important; 
@@ -21,10 +21,9 @@ st.markdown("""
         
         /* Force the sidebar to be significantly narrower (~250px) */
         section[data-testid="stSidebar"] {
-            min-width: 175px !important;
-            max-width: 175px !important;
+            min-width: 250px !important;
+            max-width: 250px !important;
         }
-        /* Transparent backgrounds ensure native Light/Dark theme compatibility */
     </style>
 """, unsafe_allow_html=True)
 
@@ -129,15 +128,8 @@ def render_dashboard():
     selected_view = st.sidebar.radio("Navigation Menu", tabs)
     st.sidebar.divider()
     if st.sidebar.button("Logout", use_container_width=True, type="secondary"): logout()
-
-    st.text_input("🔍 Global Document Search", placeholder="Search across entries by DTRAK NO., Subject, or Office Control No...")
-    st.divider()
     
     st.header(f"🗂️ {selected_view} Workspace")
-    
-    if role == "Super Admin":
-        st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
-    st.divider()
 
     # -------------------------------------------------------------------------
     # WORKSPACE ROUTING
@@ -197,8 +189,8 @@ def render_dashboard():
                             if success: st.rerun()
 
         with apprv_col:
-            st.markdown("### 🔑 Admin Approval Queue")
             if role in ["Super Admin", "Admin"]:
+                st.markdown("### 🔑 Admin Approval Queue")
                 pending_df = raw_schedule[raw_schedule["Status"] == "Pending"]
                 if pending_df.empty:
                     st.success("No pending requests in the queue. All clear!")
@@ -209,23 +201,15 @@ def render_dashboard():
                             with st.spinner("Authorizing..."):
                                 sheets_handler.confirm_conference_booking(row['Activity Name'], row['Date'])
                                 st.rerun()
-            else:
-                st.info("Your view is restricted. Only Admins can approve pending (⏳) reservations.")
 
     # -------------------------------------------------------------------------
     # GENERIC DATA MANAGERS (STAFF, HOLIDAYS, DD)
     # -------------------------------------------------------------------------
     elif selected_view in ['STAFF', 'HOLIDAYS', 'DD']:
-        st.subheader(f"🛠️ {selected_view} Database Manager")
-        
-        # Pull live sheet data using our new generic engine
         raw_data = sheets_handler.get_generic_sheet(selected_view)
         
         if role == "Super Admin":
-            st.info("💡 You have direct edit access to this table. Modify cells or add rows at the bottom, then click **Save Changes**.")
-            
-            # Interactive Grid Engine
-            edited_df = st.data_editor(raw_data, num_rows="dynamic", use_container_width=True, height=500)
+            edited_df = st.data_editor(raw_data, num_rows="dynamic", hide_index=True, use_container_width=True, height=500)
             
             if st.button(f"💾 Save {selected_view} Changes", type="primary"):
                 with st.spinner("Syncing to Google Workspace..."):
@@ -233,15 +217,12 @@ def render_dashboard():
                         st.success(f"{selected_view} database synchronized successfully!")
                         st.rerun()
         else:
-            # Fallback for future proofing in case you ever grant Admin read access
-            st.info("👁️ Mode: Read-Only Access")
-            st.dataframe(raw_data, use_container_width=True, height=500)
+            st.dataframe(raw_data, hide_index=True, use_container_width=True, height=500)
 
     # -------------------------------------------------------------------------
     # CORE TRACKING LOGIC (INCOMING)
     # -------------------------------------------------------------------------
     elif selected_view == 'INCOMING':
-        # 1. Fetch live data and dropdown lists
         a1_note, master_df = sheets_handler.get_incoming_data()
         doc_types, doc_tags = sheets_handler.get_dropdown_lists()
         
@@ -251,61 +232,45 @@ def render_dashboard():
         time_options = ["AM", "PM"]
         
         if master_df.empty:
-            st.subheader("📥 INCOMING Document Tracker")
             st.warning("INCOMING sheet is currently empty or unreachable.")
         else:
-            # 2. Extract Columns based on the A-X layout structure
             edit_cols = master_df.columns[:17].tolist()
             form_cols = master_df.columns[17:].tolist()
             
-            # Map indices for DC and Staff restrictions
             visible_indices = [0, 2, 3, 4, 5, 6, 12, 14, 15, 16]
-            allowed_edit_indices = [14, 15, 16] # O, P, Q
+            allowed_edit_indices = [14, 15, 16] 
             
             visible_cols = [master_df.columns[i] for i in visible_indices if i < len(master_df.columns)]
             allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices if i < len(master_df.columns)]
 
-            # HELPER FUNCTION: Counts pending documents based on specified columns
             def get_pending_count(df, col_indices):
                 cols_to_check = [master_df.columns[i] for i in col_indices if i < len(master_df.columns)]
-                # Check for empty strings, 'nan', or strictly missing values
                 mask = df[cols_to_check].astype(str).apply(lambda c: c.str.strip().str.lower().isin(['', 'nan', 'none']))
                 return mask.any(axis=1).sum()
 
-            # 3. RBAC Filtering & Permission Setting
             if role == "Super Admin":
                 view_df = master_df.copy() 
                 disabled_cols = form_cols  
                 
-                # Check K(10), L(11), M(12), N(13)
                 pending_count = get_pending_count(view_df, [10, 11, 12, 13])
                 st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
-                
-                st.info("⚡ Master Access: Full Read/Write (A-Q) & View (R-X)")
                 st.caption(f"**Top Note (A1):** {a1_note}")
                 
             elif role == "Admin":
                 view_df = master_df.copy() 
-                # Lock formulas AND Action Columns O(14), P(15), Q(16)
                 extra_disabled = [master_df.columns[i] for i in [14, 15, 16] if i < len(master_df.columns)]
                 disabled_cols = form_cols + extra_disabled
                 
-                # Check K(10), L(11), M(12), N(13)
                 pending_count = get_pending_count(view_df, [10, 11, 12, 13])
                 st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
-                
-                st.info("⚡ Admin Access: Read/Write (A-N) & View (O-X). Editing Action Data restricted.")
                 st.caption(f"**Top Note (A1):** {a1_note}")
                 
             elif role == "DC":
                 div_col_name = master_df.columns[10]
                 view_df = master_df[master_df[div_col_name].astype(str).str.strip() == user['division'].strip()].copy()
                 
-                # Check O(14), P(15), Q(16) BEFORE slicing the view
                 pending_count = get_pending_count(view_df, [14, 15, 16])
                 st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
-                
-                st.info(f"📁 Division Access: Read/Write filtered for **{user['division']}**")
                 
                 view_df = view_df[visible_cols]
                 disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
@@ -314,23 +279,18 @@ def render_dashboard():
                 staff_col_name = master_df.columns[11]
                 view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['nickname'].strip()].copy()
                 
-                # Check O(14), P(15), Q(16) BEFORE slicing the view
                 pending_count = get_pending_count(view_df, [14, 15, 16])
                 st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
-                
-                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['nickname']}**")
                 
                 view_df = view_df[visible_cols]
                 disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
 
-            # 4. Safely convert date strings to actual Datetime objects
             date_col_names = [master_df.columns[i] for i in [0, 7, 9, 14] if i < len(master_df.columns)]
             
             for col in date_col_names:
                 if col in view_df.columns:
                     view_df[col] = pd.to_datetime(view_df[col], errors='coerce')
 
-            # 5. Configure Column Types and Exact Widths
             col_config = {
                 master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD", width=120),
                 master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options, width=90),
@@ -353,7 +313,6 @@ def render_dashboard():
                 master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags, width=140),
             }
 
-            # 6. Render Interactive Data Grid
             edited_view = st.data_editor(
                 view_df,
                 column_config=col_config,
@@ -364,7 +323,6 @@ def render_dashboard():
                 height=600
             )
             
-            # 7. Recombine and Save Logic
             if st.button("💾 Sync Updates to Master Sheet", type="primary"):
                 with st.spinner("Stitching data and syncing to Google Workspace..."):
                     for col in date_col_names:
@@ -380,7 +338,7 @@ def render_dashboard():
 
     elif selected_view == 'OUTGOING':
         st.info("🚧 OUTGOING Module Pending Construction...")
-        
+
 if st.session_state.logged_in:
     check_session_expiration()
     render_dashboard()
