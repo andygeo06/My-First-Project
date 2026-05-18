@@ -213,3 +213,59 @@ def update_generic_sheet(sheet_name, dataframe):
     except Exception as e:
         st.error(f"Failed to save changes to '{sheet_name}': {e}")
         return False
+
+# -----------------------------------------------------------------------------
+# INCOMING & DROPDOWN (DD) OPERATIONS
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl="2m")
+def get_dropdown_lists():
+    """Extracts the specific dropdown lists from the DD worksheet."""
+    conn = get_connection()
+    try:
+        df_dd = conn.read(worksheet="DD", ttl="2m")
+        # Col A (0) is Document Type, Col B (1) is Document Tag
+        doc_types = df_dd.iloc[:, 0].dropna().astype(str).tolist()
+        doc_tags = df_dd.iloc[:, 1].dropna().astype(str).tolist()
+        return doc_types, doc_tags
+    except Exception:
+        return [], []
+
+@st.cache_data(ttl="1m")
+def get_incoming_data():
+    """
+    Reads the INCOMING sheet. 
+    Assumes Row 1 has the A1 special text, Row 2 has Headers, Row 3+ is Data.
+    """
+    conn = get_connection()
+    try:
+        # 1. Grab raw sheet to extract the special A1 cell value
+        raw_df = conn.read(worksheet="INCOMING", header=None, ttl="1m")
+        a1_value = str(raw_df.iloc[0, 0]) if not raw_df.empty else ""
+        
+        # 2. Read sheet properly assuming Row 2 (index 1) is the Header row
+        df = conn.read(worksheet="INCOMING", header=1, ttl="1m")
+        
+        # Drop completely empty artifact rows to keep the UI snappy
+        df = df.dropna(how="all", subset=df.columns[:5]) 
+        df = df.fillna("")
+        return a1_value, df
+    except Exception as e:
+        st.error(f"Failed to load INCOMING sheet: {e}")
+        return "", pd.DataFrame()
+
+def update_incoming_data(master_dataframe):
+    """
+    Surgically updates the INCOMING sheet. 
+    It writes back the exact DataFrame structure to preserve row alignments.
+    """
+    conn = get_connection()
+    try:
+        # Write the dataframe back. 
+        # Note: Ensure formulas in R-X are built using ARRAYFORMULA in Row 2 
+        # so they aren't destroyed by row-level updates.
+        conn.update(worksheet="INCOMING", data=master_dataframe)
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Failed to save INCOMING data: {e}")
+        return False
