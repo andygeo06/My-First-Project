@@ -14,26 +14,25 @@ def get_connection():
 # -----------------------------------------------------------------------------
 # READ OPERATIONS (Cached to save API tokens)
 # -----------------------------------------------------------------------------
-@st.cache_data(ttl="10m") # Cache clears every 10 mins to catch new signups
+@st.cache_data(ttl="10m") 
 def get_staff_data():
-    """Pulls the STAFF tab. Assumes columns: Name, Role, Login_Code"""
+    """Pulls the STAFF tab. Adapts to the 6-column structure."""
     conn = get_connection()
     try:
-        # Update spreadsheet URL or use secrets.toml mapping
-        df = conn.read(worksheet="STAFF", usecols=[0, 1, 2], ttl="10m")
-        df.columns = ["Name", "Role", "Login_Code"]
-        df = df.dropna(subset=["Name"]) # Clean empty rows
+        # Read columns A through F (0 to 5)
+        df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5], ttl="10m")
+        df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code"]
+        df = df.dropna(subset=["Name of Staff"]) # Clean empty rows
         return df
     except Exception as e:
         st.error(f"Failed to load STAFF sheet: {e}")
-        return pd.DataFrame(columns=["Name", "Role", "Login_Code"])
+        return pd.DataFrame(columns=["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code"])
 
 def get_unregistered_staff():
     """Returns a list of names from the STAFF tab that don't have a login code yet."""
     df = get_staff_data()
-    # Filter for rows where Login_Code is null, NaN, or empty string
-    unregistered = df[df["Login_Code"].isna() | (df["Login_Code"] == "")]
-    return unregistered["Name"].tolist()
+    unregistered = df[df["Code"].isna() | (df["Code"] == "")]
+    return unregistered["Name of Staff"].tolist()
 
 # -----------------------------------------------------------------------------
 # AUTHENTICATION LOGIC
@@ -41,19 +40,22 @@ def get_unregistered_staff():
 def authenticate_user(login_code):
     """
     Checks the entered code against the DB. 
-    Returns a dict with user info if valid, or None if invalid.
+    Returns a dict with comprehensive user info if valid, or None.
     """
     df = get_staff_data()
     
-    # Check if code exists in the dataframe
-    match = df[df["Login_Code"] == login_code]
+    match = df[df["Code"] == login_code]
     
     if not match.empty:
         user_info = match.iloc[0]
+        # We determine the "Role" based on the Division column as requested in your blueprint
         return {
-            "name": user_info["Name"],
-            "role": user_info["Role"],
-            "code": user_info["Login_Code"]
+            "division": user_info["Division"],
+            "nickname": user_info["Nickname"],
+            "name": user_info["Name of Staff"],
+            "staff_email": user_info["Staff Email"],
+            "division_email": user_info["Division Email"],
+            "code": user_info["Code"]
         }
     return None
 
@@ -65,7 +67,7 @@ def generate_hfdb_code():
     suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
     return f"HFDB-{suffix}"
 
-def register_new_user(name):
+def register_new_user(name_of_staff):
     """
     Generates a code, updates the sheet, and clears the cache.
     Returns the newly generated code so the user can copy it.
@@ -74,11 +76,11 @@ def register_new_user(name):
     conn = get_connection()
     
     # 1. Get current data (bypass cache to ensure we have latest)
-    df = conn.read(worksheet="STAFF", usecols=[0, 1, 2], ttl=0)
-    df.columns = ["Name", "Role", "Login_Code"]
+    df = conn.read(worksheet="STAFF", usecols=[0, 1, 2, 3, 4, 5], ttl=0)
+    df.columns = ["Division", "Nickname", "Name of Staff", "Staff Email", "Division Email", "Code"]
     
-    # 2. Find the row with the matching name and update the code
-    df.loc[df["Name"] == name, "Login_Code"] = new_code
+    # 2. Find the row with the matching Name and update the Code
+    df.loc[df["Name of Staff"] == name_of_staff, "Code"] = new_code
     
     # 3. Write back to Google Sheets
     try:
