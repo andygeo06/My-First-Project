@@ -1,29 +1,17 @@
 import streamlit as st
-import pandas as pd  # <--- THE MISSING LINK!
+import pandas as pd  
 from database import sheets_handler
 from datetime import datetime, timedelta, time
 
-# Page configuration
 st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
-# Custom CSS for clean margins and compact layout
 st.markdown("""
     <style>
-        .block-container { 
-            padding-top: 1.5rem !important; 
-            padding-bottom: 2rem !important; 
-            padding-left: 3rem !important; 
-            padding-right: 3rem !important; 
-            max-width: 1250px !important; 
-            margin: 0 auto !important; 
-        }
+        .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; padding-left: 3rem !important; padding-right: 3rem !important; max-width: 1250px !important; margin: 0 auto !important; }
         [data-testid="stVerticalBlock"] { gap: 1rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# LIFECYCLE & SECURITY HELPERS
-# -----------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = None
 if "new_code" not in st.session_state: st.session_state.new_code = None
@@ -51,9 +39,6 @@ def get_access_level(user_info):
     category = user_info.get("category")
     return str(category).strip() if category else "Staff"
 
-# -----------------------------------------------------------------------------
-# AUTHENTICATION UI (Login & Sign Up)
-# -----------------------------------------------------------------------------
 def render_auth_page():
     st.title("🗂️ HFDB Document Tracking System")
     st.divider()
@@ -109,9 +94,6 @@ def render_auth_page():
         else:
             st.warning("Staff registry index returned completely empty.")
 
-# -----------------------------------------------------------------------------
-# MAIN DASHBOARD ROUTER (Logged In View)
-# -----------------------------------------------------------------------------
 def render_dashboard():
     user = st.session_state.user_info
     role = get_access_level(user)
@@ -141,13 +123,15 @@ def render_dashboard():
         st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
     st.divider()
 
+    # -------------------------------------------------------------------------
+    # WORKSPACE ROUTING
+    # -------------------------------------------------------------------------
     if selected_view == 'CONFERENCE ROOM':
         st.subheader("📅 Live Room Availability Matrix (Rolling 30 Days)")
         
         raw_schedule = sheets_handler.get_conference_data()
         today = datetime.now().date()
         
-        # FIX: Force strict string format ('YYYY-MM-DD') for perfect index mapping
         date_range = [(today + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(30)]
         matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM)", "Large Room (PM)", "Small Room (AM)", "Small Room (PM)"])
         matrix_df.fillna("Free", inplace=True)
@@ -156,9 +140,7 @@ def render_dashboard():
         if not raw_schedule.empty:
             for idx, row in raw_schedule.iterrows():
                 try:
-                    # FIX: Convert Google Sheet date to the exact same string format
                     r_date_str = pd.to_datetime(row["Date"]).strftime('%Y-%m-%d')
-                    
                     if r_date_str in matrix_df.index:
                         room = str(row["Room"]).strip()
                         slot = str(row["Time Slot"]).strip()
@@ -175,7 +157,6 @@ def render_dashboard():
                     pass
         
         display_df = matrix_df.reset_index()
-        # Convert strings back to pretty visual dates for the final UI output
         display_df["Date"] = pd.to_datetime(display_df["Date"]).dt.strftime('%b %d (%a)')
         
         st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
@@ -210,12 +191,39 @@ def render_dashboard():
                         st.info(f"**{row['Activity Name']}**\n\n📅 {row['Date']} | 🚪 {row['Room']} ({row['Time Slot']}) | 👤 {row['Requested By']}")
                         if st.button(f"Approve Booking", key=f"apprv_{idx}", type="primary"):
                             with st.spinner("Authorizing..."):
-                                # FIX: Pass explicit exact values to guarantee perfect targeting
                                 sheets_handler.confirm_conference_booking(row['Activity Name'], row['Date'])
                                 st.rerun()
             else:
                 st.info("Your view is restricted. Only Admins can approve pending (⏳) reservations.")
 
+    # -------------------------------------------------------------------------
+    # GENERIC DATA MANAGERS (STAFF, HOLIDAYS, DD)
+    # -------------------------------------------------------------------------
+    elif selected_view in ['STAFF', 'HOLIDAYS', 'DD']:
+        st.subheader(f"🛠️ {selected_view} Database Manager")
+        
+        # Pull live sheet data using our new generic engine
+        raw_data = sheets_handler.get_generic_sheet(selected_view)
+        
+        if role == "Super Admin":
+            st.info("💡 You have direct edit access to this table. Modify cells or add rows at the bottom, then click **Save Changes**.")
+            
+            # Interactive Grid Engine
+            edited_df = st.data_editor(raw_data, num_rows="dynamic", use_container_width=True, height=500)
+            
+            if st.button(f"💾 Save {selected_view} Changes", type="primary"):
+                with st.spinner("Syncing to Google Workspace..."):
+                    if sheets_handler.update_generic_sheet(selected_view, edited_df):
+                        st.success(f"{selected_view} database synchronized successfully!")
+                        st.rerun()
+        else:
+            # Fallback for future proofing in case you ever grant Admin read access
+            st.info("👁️ Mode: Read-Only Access")
+            st.dataframe(raw_data, use_container_width=True, height=500)
+
+    # -------------------------------------------------------------------------
+    # CORE TRACKING LOGIC (INCOMING / OUTGOING)
+    # -------------------------------------------------------------------------
     elif selected_view in ['INCOMING', 'OUTGOING']:
         if role == "Admin": st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
         elif role == "DC": st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
@@ -224,9 +232,6 @@ def render_dashboard():
     else:
         st.info("⚡ Mode: View Active")
 
-# -----------------------------------------------------------------------------
-# APP RUNNER
-# -----------------------------------------------------------------------------
 if st.session_state.logged_in:
     check_session_expiration()
     render_dashboard()
