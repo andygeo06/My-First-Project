@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd  # <--- THE MISSING LINK!
 from database import sheets_handler
 from datetime import datetime, timedelta, time
 
@@ -47,7 +48,6 @@ def check_session_expiration():
             logout()
 
 def get_access_level(user_info):
-    """Returns the explicit user role from the Category column (Col G)."""
     category = user_info.get("category")
     return str(category).strip() if category else "Staff"
 
@@ -58,7 +58,6 @@ def render_auth_page():
     st.title("🗂️ HFDB Document Tracking System")
     st.divider()
     
-    # SCREEN FREEZE FOR NEW REGISTRATION
     if st.session_state.new_code:
         st.success("🎉 Account Code Created Successfully!")
         st.info("📨 A copy of this access credential has been dispatched to your registered Staff Email address.")
@@ -117,7 +116,6 @@ def render_dashboard():
     user = st.session_state.user_info
     role = get_access_level(user)
     
-    # 1. SIDEBAR PROFILE DETAILS
     st.sidebar.title(f"👤 {user['nickname']}")
     st.sidebar.caption(f"Role: **{role}**\n\nDiv: **{user['division']}**")
     
@@ -126,47 +124,33 @@ def render_dashboard():
         
     st.sidebar.divider()
     
-    # Menu Routing Logic
-    if role == "Super Admin":
-        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'STAFF', 'HOLIDAYS', 'REPORTS', 'DD']
-    elif role in ["Admin", "DC"]:
-        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
-    else: 
-        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM']
+    if role == "Super Admin": tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'STAFF', 'HOLIDAYS', 'REPORTS', 'DD']
+    elif role in ["Admin", "DC"]: tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
+    else: tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM']
         
     selected_view = st.sidebar.radio("Navigation Menu", tabs)
     st.sidebar.divider()
-    if st.sidebar.button("Logout", use_container_width=True, type="secondary"): 
-        logout()
+    if st.sidebar.button("Logout", use_container_width=True, type="secondary"): logout()
 
-    # 2. GLOBAL TOP SEARCH BAR
     st.text_input("🔍 Global Document Search", placeholder="Search across entries by DTRAK NO., Subject, or Office Control No...")
     st.divider()
     
-    # 3. MAIN WORKSPACE HEADER
     st.header(f"🗂️ {selected_view} Workspace")
     
-    # Role Banner (Independent execution layout)
     if role == "Super Admin":
         st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
-    
     st.divider()
 
-    # 4. WORKSPACE CONTENT ROUTER
     if selected_view == 'CONFERENCE ROOM':
         st.subheader("📅 Live Room Availability Matrix (Rolling 30 Days)")
         
-        # 1. THE VISUAL MATRIX GRID
         raw_schedule = sheets_handler.get_conference_data()
-        
-        # Generate a clean 30-day calendar base
         today = datetime.now().date()
         date_range = [today + timedelta(days=i) for i in range(30)]
         matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM)", "Large Room (PM)", "Small Room (AM)", "Small Room (PM)"])
         matrix_df.fillna("Free", inplace=True)
         matrix_df.index.name = "Date"
         
-        # Plot data onto the matrix grid
         if not raw_schedule.empty:
             for idx, row in raw_schedule.iterrows():
                 try:
@@ -177,7 +161,6 @@ def render_dashboard():
                         status_icon = "✅" if str(row["Status"]).strip() == "Confirmed" else "⏳"
                         cell_text = f"{status_icon} {row['Activity Name']} ({row['Requested By']})"
                         
-                        # Populate the correct cell coordinates
                         if "Large" in room:
                             if "AM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (AM)"] = cell_text
                             if "PM" in slot or "Whole Day" in slot: matrix_df.at[r_date, "Large Room (PM)"] = cell_text
@@ -187,16 +170,12 @@ def render_dashboard():
                 except Exception:
                     pass
         
-        # Format the Date index for beautiful display
         display_df = matrix_df.reset_index()
         display_df["Date"] = display_df["Date"].apply(lambda x: x.strftime('%b %d (%a)'))
         
-        # Render the interactive grid
         st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
-        
         st.divider()
 
-        # 2. ACTIONS TOOLBAR (Form & Approvals)
         form_col, apprv_col = st.columns([1, 1], gap="large")
         
         with form_col:
@@ -232,12 +211,9 @@ def render_dashboard():
                 st.info("Your view is restricted. Only Admins can approve pending (⏳) reservations.")
 
     elif selected_view in ['INCOMING', 'OUTGOING']:
-        if role == "Admin": 
-            st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
-        elif role == "DC": 
-            st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
-        elif role == "Staff":
-            st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
+        if role == "Admin": st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
+        elif role == "DC": st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
+        elif role == "Staff": st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
             
     else:
         st.info("⚡ Mode: View Active")
