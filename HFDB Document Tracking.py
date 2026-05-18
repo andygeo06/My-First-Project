@@ -241,92 +241,116 @@ def render_dashboard():
     # CORE TRACKING LOGIC (INCOMING)
     # -------------------------------------------------------------------------
     elif selected_view == 'INCOMING':
-        st.subheader("📥 INCOMING Document Tracker")
-        
         # 1. Fetch live data and dropdown lists
         a1_note, master_df = sheets_handler.get_incoming_data()
         doc_types, doc_tags = sheets_handler.get_dropdown_lists()
         
         staff_df = sheets_handler.get_staff_data()
         divisions_list = staff_df["Division"].dropna().unique().tolist()
-        staff_list = staff_df["Nickname"].dropna().unique().tolist() # <--- Now uses Nicknames!
+        staff_list = staff_df["Nickname"].dropna().unique().tolist()
         time_options = ["AM", "PM"]
         
         if master_df.empty:
+            st.subheader("📥 INCOMING Document Tracker")
             st.warning("INCOMING sheet is currently empty or unreachable.")
         else:
             # 2. Extract Columns based on the A-X layout structure
             edit_cols = master_df.columns[:17].tolist()
             form_cols = master_df.columns[17:].tolist()
             
-            # Identify columns by their exact Google Sheet Letter Indices
-            # A=0, C=2, D=3, E=4, F=5, G=6, M=12, O=14, P=15, Q=16
+            # Map indices for DC and Staff restrictions
             visible_indices = [0, 2, 3, 4, 5, 6, 12, 14, 15, 16]
             allowed_edit_indices = [14, 15, 16] # O, P, Q
             
-            # Map indices safely to actual column names
             visible_cols = [master_df.columns[i] for i in visible_indices if i < len(master_df.columns)]
             allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices if i < len(master_df.columns)]
-            
+
+            # HELPER FUNCTION: Counts pending documents based on specified columns
+            def get_pending_count(df, col_indices):
+                cols_to_check = [master_df.columns[i] for i in col_indices if i < len(master_df.columns)]
+                # Check for empty strings, 'nan', or strictly missing values
+                mask = df[cols_to_check].astype(str).apply(lambda c: c.str.strip().str.lower().isin(['', 'nan', 'none']))
+                return mask.any(axis=1).sum()
+
             # 3. RBAC Filtering & Permission Setting
-            if role in ["Super Admin", "Admin"]:
-                st.info("⚡ Master Access: Full Read/Write (A-Q) & View (R-X)")
-                st.caption(f"**Top Note (A1):** {a1_note}")
+            if role == "Super Admin":
                 view_df = master_df.copy() 
                 disabled_cols = form_cols  
                 
+                # Check K(10), L(11), M(12), N(13)
+                pending_count = get_pending_count(view_df, [10, 11, 12, 13])
+                st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
+                
+                st.info("⚡ Master Access: Full Read/Write (A-Q) & View (R-X)")
+                st.caption(f"**Top Note (A1):** {a1_note}")
+                
+            elif role == "Admin":
+                view_df = master_df.copy() 
+                # Lock formulas AND Action Columns O(14), P(15), Q(16)
+                extra_disabled = [master_df.columns[i] for i in [14, 15, 16] if i < len(master_df.columns)]
+                disabled_cols = form_cols + extra_disabled
+                
+                # Check K(10), L(11), M(12), N(13)
+                pending_count = get_pending_count(view_df, [10, 11, 12, 13])
+                st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
+                
+                st.info("⚡ Admin Access: Read/Write (A-N) & View (O-X). Editing Action Data restricted.")
+                st.caption(f"**Top Note (A1):** {a1_note}")
+                
             elif role == "DC":
-                st.info(f"📁 Division Access: Read/Write filtered for **{user['division']}**")
                 div_col_name = master_df.columns[10]
                 view_df = master_df[master_df[div_col_name].astype(str).str.strip() == user['division'].strip()].copy()
                 
-                # Slice view to ONLY the specifically requested columns
+                # Check O(14), P(15), Q(16) BEFORE slicing the view
+                pending_count = get_pending_count(view_df, [14, 15, 16])
+                st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
+                
+                st.info(f"📁 Division Access: Read/Write filtered for **{user['division']}**")
+                
                 view_df = view_df[visible_cols]
                 disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
                 
             else: # Staff
-                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['nickname']}**")
                 staff_col_name = master_df.columns[11]
-                # Filter by exact Nickname match
                 view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['nickname'].strip()].copy()
                 
-                # Slice view to ONLY the specifically requested columns
+                # Check O(14), P(15), Q(16) BEFORE slicing the view
+                pending_count = get_pending_count(view_df, [14, 15, 16])
+                st.subheader(f"📥 You currently have {pending_count} pending documents for updating")
+                
+                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['nickname']}**")
+                
                 view_df = view_df[visible_cols]
                 disabled_cols = [c for c in visible_cols if c not in allowed_edit_names]
 
             # 4. Safely convert date strings to actual Datetime objects
-            # Date columns: A(0), H(7), J(9), O(14)
             date_col_names = [master_df.columns[i] for i in [0, 7, 9, 14] if i < len(master_df.columns)]
             
             for col in date_col_names:
                 if col in view_df.columns:
                     view_df[col] = pd.to_datetime(view_df[col], errors='coerce')
 
-            # 5. Configure Column Types and Exact Widths (in pixels)
-            # Tweak the 'width' numbers below to trial-and-error your perfect layout!
+            # 5. Configure Column Types and Exact Widths
             col_config = {
-                # --- DATES & TIMES (Keep these narrow) ---
-                master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD", width=90),
-                master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options, width=70),
-                master_df.columns[7]: st.column_config.DateColumn("DATE RELEASED", format="YYYY-MM-DD", width=90),
-                master_df.columns[8]: st.column_config.SelectboxColumn("TIME RELEASED", options=time_options, width=70),
-                master_df.columns[9]: st.column_config.DateColumn("DATE SENT", format="YYYY-MM-DD", width=90),
-                master_df.columns[14]: st.column_config.DateColumn("ACTION DATE", format="YYYY-MM-DD", width=90),
-                master_df.columns[15]: st.column_config.SelectboxColumn("ACTION TIME", options=time_options, width=70),
+                master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD", width=120),
+                master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options, width=90),
+                master_df.columns[7]: st.column_config.DateColumn("DATE RELEASED", format="YYYY-MM-DD", width=120),
+                master_df.columns[8]: st.column_config.SelectboxColumn("TIME RELEASED", options=time_options, width=90),
+                master_df.columns[9]: st.column_config.DateColumn("DATE SENT", format="YYYY-MM-DD", width=120),
+                master_df.columns[14]: st.column_config.DateColumn("ACTION DATE", format="YYYY-MM-DD", width=120),
+                master_df.columns[15]: st.column_config.SelectboxColumn("ACTION TIME", options=time_options, width=90),
 
-                # --- TEXT COLUMNS (Give Subject more room, shrink others) ---
-                master_df.columns[2]: st.column_config.TextColumn("DTRAK NO.", width=110),
-                master_df.columns[3]: st.column_config.TextColumn("OFFICE CONTROL NO.", width=110),
-                master_df.columns[4]: st.column_config.TextColumn("SUBJECT", width=400),
-                master_df.columns[6]: st.column_config.TextColumn("ORIGINATING OFFICE", width=130),
+                master_df.columns[2]: st.column_config.TextColumn("DTRAK NO.", width=130),
+                master_df.columns[3]: st.column_config.TextColumn("OFFICE CONTROL NO.", width=150),
+                master_df.columns[4]: st.column_config.TextColumn("SUBJECT", width=350),
+                master_df.columns[6]: st.column_config.TextColumn("ORIGINATING OFFICE", width=180),
                 master_df.columns[13]: st.column_config.TextColumn("REMARKS", width=250),
                 master_df.columns[16]: st.column_config.TextColumn("DOCUMENT STATUS", width=150),
 
-                # --- DROPDOWNS ---
-                master_df.columns[5]: st.column_config.SelectboxColumn("DOCUMENT TYPE", options=doc_types, width=130),
+                master_df.columns[5]: st.column_config.SelectboxColumn("DOCUMENT TYPE", options=doc_types, width=160),
                 master_df.columns[10]: st.column_config.SelectboxColumn("DIVISION", options=divisions_list, width=120),
-                master_df.columns[11]: st.column_config.SelectboxColumn("STAFF ASSIGNED", options=staff_list, width=120),
-                master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags, width=130),
+                master_df.columns[11]: st.column_config.SelectboxColumn("STAFF ASSIGNED", options=staff_list, width=160),
+                master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags, width=140),
             }
 
             # 6. Render Interactive Data Grid
@@ -343,7 +367,6 @@ def render_dashboard():
             # 7. Recombine and Save Logic
             if st.button("💾 Sync Updates to Master Sheet", type="primary"):
                 with st.spinner("Stitching data and syncing to Google Workspace..."):
-                    # Convert Datetimes back to clean strings ("YYYY-MM-DD" or "")
                     for col in date_col_names:
                         if col in edited_view.columns:
                             edited_view[col] = pd.to_datetime(edited_view[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna("")
@@ -357,7 +380,7 @@ def render_dashboard():
 
     elif selected_view == 'OUTGOING':
         st.info("🚧 OUTGOING Module Pending Construction...")
-
+        
 if st.session_state.logged_in:
     check_session_expiration()
     render_dashboard()
