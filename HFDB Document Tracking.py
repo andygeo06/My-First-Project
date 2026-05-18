@@ -301,19 +301,31 @@ def render_dashboard():
                 if col in view_df.columns:
                     view_df[col] = pd.to_datetime(view_df[col], errors='coerce')
 
-            # 5. Configure Column Types
+            # 5. Configure Column Types and Exact Widths (in pixels)
+            # Tweak the 'width' numbers below to trial-and-error your perfect layout!
             col_config = {
-                master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD"),
-                master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options),
-                master_df.columns[5]: st.column_config.SelectboxColumn("DOCUMENT TYPE", options=doc_types),
-                master_df.columns[7]: st.column_config.DateColumn("DATE RELEASED", format="YYYY-MM-DD"),
-                master_df.columns[8]: st.column_config.SelectboxColumn("TIME RELEASED", options=time_options),
-                master_df.columns[9]: st.column_config.DateColumn("DATE SENT", format="YYYY-MM-DD"),
-                master_df.columns[10]: st.column_config.SelectboxColumn("DIVISION", options=divisions_list),
-                master_df.columns[11]: st.column_config.SelectboxColumn("STAFF ASSIGNED", options=staff_list),
-                master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags),
-                master_df.columns[14]: st.column_config.DateColumn("ACTION DATE", format="YYYY-MM-DD"),
-                master_df.columns[15]: st.column_config.SelectboxColumn("ACTION TIME", options=time_options)
+                # --- DATES & TIMES (Keep these narrow) ---
+                master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD", width=120),
+                master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options, width=90),
+                master_df.columns[7]: st.column_config.DateColumn("DATE RELEASED", format="YYYY-MM-DD", width=120),
+                master_df.columns[8]: st.column_config.SelectboxColumn("TIME RELEASED", options=time_options, width=90),
+                master_df.columns[9]: st.column_config.DateColumn("DATE SENT", format="YYYY-MM-DD", width=120),
+                master_df.columns[14]: st.column_config.DateColumn("ACTION DATE", format="YYYY-MM-DD", width=120),
+                master_df.columns[15]: st.column_config.SelectboxColumn("ACTION TIME", options=time_options, width=90),
+
+                # --- TEXT COLUMNS (Give Subject more room, shrink others) ---
+                master_df.columns[2]: st.column_config.TextColumn("DTRAK NO.", width=130),
+                master_df.columns[3]: st.column_config.TextColumn("OFFICE CONTROL NO.", width=150),
+                master_df.columns[4]: st.column_config.TextColumn("SUBJECT", width=350),
+                master_df.columns[6]: st.column_config.TextColumn("ORIGINATING OFFICE", width=180),
+                master_df.columns[13]: st.column_config.TextColumn("REMARKS", width=250),
+                master_df.columns[16]: st.column_config.TextColumn("DOCUMENT STATUS", width=150),
+
+                # --- DROPDOWNS ---
+                master_df.columns[5]: st.column_config.SelectboxColumn("DOCUMENT TYPE", options=doc_types, width=160),
+                master_df.columns[10]: st.column_config.SelectboxColumn("DIVISION", options=divisions_list, width=120),
+                master_df.columns[11]: st.column_config.SelectboxColumn("STAFF ASSIGNED", options=staff_list, width=160),
+                master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags, width=140),
             }
 
             # 6. Render Interactive Data Grid
