@@ -10,7 +10,7 @@ st.markdown("""
     <style>
         /* Unleash the full screen width and CRUSH the top padding to pull the header up */
         .block-container { 
-            padding-top: 0rem !important; 
+            padding-top: 1rem !important; 
             padding-bottom: 2rem !important; 
             padding-left: 1rem !important; 
             padding-right: 1rem !important; 
@@ -128,9 +128,7 @@ def render_dashboard():
     selected_view = st.sidebar.radio("Navigation Menu", tabs)
     st.sidebar.divider()
     if st.sidebar.button("Logout", use_container_width=True, type="secondary"): logout()
-    
-    st.header(f"🗂️ {selected_view} Workspace")
-
+        
     # -------------------------------------------------------------------------
     # WORKSPACE ROUTING
     # -------------------------------------------------------------------------
