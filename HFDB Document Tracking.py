@@ -1,15 +1,13 @@
 import streamlit as st
 from database import sheets_handler
+from datetime import datetime, timedelta, time
 
-# Page config set to wide, but custom CSS below will tame the width
+# Page configuration
 st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
-# -----------------------------------------------------------------------------
-# CUSTOM CSS: REDUCE MARGINS & TIGHTEN LOOK
-# -----------------------------------------------------------------------------
+# Custom CSS for clean margins and compact layout
 st.markdown("""
     <style>
-        /* Tighten margins and set a beautiful, readable maximum screen width */
         .block-container {
             padding-top: 1.5rem !important;
             padding-bottom: 2rem !important;
@@ -18,12 +16,33 @@ st.markdown("""
             max-width: 1250px !important;
             margin: 0 auto !important;
         }
-        /* Tighten spacing between elements slightly */
         [data-testid="stVerticalBlock"] {
             gap: 1rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------------
+# TIME EXPIRATION LOGIC (Monday 6:00 AM Cutoff)
+# -----------------------------------------------------------------------------
+def calculate_monday_expiry():
+    """Calculates the datetime of the upcoming Monday at 6:00 AM."""
+    now = datetime.now()
+    # Find the current week's Monday date
+    current_week_monday = now - timedelta(days=now.weekday())
+    target_expiry = datetime.combine(current_week_monday.date(), time(6, 0, 0))
+    
+    # If we are already past this week's Monday 6 AM, the expiry is next week's Monday 6 AM
+    if now >= target_expiry:
+        target_expiry += timedelta(days=7)
+    return target_expiry
+
+def check_session_expiration():
+    """Logs the user out automatically if the current time has passed Monday 6 AM."""
+    if st.session_state.get("logged_in") and "session_expiry" in st.session_state:
+        if datetime.now() > st.session_state.session_expiry:
+            st.toast("🚨 Your weekly access session has expired. Please log in again.", icon="🔒")
+            logout()
 
 # -----------------------------------------------------------------------------
 # SESSION STATE MANAGEMENT
@@ -38,10 +57,12 @@ if "new_code" not in st.session_state:
 def logout():
     st.session_state.logged_in = False
     st.session_state.user_info = None
+    if "session_expiry" in st.session_state:
+        del st.session_state.session_expiry
     st.rerun()
 
 def get_access_level(user_info):
-    """Returns the explicit user role from the Category column (Col G)."""
+    """Returns the explicit user role from the Category column."""
     category = user_info.get("category")
     return str(category).strip() if category else "Staff"
 
@@ -52,7 +73,6 @@ def render_auth_page():
     st.title("🗂️ HFDB Document Tracking System")
     st.divider()
     
-    # CRITICAL SCREEN FREEZE FOR NEW REGISTRATION CODE
     if st.session_state.new_code:
         st.error("⚠️ CRITICAL: Copy and save this code immediately. It will not be shown again.")
         st.markdown(
@@ -76,6 +96,8 @@ def render_auth_page():
                 if user:
                     st.session_state.logged_in = True
                     st.session_state.user_info = user
+                    # Inject the secure weekly expiration timestamp
+                    st.session_state.session_expiry = calculate_monday_expiry()
                     st.rerun()
                 else:
                     st.error("Invalid Code. Please verify your credentials.")
@@ -102,17 +124,21 @@ def render_dashboard():
     user = st.session_state.user_info
     role = get_access_level(user)
     
-    # 1. SIDEBAR NAVIGATION
+    # Sidebar Profile Details
     st.sidebar.title(f"👤 {user['nickname']}")
     st.sidebar.caption(f"Role: **{role}**\n\nDiv: **{user['division']}**")
+    
+    # Display session expiry info in sidebar for user peace of mind
+    if "session_expiry" in st.session_state:
+        expiry_str = st.session_state.session_expiry.strftime("%b %d, %Y (%I:%M %p)")
+        st.sidebar.caption(f"Session Expires On:\n`{expiry_str}`")
+        
     st.sidebar.divider()
     
-    # Dynamically assign workspace menus based on exact roles
+    # Menu Routing Logic
     if role == "Super Admin":
         tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'STAFF', 'HOLIDAYS', 'REPORTS', 'DD']
-    elif role == "Admin":
-        tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
-    elif role == "DC":
+    elif role in ["Admin", "DC"]:
         tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'REPORTS']
     else: 
         tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM']
@@ -122,23 +148,25 @@ def render_dashboard():
     if st.sidebar.button("Logout", use_container_width=True, type="secondary"):
         logout()
 
-    # 2. GLOBAL SEARCHBAR (Top of screen)
-    st.text_input("🔍 Global Document Search", placeholder="Search across files by DTRAK NO., Subject, or Office Control No...")
+    # Global Top Search Bar
+    st.text_input("🔍 Global Document Search", placeholder="Search across entries by DTRAK NO., Subject, or Office Control No...")
     st.divider()
     
-    # 3. PAGE CONTENT PLACEHOLDER
+    # Main Content Area
     st.header(f"🗂️ {selected_view} Workspace")
     
-    # Access rights indicator for our roadmap reference
-    if selected_view in ['INCOMING', 'OUTGOING']:
-        if role in ["Super Admin", "Admin"]:
-            st.info("⚡ Mode: Full Read & Write Access (All Entries)")
+    # Strict Access Rights Display (Roadmap reference for upcoming features)
+    if role == "Super Admin":
+        st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
+    elif selected_view in ['INCOMING', 'OUTGOING']:
+        if role == "Admin":
+            st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
         elif role == "DC":
             st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
         else:
             st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
     elif selected_view == 'CONFERENCE ROOM':
-        if role in ["Super Admin", "Admin"]:
+        if role == "Admin":
             st.info("⚡ Mode: Read & Write Access")
         else:
             st.info("👁️ Mode: Read-Only Access")
@@ -149,6 +177,7 @@ def render_dashboard():
 # APP RUNNER
 # -----------------------------------------------------------------------------
 if st.session_state.logged_in:
+    check_session_expiration()  # Keep a constant eye on the clock
     render_dashboard()
 else:
     render_auth_page()
