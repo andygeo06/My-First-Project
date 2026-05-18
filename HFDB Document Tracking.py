@@ -2,17 +2,26 @@ import streamlit as st
 from database import sheets_handler
 from datetime import datetime, timedelta, time
 
+# Page configuration
 st.set_page_config(page_title="HFDB Document Tracking", layout="wide", page_icon="🗂️")
 
+# Custom CSS for clean margins and compact layout
 st.markdown("""
     <style>
-        .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; padding-left: 3rem !important; padding-right: 3rem !important; max-width: 1250px !important; margin: 0 auto !important; }
+        .block-container { 
+            padding-top: 1.5rem !important; 
+            padding-bottom: 2rem !important; 
+            padding-left: 3rem !important; 
+            padding-right: 3rem !important; 
+            max-width: 1250px !important; 
+            margin: 0 auto !important; 
+        }
         [data-testid="stVerticalBlock"] { gap: 1rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# LIFECYCLE MANAGEMENT
+# LIFECYCLE & SECURITY HELPERS
 # -----------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = None
@@ -24,9 +33,6 @@ def logout():
     if "session_expiry" in st.session_state: del st.session_state.session_expiry
     st.rerun()
 
-# -----------------------------------------------------------------------------
-# SECURITY GATE CONTROL
-# -----------------------------------------------------------------------------
 def calculate_monday_expiry():
     now = datetime.now()
     current_week_monday = now - timedelta(days=now.weekday())
@@ -40,8 +46,13 @@ def check_session_expiration():
             st.toast("🚨 Your weekly access session has expired. Please log in again.", icon="🔒")
             logout()
 
+def get_access_level(user_info):
+    """Returns the explicit user role from the Category column (Col G)."""
+    category = user_info.get("category")
+    return str(category).strip() if category else "Staff"
+
 # -----------------------------------------------------------------------------
-# INTERFACE FRONTEND
+# AUTHENTICATION UI (Login & Sign Up)
 # -----------------------------------------------------------------------------
 def render_auth_page():
     st.title("🗂️ HFDB Document Tracking System")
@@ -99,6 +110,9 @@ def render_auth_page():
         else:
             st.warning("Staff registry index returned completely empty.")
 
+# -----------------------------------------------------------------------------
+# MAIN DASHBOARD ROUTER (Logged In View)
+# -----------------------------------------------------------------------------
 def render_dashboard():
     user = st.session_state.user_info
     role = get_access_level(user)
@@ -132,7 +146,7 @@ def render_dashboard():
     # 3. MAIN WORKSPACE HEADER
     st.header(f"🗂️ {selected_view} Workspace")
     
-    # Role Banner (Now independent so it won't swallow the rest of the code!)
+    # Role Banner (Independent execution layout)
     if role == "Super Admin":
         st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
     
@@ -216,7 +230,7 @@ def render_dashboard():
         st.info("⚡ Mode: View Active")
 
 # -----------------------------------------------------------------------------
-# MAIN APP ENTRY
+# APP RUNNER
 # -----------------------------------------------------------------------------
 if st.session_state.logged_in:
     check_session_expiration()
