@@ -101,8 +101,9 @@ def render_auth_page():
 
 def render_dashboard():
     user = st.session_state.user_info
-    role = str(user.get("category", "")).strip() if user.get("category") else "Staff"
+    role = get_access_level(user)
     
+    # 1. SIDEBAR PROFILE DETAILS
     st.sidebar.title(f"👤 {user['nickname']}")
     st.sidebar.caption(f"Role: **{role}**\n\nDiv: **{user['division']}**")
     
@@ -111,6 +112,7 @@ def render_dashboard():
         
     st.sidebar.divider()
     
+    # Menu Routing Logic
     if role == "Super Admin":
         tabs = ['INCOMING', 'OUTGOING', 'CONFERENCE ROOM', 'STAFF', 'HOLIDAYS', 'REPORTS', 'DD']
     elif role in ["Admin", "DC"]:
@@ -120,30 +122,32 @@ def render_dashboard():
         
     selected_view = st.sidebar.radio("Navigation Menu", tabs)
     st.sidebar.divider()
-    if st.sidebar.button("Logout", use_container_width=True, type="secondary"): logout()
+    if st.sidebar.button("Logout", use_container_width=True, type="secondary"): 
+        logout()
 
+    # 2. GLOBAL TOP SEARCH BAR
     st.text_input("🔍 Global Document Search", placeholder="Search across entries by DTRAK NO., Subject, or Office Control No...")
     st.divider()
     
+    # 3. MAIN WORKSPACE HEADER
     st.header(f"🗂️ {selected_view} Workspace")
     
+    # Role Banner (Now independent so it won't swallow the rest of the code!)
     if role == "Super Admin":
         st.success("👑 Master Control Mode: Full Unrestricted View & Full Edit Privileges Enabled.")
-    elif selected_view in ['INCOMING', 'OUTGOING']:
-        if role == "Admin": st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
-        elif role == "DC": st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
-        else: st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
-    elif selected_view == 'CONFERENCE ROOM':
+    
+    st.divider()
+
+    # 4. WORKSPACE CONTENT ROUTER
+    if selected_view == 'CONFERENCE ROOM':
         current_year = datetime.now().year
         st.subheader(f"📅 Schedule Calendar Matrix — Fiscal Year {current_year}")
         
-        # 1. CORE OPERATIONS TOOLBAR (Split into View Grid & New Entry Form)
         view_col, form_col = st.columns([2, 1], gap="large")
         
         with form_col:
             st.markdown("### 📝 Reservation Request")
             with st.form("booking_form", clear_on_submit=True):
-                # Restrict selections purely within the current fiscal year parameter
                 chosen_date = st.date_input(
                     "Target Date", 
                     min_value=datetime(current_year, 1, 1), 
@@ -172,19 +176,15 @@ def render_dashboard():
             if raw_schedule.empty:
                 st.info("No bookings recorded for this period.")
             else:
-                # Add a clean date string filter selector
                 raw_schedule["Date"] = pd.to_datetime(raw_schedule["Date"]).dt.date
                 raw_schedule = raw_schedule.sort_values(by="Date", ascending=True)
                 
-                # Render clean visual agenda blocks
                 for idx, row in raw_schedule.iterrows():
-                    # Color indicator mapping based on system validation state
                     is_confirmed = str(row["Status"]).strip() == "Confirmed"
                     border_color = "#4CAF50" if is_confirmed else "#FFC107"
                     bg_color = "#e8f5e9" if is_confirmed else "#fffde7"
                     badge_label = "✅ Confirmed" if is_confirmed else "⏳ Temporary / Pending Approval"
                     
-                    # Output responsive HTML visual schedule card blocks
                     st.markdown(f"""
                         <div style="border-left: 6px solid {border_color}; background-color: {bg_color}; padding: 12px 16px; border-radius: 4px; margin-bottom: 10px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -196,13 +196,24 @@ def render_dashboard():
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # 2. PRIVILEGE ESCALATION BLOCK (Only visible to Admin & Super Admin)
+                    # Escalated confirmation panel for Admin & Super Admin
                     if role in ["Super Admin", "Admin"] and not is_confirmed:
                         if st.button(f"Approve & Hardcode Reservation: '{row['Activity Name']}'", key=f"apprv_{idx}"):
                             with st.spinner("Locking structural cell block..."):
                                 if sheets_handler.confirm_conference_booking(idx):
                                     st.success("Schedule locked into master database grid!")
                                     st.rerun()
+
+    elif selected_view in ['INCOMING', 'OUTGOING']:
+        if role == "Admin": 
+            st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
+        elif role == "DC": 
+            st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
+        elif role == "Staff":
+            st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
+            
+    else:
+        st.info("⚡ Mode: View Active")
 
 # -----------------------------------------------------------------------------
 # MAIN APP ENTRY
