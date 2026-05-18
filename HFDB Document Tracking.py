@@ -222,15 +222,101 @@ def render_dashboard():
             st.dataframe(raw_data, use_container_width=True, height=500)
 
     # -------------------------------------------------------------------------
-    # CORE TRACKING LOGIC (INCOMING / OUTGOING)
+    # CORE TRACKING LOGIC (INCOMING)
     # -------------------------------------------------------------------------
-    elif selected_view in ['INCOMING', 'OUTGOING']:
-        if role == "Admin": st.info("⚡ Mode: Full Read & Write Access (All Divisions)")
-        elif role == "DC": st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
-        elif role == "Staff": st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
+    elif selected_view == 'INCOMING':
+        st.subheader("📥 INCOMING Document Tracker")
+        
+        # 1. Fetch live data and dropdown lists
+        a1_note, master_df = sheets_handler.get_incoming_data()
+        doc_types, doc_tags = sheets_handler.get_dropdown_lists()
+        
+        # Extract STAFF lists for Column K and L mapping
+        staff_df = sheets_handler.get_staff_data()
+        divisions_list = staff_df["Division"].dropna().unique().tolist()
+        staff_list = staff_df["Name of Staff"].dropna().unique().tolist()
+        
+        time_options = ["AM", "PM"]
+        
+        if master_df.empty:
+            st.warning("INCOMING sheet is currently empty or unreachable.")
+        else:
+            # 2. Extract Columns based on the A-X layout structure
+            # A-Q (Indices 0 to 16) are editable. R-X (Indices 17+) are formulas.
+            edit_cols = master_df.columns[:17].tolist()
+            form_cols = master_df.columns[17:].tolist()
             
-    else:
-        st.info("⚡ Mode: View Active")
+            # 3. RBAC Filtering & Permission Setting
+            if role in ["Super Admin", "Admin"]:
+                st.info("⚡ Master Access: Full Read/Write (A-Q) & View (R-X)")
+                st.caption(f"**Top Note (A1):** {a1_note}")
+                view_df = master_df.copy() # Admins see everything
+                disabled_cols = form_cols  # Disable R-X formulas
+                
+            elif role == "DC":
+                st.info(f"📁 Division Access: Read/Write filtered for **{user['division']}**")
+                # Filter by Col K (Index 10)
+                div_col_name = master_df.columns[10]
+                view_df = master_df[master_df[div_col_name].astype(str).str.strip() == user['division'].strip()]
+                
+                # DC can ONLY edit L, M, O, P, Q (Indices 11, 12, 14, 15, 16)
+                allowed_edit_indices = [11, 12, 14, 15, 16]
+                allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices]
+                
+                # Disable everything else (including hiding R-X entirely)
+                disabled_cols = [c for c in edit_cols if c not in allowed_edit_names]
+                view_df = view_df[edit_cols] # Strip out R-X from view entirely
+                
+            else: # Staff
+                st.info(f"🔒 Staff Access: Read/Write filtered for **{user['name']}**")
+                # Filter by Col L (Index 11)
+                staff_col_name = master_df.columns[11]
+                view_df = master_df[master_df[staff_col_name].astype(str).str.strip() == user['name'].strip()]
+                
+                # Staff can ONLY edit O, P, Q (Indices 14, 15, 16)
+                allowed_edit_indices = [14, 15, 16]
+                allowed_edit_names = [master_df.columns[i] for i in allowed_edit_indices]
+                
+                disabled_cols = [c for c in edit_cols if c not in allowed_edit_names]
+                view_df = view_df[edit_cols] # Strip out R-X from view entirely
+
+            # 4. Configure Column Types for standard dropdowns and dates
+            col_config = {
+                master_df.columns[0]: st.column_config.DateColumn("DATE RECEIVED", format="YYYY-MM-DD"),
+                master_df.columns[1]: st.column_config.SelectboxColumn("TIME RECEIVED", options=time_options),
+                master_df.columns[5]: st.column_config.SelectboxColumn("DOCUMENT TYPE", options=doc_types),
+                master_df.columns[7]: st.column_config.DateColumn("DATE RELEASED", format="YYYY-MM-DD"),
+                master_df.columns[8]: st.column_config.SelectboxColumn("TIME RELEASED", options=time_options),
+                master_df.columns[9]: st.column_config.DateColumn("DATE SENT", format="YYYY-MM-DD"),
+                master_df.columns[10]: st.column_config.SelectboxColumn("DIVISION", options=divisions_list),
+                master_df.columns[11]: st.column_config.SelectboxColumn("STAFF ASSIGNED", options=staff_list),
+                master_df.columns[12]: st.column_config.SelectboxColumn("DOCUMENT TAG", options=doc_tags),
+                master_df.columns[14]: st.column_config.DateColumn("ACTION DATE", format="YYYY-MM-DD"),
+                master_df.columns[15]: st.column_config.SelectboxColumn("ACTION TIME", options=time_options)
+            }
+
+            # 5. Render Interactive Data Grid
+            edited_view = st.data_editor(
+                view_df,
+                column_config=col_config,
+                disabled=disabled_cols,
+                num_rows="dynamic" if role in ["Super Admin", "Admin"] else "fixed",
+                use_container_width=True,
+                height=600
+            )
+            
+            # 6. Recombine and Save Logic
+            if st.button("💾 Sync Updates to Master Sheet", type="primary"):
+                with st.spinner("Stitching data and syncing to Google Workspace..."):
+                    # Update original master dataframe with the edited subset using Pandas index mapping
+                    master_df.update(edited_view)
+                    
+                    if sheets_handler.update_incoming_data(master_df):
+                        st.success("INCOMING Tracker successfully updated!")
+                        st.rerun()
+
+    elif selected_view == 'OUTGOING':
+        st.info("🚧 OUTGOING Module Pending Construction...")
 
 if st.session_state.logged_in:
     check_session_expiration()
