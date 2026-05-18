@@ -134,10 +134,75 @@ def render_dashboard():
         elif role == "DC": st.info(f"📁 Mode: Division Read & Write Access (Filtered by: {user['division']})")
         else: st.info(f"🔒 Mode: Staff Read & Write Access (Filtered by Assigned Rows: {user['name']})")
     elif selected_view == 'CONFERENCE ROOM':
-        if role == "Admin": st.info("⚡ Mode: Read & Write Access")
-        else: st.info("👁️ Mode: Read-Only Access")
-    else:
-        st.info("⚡ Mode: View Active")
+        current_year = datetime.now().year
+        st.subheader(f"📅 Schedule Calendar Matrix — Fiscal Year {current_year}")
+        
+        # 1. CORE OPERATIONS TOOLBAR (Split into View Grid & New Entry Form)
+        view_col, form_col = st.columns([2, 1], gap="large")
+        
+        with form_col:
+            st.markdown("### 📝 Reservation Request")
+            with st.form("booking_form", clear_on_submit=True):
+                # Restrict selections purely within the current fiscal year parameter
+                chosen_date = st.date_input(
+                    "Target Date", 
+                    min_value=datetime(current_year, 1, 1), 
+                    max_value=datetime(current_year, 12, 31)
+                )
+                slot = st.selectbox("Preferred Window", ["Whole Day", "Morning (8AM - 12PM)", "Afternoon (1PM - 5PM)"])
+                activity = st.text_input("Activity/Meeting Title", placeholder="e.g., Division General Assembly")
+                
+                submit_booking = st.form_submit_button("Submit Temporary Booking", use_container_width=True)
+                if submit_booking:
+                    if activity.strip() == "":
+                        st.warning("Action halted: Activity Title cannot be empty.")
+                    else:
+                        with st.spinner("Logging reservation query..."):
+                            success = sheets_handler.add_conference_booking(
+                                chosen_date, activity, slot, user['nickname'], user['division']
+                            )
+                            if success:
+                                st.success("🎉 Request logged! Awaiting Admin authorization.")
+                                st.rerun()
+
+        with view_col:
+            st.markdown("### 📑 Master Booking Timeline")
+            raw_schedule = sheets_handler.get_conference_data()
+            
+            if raw_schedule.empty:
+                st.info("No bookings recorded for this period.")
+            else:
+                # Add a clean date string filter selector
+                raw_schedule["Date"] = pd.to_datetime(raw_schedule["Date"]).dt.date
+                raw_schedule = raw_schedule.sort_values(by="Date", ascending=True)
+                
+                # Render clean visual agenda blocks
+                for idx, row in raw_schedule.iterrows():
+                    # Color indicator mapping based on system validation state
+                    is_confirmed = str(row["Status"]).strip() == "Confirmed"
+                    border_color = "#4CAF50" if is_confirmed else "#FFC107"
+                    bg_color = "#e8f5e9" if is_confirmed else "#fffde7"
+                    badge_label = "✅ Confirmed" if is_confirmed else "⏳ Temporary / Pending Approval"
+                    
+                    # Output responsive HTML visual schedule card blocks
+                    st.markdown(f"""
+                        <div style="border-left: 6px solid {border_color}; background-color: {bg_color}; padding: 12px 16px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong>📅 {row['Date'].strftime('%A, %b %d, %Y')}</strong>
+                                <span style="color: {border_color}; font-weight: bold; font-size: 0.85em;">{badge_label}</span>
+                            </div>
+                            <div style="font-size: 1.15em; font-weight: 600; margin: 4px 0;">🏷️ {row['Activity Name']}</div>
+                            <div style="font-size: 0.9em; color: #555;">⏱️ Timeframe: {row['Time Slot']} | 👤 Care of: {row['Requested By']} ({row['Division']})</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 2. PRIVILEGE ESCALATION BLOCK (Only visible to Admin & Super Admin)
+                    if role in ["Super Admin", "Admin"] and not is_confirmed:
+                        if st.button(f"Approve & Hardcode Reservation: '{row['Activity Name']}'", key=f"apprv_{idx}"):
+                            with st.spinner("Locking structural cell block..."):
+                                if sheets_handler.confirm_conference_booking(idx):
+                                    st.success("Schedule locked into master database grid!")
+                                    st.rerun()
 
 # -----------------------------------------------------------------------------
 # MAIN APP ENTRY
