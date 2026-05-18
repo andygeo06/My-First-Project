@@ -147,7 +147,7 @@ def render_dashboard():
         raw_schedule = sheets_handler.get_conference_data()
         today = datetime.now().date()
         date_range = [today + timedelta(days=i) for i in range(30)]
-        matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM)", "Large Room (PM)", "Small Room (AM)", "Small Room (PM)"])
+        matrix_df = pd.DataFrame(index=date_range, columns=["Large Room (AM 8-12NN)", "Large Room (PM 1-5PM)", "Small Room (AM 8-12NN)", "Small Room (PM 1-5PM)"])
         matrix_df.fillna("Free", inplace=True)
         matrix_df.index.name = "Date"
         
