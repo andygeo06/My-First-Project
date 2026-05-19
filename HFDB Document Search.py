@@ -5,10 +5,6 @@ from email.mime.text import MIMEText
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import re
-import imaplib
-import email
-import time
-import base64
 
 # --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
@@ -52,7 +48,6 @@ st.markdown("""
         height: 50px; 
         width: 100%; 
         border: none; 
-        margin-bottom: 10px;
     }
     
     /* Mobile Hint Animation */
@@ -70,35 +65,28 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GSPREAD AUTHENTICATION & CACHED LOADING ---
+# --- 2. GSPREAD AUTHENTICATION & LOADING ---
 @st.cache_resource
 def get_gspread_client():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-# Cache the data fetching for 30 seconds to prevent API Quota Limits!
-@st.cache_data(ttl=30, show_spinner=False)
-def fetch_sheet_data():
-    c = get_gspread_client()
-    d = c.open_by_url(st.secrets["GSHEETS_URL"])
-    return (
-        d.worksheet("IN").get_all_values(),
-        d.worksheet("OUT").get_all_values(),
-        d.worksheet("USER").get_all_values(),
-        d.worksheet("LINK_DB").get_all_values()
-    )
-
 try:
     client = get_gspread_client()
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
     
-    # We define this here so the "Confirm Link" button has permission to write data
+    ws_in = doc.worksheet("IN")
+    ws_out = doc.worksheet("OUT")
+    ws_user = doc.worksheet("USER")
+    
     ws_link = doc.worksheet("LINK_DB")
     
-    # Load data using the cached function
-    data_in, data_out, data_user, data_link = fetch_sheet_data()
+    data_in = ws_in.get_all_values()
+    data_out = ws_out.get_all_values()
+    data_user = ws_user.get_all_values()
+    data_link = ws_link.get_all_values()
     
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
@@ -137,7 +125,7 @@ except Exception as e:
     st.error(f"⚠️ App Error: \n\n {e}")
     st.stop()
     
-# --- 3. SIGNAL & FETCH FUNCTIONS ---
+# --- 3. SIGNAL FUNCTION ---
 def send_signal(user_name, user_email, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
@@ -154,45 +142,7 @@ def send_signal(user_name, user_email, dtrak_list):
         except: return False
     return True
 
-def fetch_pdf_from_email(dtrak_no):
-    bot_email = st.secrets["BOT_EMAIL"]
-    bot_pw = st.secrets["BOT_PASSWORD"]
-    
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(bot_email, bot_pw)
-        mail.select("inbox")
-        
-        # Search for unread emails containing the DTRAK number in the subject
-        search_criterion = f'(UNSEEN SUBJECT "{dtrak_no}")'
-        status, response = mail.search(None, search_criterion)
-        
-        mail_ids = response[0].split()
-        if mail_ids:
-            latest_id = mail_ids[-1]
-            status, data = mail.fetch(latest_id, '(RFC822)')
-            
-            raw_email = data[0][1]
-            msg = email.message_from_bytes(raw_email)
-            
-            for part in msg.walk():
-                if part.get_content_maintype() == 'multipart':
-                    continue
-                if part.get('Content-Disposition') is None:
-                    continue
-                
-                filename = part.get_filename()
-                if filename and filename.lower().endswith('.pdf'):
-                    pdf_data = part.get_payload(decode=True)
-                    mail.store(latest_id, '+FLAGS', '\\Seen') 
-                    mail.logout()
-                    return pdf_data
-                    
-        mail.logout()
-    except Exception as e:
-        pass
-    return None
-
+# --- NEW: MASS SEARCH HELPER FUNCTION ---
 def mass_search_filter(df, query):
     if not query:
         return df
@@ -321,7 +271,6 @@ with col_action:
         if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
         for d in selected_dtraks: st.info(f"📄 {d}")
         
-        # Original Send to Email Button
         if st.button("SEND TO MY EMAIL"):
             if not user_name: st.error("Select name!")
             else:
@@ -331,34 +280,6 @@ with col_action:
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
-                        
-        # NEW: In-App Viewer Button
-        if st.button("👁️ VIEW DOCUMENT(S) IN APP"):
-            if not user_name: 
-                st.error("Select name!")
-            else:
-                for dtrak in selected_dtraks:
-                    found_pdf = None
-                    # Updated the spinner text to reflect the new expected wait time
-                    with st.spinner(f"Requesting {dtrak} from server... (This may take up to 5 minutes)"):
-                        # Send signal but tell the local PC to reply directly to the bot email
-                        send_signal(user_name="Streamlit_Viewer", user_email=st.secrets["BOT_EMAIL"], dtrak_list=[dtrak])
-                        
-                        # Polling loop: check the inbox every 5 seconds, up to 60 times (5 minutes total)
-                        for attempt in range(60): 
-                            time.sleep(5)
-                            found_pdf = fetch_pdf_from_email(dtrak)
-                            if found_pdf:
-                                break
-                                
-                    if found_pdf:
-                        st.success(f"Loaded: {dtrak}")
-                        # Convert bytes to base64 and display inside an iframe
-                        base64_pdf = base64.b64encode(found_pdf).decode('utf-8')
-                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" style="border: 2px solid rgba(0, 150, 255, 0.4); border-radius: 10px; margin-bottom: 20px;"></iframe>'
-                        st.markdown(pdf_display, unsafe_allow_html=True)
-                    else:
-                        st.error(f"⏰ Timeout fetching {dtrak} after 5 minutes. The local server might be offline or busy processing other requests.")
     else:
         st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
