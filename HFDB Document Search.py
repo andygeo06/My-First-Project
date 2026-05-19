@@ -5,6 +5,10 @@ from email.mime.text import MIMEText
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import re
+import imaplib
+import email
+import time
+import base64
 
 # --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
@@ -48,6 +52,7 @@ st.markdown("""
         height: 50px; 
         width: 100%; 
         border: none; 
+        margin-bottom: 10px;
     }
     
     /* Mobile Hint Animation */
@@ -125,7 +130,7 @@ except Exception as e:
     st.error(f"⚠️ App Error: \n\n {e}")
     st.stop()
     
-# --- 3. SIGNAL FUNCTION ---
+# --- 3. SIGNAL & FETCH FUNCTIONS ---
 def send_signal(user_name, user_email, dtrak_list):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
@@ -141,6 +146,46 @@ def send_signal(user_name, user_email, dtrak_list):
                 server.send_message(msg)
         except: return False
     return True
+
+# --- NEW: EMAIL PDF FETCHER ---
+def fetch_pdf_from_email(dtrak_no):
+    bot_email = st.secrets["BOT_EMAIL"]
+    bot_pw = st.secrets["BOT_PASSWORD"]
+    
+    try:
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(bot_email, bot_pw)
+        mail.select("inbox")
+        
+        # Search for unread emails containing the DTRAK number in the subject
+        search_criterion = f'(UNSEEN SUBJECT "{dtrak_no}")'
+        status, response = mail.search(None, search_criterion)
+        
+        mail_ids = response[0].split()
+        if mail_ids:
+            latest_id = mail_ids[-1]
+            status, data = mail.fetch(latest_id, '(RFC822)')
+            
+            raw_email = data[0][1]
+            msg = email.message_from_bytes(raw_email)
+            
+            for part in msg.walk():
+                if part.get_content_maintype() == 'multipart':
+                    continue
+                if part.get('Content-Disposition') is None:
+                    continue
+                
+                filename = part.get_filename()
+                if filename and filename.lower().endswith('.pdf'):
+                    pdf_data = part.get_payload(decode=True)
+                    mail.store(latest_id, '+FLAGS', '\\Seen') 
+                    mail.logout()
+                    return pdf_data
+                    
+        mail.logout()
+    except Exception as e:
+        pass
+    return None
 
 # --- NEW: MASS SEARCH HELPER FUNCTION ---
 def mass_search_filter(df, query):
@@ -271,6 +316,7 @@ with col_action:
         if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
         for d in selected_dtraks: st.info(f"📄 {d}")
         
+        # Original Send to Email Button
         if st.button("SEND TO MY EMAIL"):
             if not user_name: st.error("Select name!")
             else:
@@ -280,6 +326,33 @@ with col_action:
                     if send_signal(user_name, user_email, selected_dtraks):
                         st.snow()
                         st.success("Done!")
+                        
+        # NEW: In-App Viewer Button
+        if st.button("👁️ VIEW DOCUMENT(S) IN APP"):
+            if not user_name: 
+                st.error("Select name!")
+            else:
+                for dtrak in selected_dtraks:
+                    found_pdf = None
+                    with st.spinner(f"Requesting {dtrak} from server... (approx 15-30s)"):
+                        # Send signal but tell the local PC to reply directly to the bot email
+                        send_signal(user_name="Streamlit_Viewer", user_email=st.secrets["BOT_EMAIL"], dtrak_list=[dtrak])
+                        
+                        # Polling loop: check the inbox every 3 seconds, up to 10 times
+                        for attempt in range(10): 
+                            time.sleep(3)
+                            found_pdf = fetch_pdf_from_email(dtrak)
+                            if found_pdf:
+                                break
+                                
+                    if found_pdf:
+                        st.success(f"Loaded: {dtrak}")
+                        # Convert bytes to base64 and display inside an iframe
+                        base64_pdf = base64.b64encode(found_pdf).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" style="border: 2px solid rgba(0, 150, 255, 0.4); border-radius: 10px; margin-bottom: 20px;"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
+                    else:
+                        st.error(f"⏰ Timeout fetching {dtrak}. The local server might be offline or busy processing other requests.")
     else:
         st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
