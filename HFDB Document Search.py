@@ -70,28 +70,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GSPREAD AUTHENTICATION & LOADING ---
+# --- 2. GSPREAD AUTHENTICATION & CACHED LOADING ---
 @st.cache_resource
 def get_gspread_client():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
+# Cache the data fetching for 30 seconds to prevent API Quota Limits!
+@st.cache_data(ttl=30, show_spinner=False)
+def fetch_sheet_data():
+    c = get_gspread_client()
+    d = c.open_by_url(st.secrets["GSHEETS_URL"])
+    return (
+        d.worksheet("IN").get_all_values(),
+        d.worksheet("OUT").get_all_values(),
+        d.worksheet("USER").get_all_values(),
+        d.worksheet("LINK_DB").get_all_values()
+    )
+
 try:
     client = get_gspread_client()
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
     
-    ws_in = doc.worksheet("IN")
-    ws_out = doc.worksheet("OUT")
-    ws_user = doc.worksheet("USER")
-    
+    # We define this here so the "Confirm Link" button has permission to write data
     ws_link = doc.worksheet("LINK_DB")
     
-    data_in = ws_in.get_all_values()
-    data_out = ws_out.get_all_values()
-    data_user = ws_user.get_all_values()
-    data_link = ws_link.get_all_values()
+    # Load data using the cached function
+    data_in, data_out, data_user, data_link = fetch_sheet_data()
     
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
@@ -147,7 +154,6 @@ def send_signal(user_name, user_email, dtrak_list):
         except: return False
     return True
 
-# --- NEW: EMAIL PDF FETCHER ---
 def fetch_pdf_from_email(dtrak_no):
     bot_email = st.secrets["BOT_EMAIL"]
     bot_pw = st.secrets["BOT_PASSWORD"]
@@ -187,7 +193,6 @@ def fetch_pdf_from_email(dtrak_no):
         pass
     return None
 
-# --- NEW: MASS SEARCH HELPER FUNCTION ---
 def mass_search_filter(df, query):
     if not query:
         return df
