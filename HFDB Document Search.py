@@ -339,13 +339,14 @@ with col_action:
             else:
                 for dtrak in selected_dtraks:
                     found_pdf = None
-                    with st.spinner(f"Requesting {dtrak} from server... (approx 15-30s)"):
+                    # Updated the spinner text to reflect the new expected wait time
+                    with st.spinner(f"Requesting {dtrak} from server... (This may take up to 5 minutes)"):
                         # Send signal but tell the local PC to reply directly to the bot email
                         send_signal(user_name="Streamlit_Viewer", user_email=st.secrets["BOT_EMAIL"], dtrak_list=[dtrak])
                         
-                        # Polling loop: check the inbox every 3 seconds, up to 10 times
-                        for attempt in range(10): 
-                            time.sleep(3)
+                        # Polling loop: check the inbox every 5 seconds, up to 60 times (5 minutes total)
+                        for attempt in range(60): 
+                            time.sleep(5)
                             found_pdf = fetch_pdf_from_email(dtrak)
                             if found_pdf:
                                 break
@@ -357,7 +358,7 @@ with col_action:
                         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" style="border: 2px solid rgba(0, 150, 255, 0.4); border-radius: 10px; margin-bottom: 20px;"></iframe>'
                         st.markdown(pdf_display, unsafe_allow_html=True)
                     else:
-                        st.error(f"⏰ Timeout fetching {dtrak}. The local server might be offline or busy processing other requests.")
+                        st.error(f"⏰ Timeout fetching {dtrak} after 5 minutes. The local server might be offline or busy processing other requests.")
     else:
         st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
