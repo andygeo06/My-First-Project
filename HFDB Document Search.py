@@ -189,17 +189,35 @@ with col_main:
     }
 
     with tab_in:
-        q_in = st.text_area("Search Incoming Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="in_search", height=68)
+        col_search_in, col_btn_in = st.columns([5, 1])
+        with col_search_in:
+            q_in = st.text_area("Search Incoming Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="in_search", height=68)
+        with col_btn_in:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("🔍 SEARCH", key="btn_search_in")
+            
         filtered_in = mass_search_filter(df_in, q_in)
         selection_in = st.dataframe(filtered_in, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid")
 
     with tab_out:
-        q_out = st.text_area("Search Outgoing Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="out_search", height=68)
+        col_search_out, col_btn_out = st.columns([5, 1])
+        with col_search_out:
+            q_out = st.text_area("Search Outgoing Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="out_search", height=68)
+        with col_btn_out:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("🔍 SEARCH", key="btn_search_out")
+            
         filtered_out = mass_search_filter(df_out, q_out)
         selection_out = st.dataframe(filtered_out, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid")
         
     with tab_nom:
-        q_nom = st.text_area("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title, Date, or Paste multiple Codes...", key="nom_search", height=68)
+        col_search_nom, col_btn_nom = st.columns([5, 1])
+        with col_search_nom:
+            q_nom = st.text_area("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title, Date, or Paste multiple Codes...", key="nom_search", height=68)
+        with col_btn_nom:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("🔍 SEARCH", key="btn_search_nom")
+            
         filtered_nom = mass_search_filter(df_nom_ui, q_nom)
         
         sub_col_nom, sub_col_link = st.columns([2.5, 1], gap="medium")
