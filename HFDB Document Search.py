@@ -39,13 +39,13 @@ st.markdown("""
         .stTabs [data-baseweb="tab"] p { font-size: 13px !important; } 
     }
     
-    /* Global Primary Button Gradient - White text always looks good on this blue gradient */
+    /* Global Primary Button Gradient - HEIGHT UPDATED TO 68PX TO MATCH TEXT AREA */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
         color: #ffffff !important; 
         font-weight: bold; 
         border-radius: 12px; 
-        height: 50px; 
+        height: 68px; 
         width: 100%; 
         border: none; 
     }
@@ -189,33 +189,33 @@ with col_main:
     }
 
     with tab_in:
+        st.markdown("##### 📥 Search Incoming Documents")
         col_search_in, col_btn_in = st.columns([5, 1])
         with col_search_in:
-            q_in = st.text_area("Search Incoming Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="in_search", height=68)
+            q_in = st.text_area("in_docs", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="in_search", height=68, label_visibility="collapsed")
         with col_btn_in:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.button("🔍 SEARCH", key="btn_search_in")
             
         filtered_in = mass_search_filter(df_in, q_in)
         selection_in = st.dataframe(filtered_in, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_in, key="in_grid")
 
     with tab_out:
+        st.markdown("##### 📤 Search Outgoing Documents")
         col_search_out, col_btn_out = st.columns([5, 1])
         with col_search_out:
-            q_out = st.text_area("Search Outgoing Documents", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="out_search", height=68)
+            q_out = st.text_area("out_docs", placeholder="🔍 Paste multiple DTRAK or Control Nos. from Google Sheets here...", key="out_search", height=68, label_visibility="collapsed")
         with col_btn_out:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.button("🔍 SEARCH", key="btn_search_out")
             
         filtered_out = mass_search_filter(df_out, q_out)
         selection_out = st.dataframe(filtered_out, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row", column_config=config_out, key="out_grid")
         
     with tab_nom:
+        st.markdown("##### 🤝 Search Notice of Meetings (NOM)")
         col_search_nom, col_btn_nom = st.columns([5, 1])
         with col_search_nom:
-            q_nom = st.text_area("Search Notice of Meetings (NOM)", placeholder="🔍 Search Title, Date, or Paste multiple Codes...", key="nom_search", height=68)
+            q_nom = st.text_area("nom_docs", placeholder="🔍 Search Title, Date, or Paste multiple Codes...", key="nom_search", height=68, label_visibility="collapsed")
         with col_btn_nom:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.button("🔍 SEARCH", key="btn_search_nom")
             
         filtered_nom = mass_search_filter(df_nom_ui, q_nom)
