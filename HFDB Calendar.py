@@ -14,7 +14,7 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# Space-Maximizing CSS & Ultra-Compact Banners
+# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners
 st.markdown("""
     <style>
         .block-container {
@@ -49,6 +49,16 @@ st.markdown("""
             font-size: 0.85rem;
             border-radius: 4px;
             margin-bottom: 5px;
+        }
+        
+        /* 👇 NEW UPGRADE: Shrink Calendar Event Text 👇 */
+        .fc-event-title {
+            font-size: 11px !important; /* Adjust this number to make it bigger/smaller */
+            font-weight: normal !important; /* Un-bold it to make it look cleaner at small sizes */
+            line-height: 1.2 !important;
+        }
+        .fc-event-main {
+            padding: 1px 2px !important; /* Squeezes the inner padding of the block */
         }
     </style>
 """, unsafe_allow_html=True)
