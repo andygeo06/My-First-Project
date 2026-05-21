@@ -454,7 +454,8 @@ calendar_options = {
         "right": "dayGridMonth,dayGridWeek"
     },
     "displayEventTime": False, 
-    "eventDisplay": "block",   
+    "eventDisplay": "block",
+    "weekends": False, # <-- BANISH THE WEEKENDS!
     "height": 650
 }
 
