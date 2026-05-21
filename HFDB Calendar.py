@@ -385,14 +385,20 @@ calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
 with st.spinner("Loading calendar data..."):
-    # --- UPGRADE: Plot the Holidays First ---
+    # --- UPGRADE: Plot the Holidays First (With Bulletproof Date Formatting) ---
     holiday_df = fetch_holidays()
     if not holiday_df.empty and 'DATE' in holiday_df.columns:
         for _, h_row in holiday_df.iterrows():
-            h_date = str(h_row.get('DATE', '')).strip()
+            raw_date = str(h_row.get('DATE', '')).strip()
             h_remarks = str(h_row.get('REMARKS', '')).strip()
             
-            if h_date:
+            if raw_date:
+                try:
+                    # Force ANY date format into the strict YYYY-MM-DD format FullCalendar demands!
+                    h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
+                except Exception:
+                    h_date = raw_date # Fallback just in case
+                
                 # 1. The Background Tint (colors the whole square cell)
                 calendar_events.append({
                     "start": h_date,
