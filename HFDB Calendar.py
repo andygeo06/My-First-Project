@@ -225,7 +225,8 @@ calendar_options = {
 }
 
 # Render Calendar
-if calendar_events:
-    calendar(events=calendar_events, options=calendar_options)
-else:
-    st.info(f"No whereabouts plotted yet for {selected_div}.")
+if not calendar_events:
+    st.info(f"No whereabouts plotted yet for {selected_div}. The calendar is currently empty.")
+
+# We moved this outside the 'if' statement so it ALWAYS renders
+calendar(events=calendar_events, options=calendar_options)
