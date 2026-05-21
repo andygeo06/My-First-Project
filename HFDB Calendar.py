@@ -16,19 +16,16 @@ st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide
 # --- CUSTOM CSS FOR PADDING AND STICKY HEADER ---
 st.markdown("""
     <style>
-        /* 1. Reduce overall page padding to maximize screen space */
         .block-container {
             padding-top: 2rem !important;
             padding-bottom: 1rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
         }
-        
-        /* 2. Create the sticky header class */
         .sticky-header {
             position: sticky;
-            top: 2.8rem; /* Sits just below the default Streamlit top bar */
-            background-color: var(--background-color); /* Adapts to light/dark mode */
+            top: 2.8rem; 
+            background-color: var(--background-color); 
             z-index: 999;
             padding: 10px 0px 10px 0px;
             margin-top: -10px;
@@ -37,7 +34,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
 
 # --- HELPER FUNCTIONS ---
 def get_next_expiration():
@@ -88,20 +84,16 @@ def get_color_for_name(name):
     colors = ["#FF5733", "#33FF57", "#3357FF", "#FF33A8", "#A833FF", "#33FFF5", "#FF8F33", "#E3FF33", "#FF4500", "#2E8B57"]
     return colors[hash(name) % len(colors)]
 
-# --- ANTI-COLLISION FUNCTION ---
 def safe_append_row(sheet, row_data, max_retries=5):
-    """Appends data with Exponential Backoff to prevent Google 429 Rate Limits."""
     for attempt in range(max_retries):
         try:
             sheet.append_row(row_data)
             return True
         except gspread.exceptions.APIError as e:
             if "429" in str(e) and attempt < max_retries - 1:
-                # Sleep for an exponentially increasing time + random jitter
                 time.sleep((2 ** attempt) + random.uniform(0, 1))
             else:
-                raise e # If it's not a rate limit, or we ran out of retries, crash gracefully.
-
+                raise e 
 
 # --- INITIALIZATION ---
 try:
@@ -120,7 +112,6 @@ if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
 
 check_session_expiration()
-
 
 # --- UI: SIDEBAR LOGIN ---
 with st.sidebar:
@@ -157,29 +148,27 @@ with st.sidebar:
                     user_email = staff_sheet.cell(exact_row, 3).value
                     new_code = generate_ucode()
                     
-                    # --- THE UPGRADED WRITE & VERIFY MECHANISM ---
                     write_success = False
-                    cell_address = f"A{exact_row}" # Target Column A explicitly
+                    last_error = ""
                     
                     for attempt in range(3):
                         try:
-                            # 1. Write the code
-                            staff_sheet.update_acell(cell_address, new_code)
-                            
-                            # 2. Immediately read it back to verify
-                            verify_val = staff_sheet.acell(cell_address).value
-                            if verify_val == new_code:
+                            staff_sheet.update_cell(exact_row, 1, new_code)
+                            time.sleep(2) 
+                            verify_val = staff_sheet.cell(exact_row, 1).value
+                            if str(verify_val).strip() == new_code:
                                 write_success = True
-                                break # Write confirmed, break the loop
-                        except Exception:
-                            time.sleep(1.5) # Wait a moment and retry if Google hangs
+                                break 
+                            else:
+                                last_error = f"Verification mismatch: Expected {new_code}, but sheet returned {verify_val}"
+                        except Exception as e:
+                            last_error = str(e)
+                            time.sleep(2) 
                             
-                    # 3. Stop everything if the write absolutely failed
                     if not write_success:
-                        st.error("Google API blocked the save. The code was NOT generated. Please click send again.")
+                        st.error(f"Google API blocked the save. Reason: {last_error}")
                         st.stop()
                     
-                    # 4. Only send the email if the write was confirmed successful
                     try:
                         send_email(user_email, selected_name, new_code)
                         st.success(f"Code secured in database and sent to {user_email}!")
@@ -198,7 +187,6 @@ with st.sidebar:
                 
                 user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
                 
-                # Double scrub the strings just to be absolutely safe
                 stored_code = str(user_data.get('UCODE', '')).strip()
                 entered_clean = entered_code.strip()
                 
@@ -221,9 +209,7 @@ with st.sidebar:
             st.session_state.user_division = None
             st.rerun()
 
-
 # --- UI: MAIN DASHBOARD ---
-# The sticky header replacing standard st.title()
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
 # 1. Schedule Entry Form
@@ -241,22 +227,17 @@ if st.session_state.logged_in:
                     try:
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), st.session_state.current_user, whereabouts]
-                        
-                        # Implementing the anti-collision function here
                         safe_append_row(div_sheet, row_data)
-                        
                         st.success("Schedule successfully added to the tracker!")
                     except Exception as e:
                         st.error(f"Error saving to the {st.session_state.user_division} tab. Does it exist?")
                 else:
                     st.error("Please ensure the End Date is after the Start Date and the Details are filled out.")
 
-
 # 2. Calendar View
 divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
 selected_div = st.radio("Filter by Division", divisions, horizontal=True)
 
-# Fetch Data for Calendar
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
@@ -281,7 +262,6 @@ with st.spinner("Loading calendar data..."):
         except Exception:
              pass 
 
-# Configure Calendar Appearance
 calendar_options = {
     "initialView": "dayGridMonth",
     "headerToolbar": {
@@ -294,8 +274,8 @@ calendar_options = {
     "height": 650
 }
 
-# Render Calendar
 if not calendar_events:
     st.info(f"No whereabouts plotted yet for {selected_div}. The calendar is currently empty.")
 
+# Render Calendar (Always visible)
 calendar(events=calendar_events, options=calendar_options)
