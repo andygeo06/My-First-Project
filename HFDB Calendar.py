@@ -98,25 +98,37 @@ check_session_expiration()
 with st.sidebar:
     st.header("🔑 Staff Login")
     
-try:
-    staff_sheet = sh.worksheet("STAFF")
-    staff_df = pd.DataFrame(staff_sheet.get_all_records())
-    staff_df.columns = staff_df.columns.str.strip().str.upper()
+    try:
+        staff_sheet = sh.worksheet("STAFF")
+        staff_df = pd.DataFrame(staff_sheet.get_all_records())
+        # Force headers to string, strip any accidental spaces, and uppercase
+        staff_df.columns = staff_df.columns.astype(str).str.strip().str.upper()
+    except Exception as e:
+        st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
+        st.stop()
         
-except Exception as e:
-    st.error("Could not find or read the 'STAFF' tab in your Google Sheet.")
-    st.stop()
-    
+    # --- THE FAILSAFE CHECKS ---
+    if 'NAME' not in staff_df.columns:
+        st.error(f"Column 'NAME' is missing! Here are the exact headers Python sees in your sheet: {list(staff_df.columns)}")
+        st.stop()
+    elif staff_df.empty:
+        st.warning("The STAFF tab was found, but it looks like there are no data rows underneath the headers.")
+        st.stop()
+        
     if not st.session_state.logged_in:
         selected_name = st.selectbox("Select Name", staff_df['NAME'].tolist())
         
         if st.button("Send Login Code"):
-            # Find the user's data row
             user_row = staff_df[staff_df['NAME'] == selected_name].index[0]
+            
+            # Check if EMAIL column exists before trying to use it
+            if 'EMAIL' not in staff_df.columns:
+                st.error(f"Column 'EMAIL' is missing! Found: {list(staff_df.columns)}")
+                st.stop()
+                
             user_email = staff_df.at[user_row, 'EMAIL']
             
             new_code = generate_ucode()
-            # Update UCODE in sheet (Row + 2 to account for pandas 0-index and sheet header)
             staff_sheet.update_cell(int(user_row) + 2, 1, new_code) 
             
             try:
@@ -128,14 +140,19 @@ except Exception as e:
             
         entered_code = st.text_input("Enter Code", type="password")
         if st.button("Login"):
-            # Pull a fresh copy of the sheet to ensure we get the newly written code
             fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
+            # CRITICAL: Apply the same bulletproof fix to the fresh data pull!
+            fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
+            
             user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
             
-            if entered_code == str(user_data['UCODE']) and entered_code != "":
+            # Use .get() for UCODE and DIVISION so it doesn't crash if columns are missing
+            stored_code = str(user_data.get('UCODE', ''))
+            
+            if entered_code == stored_code and entered_code != "":
                 st.session_state.logged_in = True
                 st.session_state.current_user = selected_name
-                st.session_state.user_division = user_data['DIVISION']
+                st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
                 st.session_state.expiration_time = get_next_expiration()
                 st.rerun()
             else:
@@ -150,7 +167,6 @@ except Exception as e:
             st.session_state.current_user = None
             st.session_state.user_division = None
             st.rerun()
-
 
 # --- UI: MAIN DASHBOARD ---
 st.title("📅 HFDB Whereabouts Tracker")
