@@ -85,9 +85,19 @@ def get_color_for_name(name):
     hash_int = int(hash_object.hexdigest(), 16)
     hue = hash_int % 360
     saturation = 60 + ((hash_int // 360) % 30)
-    # UPGRADE: Lightness locked to dark/mid range so white text ALWAYS pops!
     lightness = 30 + ((hash_int // 36000) % 15) 
     return f"hsl({hue}, {saturation}%, {lightness}%)"
+
+# UPGRADE: Safe Data Fetching with Backoff to prevent 429 Errors
+def safe_get_all_records(sheet, max_retries=5):
+    for attempt in range(max_retries):
+        try:
+            return sheet.get_all_records()
+        except gspread.exceptions.APIError as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                time.sleep((2 ** attempt) + random.uniform(0.5, 1.5))
+            else:
+                raise e
 
 def safe_append_row(sheet, row_data, max_retries=5):
     for attempt in range(max_retries):
@@ -96,23 +106,24 @@ def safe_append_row(sheet, row_data, max_retries=5):
             return True
         except gspread.exceptions.APIError as e:
             if "429" in str(e) and attempt < max_retries - 1:
-                time.sleep((2 ** attempt) + random.uniform(0, 1))
+                time.sleep((2 ** attempt) + random.uniform(0.5, 1.5))
             else:
                 raise e 
 
-# --- CACHING FUNCTIONS ---
-@st.cache_data(ttl=60, show_spinner=False)
+# --- TARGETED CACHING FUNCTIONS ---
+# TTL increased to 5 minutes to vastly reduce read requests
+@st.cache_data(ttl=300, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
-    df = pd.DataFrame(staff_sheet.get_all_records())
+    df = pd.DataFrame(safe_get_all_records(staff_sheet))
     df.columns = df.columns.astype(str).str.strip().str.upper()
     return df
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def fetch_division_data(div_name):
-    return sh.worksheet(div_name).get_all_records()
+    return safe_get_all_records(sh.worksheet(div_name))
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False) # Presets rarely change, cache for 1 hour
 def fetch_presets():
     try:
         preset_sheet = sh.worksheet("PRESET")
@@ -127,7 +138,7 @@ def fetch_presets():
 try:
     sh = init_google_sheets()
 except Exception as e:
-    st.error(f"Failed to connect to Google Sheets. Please double-check your st.secrets configuration. Error details: {e}")
+    st.error(f"Failed to connect to Google Sheets. Error details: {e}")
     st.stop()
 
 if 'logged_in' not in st.session_state:
@@ -141,7 +152,6 @@ if 'expiration_time' not in st.session_state:
 
 check_session_expiration()
 
-# UPGRADE: Mobile Guidance Beacon
 if not st.session_state.logged_in:
     st.info("👈 **Mobile Users:** Tap the `>` arrow in the top left corner to open the Staff Login menu!")
 
@@ -154,13 +164,6 @@ with st.sidebar:
         staff_sheet = sh.worksheet("STAFF") 
     except Exception as e:
         st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
-        st.stop()
-        
-    if 'NAME' not in staff_df.columns:
-        st.error(f"Column 'NAME' is missing! Found: {list(staff_df.columns)}")
-        st.stop()
-    elif staff_df.empty:
-        st.warning("The STAFF tab was found, but it looks like there are no data rows underneath the headers.")
         st.stop()
         
     if not st.session_state.logged_in:
@@ -181,42 +184,37 @@ with st.sidebar:
                         new_code = generate_ucode()
                         
                         write_success = False
-                        last_error = ""
-                        
                         for attempt in range(3):
                             try:
                                 staff_sheet.update_cell(exact_row, 1, new_code)
                                 time.sleep(2) 
-                                verify_val = staff_sheet.cell(exact_row, 1).value
-                                if str(verify_val).strip() == new_code:
+                                if str(staff_sheet.cell(exact_row, 1).value).strip() == new_code:
                                     write_success = True
                                     break 
-                                else:
-                                    last_error = f"Verification mismatch"
-                            except Exception as e:
-                                last_error = str(e)
+                            except Exception:
                                 time.sleep(2) 
                                 
                         if not write_success:
-                            st.error(f"Google API blocked the save. Reason: {last_error}")
+                            st.error("Google API blocked the save. Please try again.")
                             st.stop()
                         
                         try:
                             send_email(user_email, selected_name, new_code)
-                            st.cache_data.clear() 
+                            # ONLY clear the staff cache so the new code is recognized
+                            fetch_staff_data.clear() 
                             st.success(f"Code secured and sent to {user_email}!")
                         except Exception as e:
                             st.error("Code saved, but email failed to send.")
                     except Exception as e:
-                        st.error(f"An unexpected error occurred: {e}")
+                        st.error("An unexpected error occurred.")
         
         st.divider()
         entered_code = st.text_input("Enter Code", type="password")
         
         if st.button("Login"):
             with st.spinner("Verifying..."):
-                fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
-                fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
+                # Call the cached function instead of hitting the API raw!
+                fresh_staff_df = fetch_staff_data()
                 entered_clean = entered_code.strip()
                 
                 match_df = fresh_staff_df[fresh_staff_df['UCODE'].astype(str).str.strip() == entered_clean]
@@ -246,7 +244,6 @@ st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsa
 
 # 1. Schedule Management
 if st.session_state.logged_in:
-    # UPGRADE: Tabbed interface for Plotting vs Managing
     tab1, tab2 = st.tabs(["📝 Add Schedule", "🗑️ Manage My Entries"])
     
     with tab1:
@@ -258,10 +255,15 @@ if st.session_state.logged_in:
             preset_options.insert(0, "Custom Input...")
             selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
             
+            # UPGRADE: Preset + Custom Add-on Logic!
             if selected_preset == "Custom Input...":
-                whereabouts = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
+                final_whereabouts = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
             else:
-                whereabouts = selected_preset
+                custom_addon = st.text_input(f"Add extra details to '{selected_preset}' (Optional)", placeholder="e.g., Specific location or reason")
+                if custom_addon.strip():
+                    final_whereabouts = f"{selected_preset} - {custom_addon.strip()}"
+                else:
+                    final_whereabouts = selected_preset
             
             submitted = st.form_submit_button("Save Schedule")
             if submitted:
@@ -272,31 +274,29 @@ if st.session_state.logged_in:
                 else:
                     start_date, end_date = None, None
                 
-                if start_date and end_date and whereabouts:
+                if start_date and end_date and final_whereabouts:
                     try:
                         div_sheet = sh.worksheet(st.session_state.user_division)
-                        row_data = [str(start_date), str(end_date), st.session_state.current_user, whereabouts]
+                        row_data = [str(start_date), str(end_date), st.session_state.current_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        st.cache_data.clear() 
+                        # TARGETED CACHE CLEAR: Only forget this specific division's data!
+                        fetch_division_data.clear(st.session_state.user_division) 
                         st.success("Schedule successfully added to the tracker!")
                         time.sleep(1) 
                         st.rerun() 
-                        
                     except Exception as e:
                         st.error(f"Error saving. Does your division tab exist?")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
-        st.caption("Select an entry below to remove it from the calendar. If you need to edit an entry, delete it here and plot a new one in the tab above.")
+        st.caption("Select an entry below to remove it from the calendar.")
         try:
             div_data = fetch_division_data(st.session_state.user_division)
-            # Find only entries belonging to the logged-in user
             user_entries = []
             for i, row in enumerate(div_data):
                 if str(row.get('Name', '')) == st.session_state.current_user:
-                    # Keep track of the raw row index (+2 because of 0-index and header)
                     user_entries.append({
                         "display": f"{row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
                         "row_index": i + 2 
@@ -306,12 +306,12 @@ if st.session_state.logged_in:
                 selected_entry_display = st.selectbox("Select Entry to Delete", [e["display"] for e in user_entries])
                 
                 if st.button("🗑️ Delete Selected Entry", type="primary"):
-                    # Find the corresponding row index
                     target_row = next(e["row_index"] for e in user_entries if e["display"] == selected_entry_display)
                     with st.spinner("Deleting..."):
                         active_sheet = sh.worksheet(st.session_state.user_division)
                         active_sheet.delete_rows(target_row)
-                        st.cache_data.clear()
+                        # TARGETED CACHE CLEAR again!
+                        fetch_division_data.clear(st.session_state.user_division)
                         st.success("Entry removed successfully!")
                         time.sleep(1)
                         st.rerun()
@@ -322,26 +322,27 @@ if st.session_state.logged_in:
 
 st.divider()
 
+# UPGRADE: Placeholder for Details ABOVE the calendar!
+details_placeholder = st.empty()
+
 # 2. Calendar View
 divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
 selected_div = st.radio("Filter by Division", divisions, horizontal=True)
 
-# UPGRADE: Division Color Codes for "ALL" View
 division_colors = {
-    "DIRECTOR": "hsl(350, 70%, 40%)",    # Red
-    "HSDMSD": "hsl(210, 70%, 40%)",      # Blue
-    "PPPDD": "hsl(120, 60%, 35%)",       # Green
-    "FPMD": "hsl(35, 90%, 40%)",         # Orange/Gold
-    "ADMIN": "hsl(280, 60%, 45%)"        # Purple
+    "DIRECTOR": "hsl(350, 70%, 40%)",    
+    "HSDMSD": "hsl(210, 70%, 40%)",      
+    "PPPDD": "hsl(120, 60%, 35%)",       
+    "FPMD": "hsl(35, 90%, 40%)",         
+    "ADMIN": "hsl(280, 60%, 45%)"        
 }
 
-# Display Legend if ALL is selected
 if selected_div == "ALL":
     st.markdown("**Color Legend:**")
     cols = st.columns(len(division_colors))
     for i, (div_name, color) in enumerate(division_colors.items()):
         cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2);'>{div_name}</div>", unsafe_allow_html=True)
-    st.write("") # Spacer
+    st.write("") 
 
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
@@ -357,7 +358,6 @@ with st.spinner("Loading calendar data..."):
                 except ValueError:
                     end_str = str(row['End Date']) 
                 
-                # Determine color based on view
                 if selected_div == "ALL":
                     bg_color = division_colors.get(div, "#808080")
                 else:
@@ -369,7 +369,7 @@ with st.spinner("Loading calendar data..."):
                     "end": end_str,
                     "backgroundColor": bg_color,
                     "borderColor": bg_color,
-                    "textColor": "#FFFFFF" # Forces text to always be white!
+                    "textColor": "#FFFFFF" 
                 })
         except Exception:
              pass 
@@ -386,18 +386,16 @@ calendar_options = {
     "height": 650
 }
 
-if not calendar_events:
-    st.info(f"No whereabouts plotted yet for {selected_div}. The calendar is currently empty.")
+# Provide initial instruction in the placeholder BEFORE a click happens
+details_placeholder.info("💡 **Tip:** Click on any colored bar in the calendar to see the full details here!")
 
 # Render Calendar & Catch Clicks
 cal_result = calendar(events=calendar_events, options=calendar_options)
 
-# UPGRADE: Click to view full details!
+# UPGRADE: Send click data back UP to the placeholder!
 if cal_result and cal_result.get("callback") == "eventClick":
-    # Digging one level deeper into the dictionary to grab the right data!
     clicked_event = cal_result["eventClick"]["event"]
-    
     event_details = clicked_event.get("title", "No details provided")
     start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
     
-    st.success(f"🔍 **Full Details for {start_date_click}:** {event_details}")
+    details_placeholder.success(f"🔍 **Full Details for {start_date_click}:** {event_details}")
