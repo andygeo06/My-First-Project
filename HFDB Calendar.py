@@ -81,11 +81,20 @@ def init_google_sheets():
     return client.open_by_url(st.secrets["sheets"]["whereabouts_url"])
 
 def get_color_for_name(name):
-    # UPGRADE: Cryptographic hash for 360 unique, consistent colors!
-    hash_object = hashlib.md5(name.encode())
+    # UPGRADE: 3D Color Hashing!
+    hash_object = hashlib.md5(str(name).strip().encode())
     hash_int = int(hash_object.hexdigest(), 16)
+    
+    # 1. Hue: 0 to 360 degrees (The base color)
     hue = hash_int % 360
-    return f"hsl({hue}, 70%, 40%)"
+    
+    # 2. Saturation: 50% to 95% (Keeps it vibrant, never gray)
+    saturation = 50 + ((hash_int // 360) % 45)
+    
+    # 3. Lightness: 35% to 65% (Keeps text readable, never too dark or too pale)
+    lightness = 35 + ((hash_int // 36000) % 30)
+    
+    return f"hsl({hue}, {saturation}%, {lightness}%)"
 
 def safe_append_row(sheet, row_data, max_retries=5):
     for attempt in range(max_retries):
