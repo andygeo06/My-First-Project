@@ -333,7 +333,6 @@ if st.session_state.logged_in:
 
 st.divider()
 
-# UPGRADE: Placeholder for Details ABOVE the calendar!
 details_placeholder = st.empty()
 
 # 2. Calendar View
@@ -354,6 +353,20 @@ if selected_div == "ALL":
     for i, (div_name, color) in enumerate(division_colors.items()):
         cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
 
+# --- UPGRADE: NICKNAME MAPPING ENGINE ---
+nickname_map = {}
+try:
+    current_staff_data = fetch_staff_data()
+    # Check if NICKNAME column exists to prevent crashes
+    if 'NICKNAME' in current_staff_data.columns:
+        for _, s_row in current_staff_data.iterrows():
+            f_name = str(s_row['NAME']).strip()
+            n_name = str(s_row['NICKNAME']).strip()
+            if n_name: # Only map if the nickname cell isn't blank
+                nickname_map[f_name] = n_name
+except Exception:
+    pass # If mapping fails, it will just safely fall back to full names
+
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
@@ -368,13 +381,19 @@ with st.spinner("Loading calendar data..."):
                 except ValueError:
                     end_str = str(row['End Date']) 
                 
+                raw_name = str(row['Name']).strip()
+                
+                # --- APPLY THE NICKNAME ---
+                # Looks up the nickname, falls back to raw_name if not found
+                display_name = nickname_map.get(raw_name, raw_name)
+                
                 if selected_div == "ALL":
                     bg_color = division_colors.get(div, "#808080")
                 else:
-                    bg_color = get_color_for_name(row['Name'])
+                    bg_color = get_color_for_name(raw_name) # Keep hashing the full name so colors stay strictly consistent!
                 
                 calendar_events.append({
-                    "title": f"{row['Name']} - {row['Whereabouts']}",
+                    "title": f"{display_name} - {row['Whereabouts']}",
                     "start": str(row['Start Date']),
                     "end": end_str,
                     "backgroundColor": bg_color,
@@ -396,13 +415,11 @@ calendar_options = {
     "height": 650
 }
 
-# Ultra-compact instruction banner!
 details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
 
 if not calendar_events:
     details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
 
-# Render Calendar & Catch Clicks
 cal_result = calendar(events=calendar_events, options=calendar_options)
 
 if cal_result and cal_result.get("callback") == "eventClick":
