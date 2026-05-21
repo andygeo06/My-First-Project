@@ -101,12 +101,9 @@ with st.sidebar:
    try:
         staff_sheet = sh.worksheet("STAFF")
         staff_df = pd.DataFrame(staff_sheet.get_all_records())
-        
-        # --- THE BULLETPROOF FIX ---
-        # This forces all headers to be uppercase and removes any accidental spaces
         staff_df.columns = staff_df.columns.str.strip().str.upper()
         
-    except Exception as e:
+   except Exception as e:
         st.error("Could not find or read the 'STAFF' tab in your Google Sheet.")
         st.stop()
     
