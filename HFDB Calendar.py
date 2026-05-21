@@ -5,6 +5,7 @@ import random
 import string
 import smtplib
 import time
+import hashlib
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
@@ -80,8 +81,11 @@ def init_google_sheets():
     return client.open_by_url(st.secrets["sheets"]["whereabouts_url"])
 
 def get_color_for_name(name):
-    colors = ["#FF5733", "#33FF57", "#3357FF", "#FF33A8", "#A833FF", "#33FFF5", "#FF8F33", "#E3FF33", "#FF4500", "#2E8B57"]
-    return colors[hash(name) % len(colors)]
+    # UPGRADE: Cryptographic hash for 360 unique, consistent colors!
+    hash_object = hashlib.md5(name.encode())
+    hash_int = int(hash_object.hexdigest(), 16)
+    hue = hash_int % 360
+    return f"hsl({hue}, 70%, 40%)"
 
 def safe_append_row(sheet, row_data, max_retries=5):
     for attempt in range(max_retries):
@@ -94,8 +98,7 @@ def safe_append_row(sheet, row_data, max_retries=5):
             else:
                 raise e 
 
-# --- THE NEW CACHING FUNCTIONS ---
-# These functions will remember the data for 60 seconds, saving dozens of API calls!
+# --- CACHING FUNCTIONS ---
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
@@ -107,6 +110,17 @@ def fetch_staff_data():
 def fetch_division_data(div_name):
     return sh.worksheet(div_name).get_all_records()
 
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_presets():
+    try:
+        preset_sheet = sh.worksheet("PRESET")
+        presets = preset_sheet.col_values(1)
+        # Skip header if it exists
+        if presets and presets[0].strip().upper() in ["PRESET", "PRESETS", "WHEREABOUTS", "ACTIVITY"]:
+            presets = presets[1:]
+        return [p for p in presets if p.strip()]
+    except Exception:
+        return []
 
 # --- INITIALIZATION ---
 try:
@@ -131,9 +145,8 @@ with st.sidebar:
     st.header("🔑 Staff Login")
     
     try:
-        # Use the cached function!
         staff_df = fetch_staff_data()
-        staff_sheet = sh.worksheet("STAFF") # Keep object reference for writing later
+        staff_sheet = sh.worksheet("STAFF") 
     except Exception as e:
         st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
         st.stop()
@@ -146,68 +159,68 @@ with st.sidebar:
         st.stop()
         
     if not st.session_state.logged_in:
-        selected_name = st.selectbox("Select Name", staff_df['NAME'].tolist())
-        
-        if st.button("Send Login Code"):
-            with st.spinner("Generating and securing code..."):
-                try:
-                    name_cell = staff_sheet.find(selected_name, in_column=2)
-                    
-                    if name_cell is None:
-                        st.error(f"Could not locate {selected_name} in the sheet.")
-                        st.stop()
-                        
-                    exact_row = name_cell.row
-                    user_email = staff_sheet.cell(exact_row, 3).value
-                    new_code = generate_ucode()
-                    
-                    write_success = False
-                    last_error = ""
-                    
-                    for attempt in range(3):
-                        try:
-                            staff_sheet.update_cell(exact_row, 1, new_code)
-                            time.sleep(2) 
-                            verify_val = staff_sheet.cell(exact_row, 1).value
-                            if str(verify_val).strip() == new_code:
-                                write_success = True
-                                break 
-                            else:
-                                last_error = f"Verification mismatch: Expected {new_code}, but sheet returned {verify_val}"
-                        except Exception as e:
-                            last_error = str(e)
-                            time.sleep(2) 
-                            
-                    if not write_success:
-                        st.error(f"Google API blocked the save. Reason: {last_error}")
-                        st.stop()
-                    
-                    try:
-                        send_email(user_email, selected_name, new_code)
-                        st.cache_data.clear() # CLEAR MEMORY: Force app to see the new code!
-                        st.success(f"Code secured in database and sent to {user_email}!")
-                    except Exception as e:
-                        st.error("Code was saved, but email failed to send. Check your st.secrets credentials.")
-                    
-                except Exception as e:
-                    st.error(f"An unexpected error occurred: {e}")
+        with st.expander("Generate New Code"):
+            selected_name = st.selectbox("Select Name to Generate Code", staff_df['NAME'].tolist())
             
+            if st.button("Send Login Code"):
+                with st.spinner("Generating and securing code..."):
+                    try:
+                        name_cell = staff_sheet.find(selected_name, in_column=2)
+                        
+                        if name_cell is None:
+                            st.error(f"Could not locate {selected_name} in the sheet.")
+                            st.stop()
+                            
+                        exact_row = name_cell.row
+                        user_email = staff_sheet.cell(exact_row, 3).value
+                        new_code = generate_ucode()
+                        
+                        write_success = False
+                        last_error = ""
+                        
+                        for attempt in range(3):
+                            try:
+                                staff_sheet.update_cell(exact_row, 1, new_code)
+                                time.sleep(2) 
+                                verify_val = staff_sheet.cell(exact_row, 1).value
+                                if str(verify_val).strip() == new_code:
+                                    write_success = True
+                                    break 
+                                else:
+                                    last_error = f"Verification mismatch"
+                            except Exception as e:
+                                last_error = str(e)
+                                time.sleep(2) 
+                                
+                        if not write_success:
+                            st.error(f"Google API blocked the save. Reason: {last_error}")
+                            st.stop()
+                        
+                        try:
+                            send_email(user_email, selected_name, new_code)
+                            st.cache_data.clear() 
+                            st.success(f"Code secured and sent to {user_email}!")
+                        except Exception as e:
+                            st.error("Code saved, but email failed to send.")
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred: {e}")
+        
+        st.divider()
         entered_code = st.text_input("Enter Code", type="password")
         
         if st.button("Login"):
             with st.spinner("Verifying..."):
-                # We intentionally pull a fresh, un-cached read here to verify the newly generated code
                 fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
                 fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
-                
-                user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
-                
-                stored_code = str(user_data.get('UCODE', '')).strip()
                 entered_clean = entered_code.strip()
                 
-                if entered_clean == stored_code and entered_clean != "":
+                # BUG SQUASHED: We now search the entire sheet for the code!
+                match_df = fresh_staff_df[fresh_staff_df['UCODE'].astype(str).str.strip() == entered_clean]
+                
+                if not match_df.empty and entered_clean != "":
+                    user_data = match_df.iloc[0]
                     st.session_state.logged_in = True
-                    st.session_state.current_user = selected_name
+                    st.session_state.current_user = user_data['NAME']
                     st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
                     st.session_state.expiration_time = get_next_expiration()
                     st.rerun()
@@ -232,27 +245,24 @@ if st.session_state.logged_in:
     with st.expander("📝 Plot Your Schedule", expanded=True):
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
+            selected_dates = st.date_input("Select Date Range", value=(today, today))
             
-            # --- THE UPGRADED DATE RANGE PICKER ---
-            selected_dates = st.date_input(
-                "Select Date Range", 
-                value=(today, today), # Passing a tuple forces it into Range Mode
-                help="Pick a start date and an end date. If it is a 1-day event, you only need to select the start date!"
-            )
+            # UPGRADE: PRESET LOGIC
+            preset_options = fetch_presets()
+            preset_options.insert(0, "Custom Input...")
+            selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
             
-            whereabouts = st.text_input("Whereabouts / Activity Details", placeholder="e.g., Regional Monitoring, Leave, WFH")
+            if selected_preset == "Custom Input...":
+                whereabouts = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
+            else:
+                whereabouts = selected_preset
             
             submitted = st.form_submit_button("Save Schedule")
             if submitted:
-                # --- AUTO-ADJUST LOGIC ---
-                # If they clicked two different dates
                 if len(selected_dates) == 2:
-                    start_date = selected_dates[0]
-                    end_date = selected_dates[1]
-                # If they only clicked one date, automatically copy it to the end date!
+                    start_date, end_date = selected_dates[0], selected_dates[1]
                 elif len(selected_dates) == 1:
-                    start_date = selected_dates[0]
-                    end_date = selected_dates[0] 
+                    start_date, end_date = selected_dates[0], selected_dates[0]
                 else:
                     start_date, end_date = None, None
                 
@@ -262,7 +272,7 @@ if st.session_state.logged_in:
                         row_data = [str(start_date), str(end_date), st.session_state.current_user, whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        st.cache_data.clear() # CLEAR MEMORY: Force calendar to see the new plot!
+                        st.cache_data.clear() 
                         st.success("Schedule successfully added to the tracker!")
                         
                         time.sleep(1) 
@@ -283,7 +293,6 @@ sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 with st.spinner("Loading calendar data..."):
     for div in sheets_to_fetch:
         try:
-            # Use the cached function!
             div_data = fetch_division_data(div) 
             for row in div_data:
                 try:
