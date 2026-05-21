@@ -14,22 +14,22 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners
+# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners (Clipping Fixed!)
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1.5rem !important;
+            padding-top: 3.5rem !important; /* Increased to clear the Streamlit Cloud menu */
             padding-bottom: 1rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
         }
         .sticky-header {
             position: sticky;
-            top: 2.8rem; 
+            top: 2.875rem; /* Matches Streamlit's default header height perfectly */
             background-color: var(--background-color); 
             z-index: 999;
-            padding: 0px !important;
-            margin-top: -15px !important;
+            padding: 5px 0px 5px 0px !important;
+            margin-top: 0px !important; /* Removed the negative margin that caused the clipping! */
             margin-bottom: 5px !important;
         }
         .compact-alert-info {
