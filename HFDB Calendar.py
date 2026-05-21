@@ -53,7 +53,7 @@ st.markdown("""
         
         /* 👇 NEW UPGRADE: Shrink Calendar Event Text 👇 */
         .fc-event-title {
-            font-size: 11px !important; /* Adjust this number to make it bigger/smaller */
+            font-size: 9px !important; /* Adjust this number to make it bigger/smaller */
             font-weight: normal !important; /* Un-bold it to make it look cleaner at small sizes */
             line-height: 1.2 !important;
         }
