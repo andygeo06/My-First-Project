@@ -145,50 +145,59 @@ with st.sidebar:
         selected_name = st.selectbox("Select Name", staff_df['NAME'].tolist())
         
         if st.button("Send Login Code"):
-            user_row = staff_df[staff_df['NAME'] == selected_name].index[0]
-            
-            if 'EMAIL' not in staff_df.columns:
-                st.error(f"Column 'EMAIL' is missing! Found: {list(staff_df.columns)}")
-                st.stop()
-                
-            user_email = staff_df.at[user_row, 'EMAIL']
-            new_code = generate_ucode()
-            
-            # Using safe retry for the code update as well
-            for attempt in range(3):
+            with st.spinner("Generating and securing code..."):
                 try:
-                    staff_sheet.update_cell(int(user_row) + 2, 1, new_code)
-                    break
-                except gspread.exceptions.APIError:
-                    time.sleep(1)
-            
-            try:
-                with st.spinner("Sending code via email..."):
+                    # --- THE FIX: Absolute Row Finding ---
+                    # Search Column B (in_column=2) directly in Google Sheets
+                    name_cell = staff_sheet.find(selected_name, in_column=2)
+                    
+                    if name_cell is None:
+                        st.error(f"Could not locate {selected_name} in the sheet.")
+                        st.stop()
+                        
+                    exact_row = name_cell.row
+                    
+                    # Grab email directly from Column C (in_column=3) on that exact row
+                    user_email = staff_sheet.cell(exact_row, 3).value
+                    
+                    new_code = generate_ucode()
+                    
+                    # Write UCODE directly to Column A (in_column=1) on that exact row
+                    for attempt in range(3):
+                        try:
+                            staff_sheet.update_cell(exact_row, 1, new_code)
+                            break
+                        except gspread.exceptions.APIError:
+                            time.sleep(1)
+                    
+                    # Send email
                     send_email(user_email, selected_name, new_code)
-                st.success(f"Code sent to {user_email}!")
-            except Exception as e:
-                st.error("Failed to send email. Check your email credentials in st.secrets.")
+                    st.success(f"Code sent to {user_email}!")
+                    
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
             
         entered_code = st.text_input("Enter Code", type="password")
+        
         if st.button("Login"):
-            fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
-            fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
-            
-            user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
-            
-            # --- THE FIX ---
-            # .strip() scrubs away any accidental invisible spaces from copy-pasting!
-            stored_code = str(user_data.get('UCODE', '')).strip()
-            entered_clean = entered_code.strip()
-            
-            if entered_clean == stored_code and entered_clean != "":
-                st.session_state.logged_in = True
-                st.session_state.current_user = selected_name
-                st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
-                st.session_state.expiration_time = get_next_expiration()
-                st.rerun()
-            else:
-                st.error("Invalid Code.")
+            with st.spinner("Verifying..."):
+                fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
+                fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
+                
+                user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
+                
+                # Double scrub the strings just to be absolutely safe
+                stored_code = str(user_data.get('UCODE', '')).strip()
+                entered_clean = entered_code.strip()
+                
+                if entered_clean == stored_code and entered_clean != "":
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = selected_name
+                    st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
+                    st.session_state.expiration_time = get_next_expiration()
+                    st.rerun()
+                else:
+                    st.error("Invalid Code.")
     else:
         st.success(f"Logged in as: **{st.session_state.current_user}**")
         st.info(f"Division: {st.session_state.user_division}")
