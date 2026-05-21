@@ -14,7 +14,7 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners
+# Space-Maximizing CSS & Ultra-Compact Banners (Clipping Fixed!)
 st.markdown("""
     <style>
         .block-container {
@@ -31,6 +31,7 @@ st.markdown("""
             padding: 5px 0px 5px 0px !important;
             margin-top: 0px !important; 
             margin-bottom: 5px !important;
+            border-bottom: 2px solid var(--secondary-background-color);
         }
         .compact-alert-info {
             background-color: rgba(28, 131, 225, 0.1);
@@ -49,16 +50,6 @@ st.markdown("""
             font-size: 0.85rem;
             border-radius: 4px;
             margin-bottom: 5px;
-        }
-        
-        /* 👇 NEW UPGRADE: Shrink Calendar Event Text 👇 */
-        .fc-event-title {
-            font-size: 7px !important; /* Adjust this number to make it bigger/smaller */
-            font-weight: normal !important; /* Un-bold it to make it look cleaner at small sizes */
-            line-height: 1 !important;
-        }
-        .fc-event-main {
-            padding: 1px 2px !important; /* Squeezes the inner padding of the block */
         }
     </style>
 """, unsafe_allow_html=True)
@@ -160,7 +151,6 @@ def fetch_presets():
     except Exception:
         return []
 
-# UPGRADE: Fetch Holidays Function
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_holidays():
     try:
@@ -169,7 +159,7 @@ def fetch_holidays():
         df.columns = df.columns.astype(str).str.strip().str.upper()
         return df
     except Exception:
-        return pd.DataFrame() # Fails safely if the sheet doesn't exist yet
+        return pd.DataFrame() 
 
 # --- INITIALIZATION ---
 try:
@@ -190,7 +180,7 @@ if 'expiration_time' not in st.session_state:
 check_session_expiration()
 
 if not st.session_state.logged_in:
-    st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
+    st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
 
 # --- UI: SIDEBAR LOGIN ---
 with st.sidebar:
@@ -372,11 +362,9 @@ if selected_div == "ALL":
     st.markdown("**Color Legend:**")
     cols = st.columns(len(division_colors) + 1)
     
-    # Render Division Legend
     for i, (div_name, color) in enumerate(division_colors.items()):
         cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
     
-    # UPGRADE: Inject the Holiday Legend marker
     cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
 
 nickname_map = {}
@@ -395,7 +383,6 @@ calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
 with st.spinner("Loading calendar data..."):
-    # --- UPGRADE: Plot the Holidays First (With Bulletproof Date Formatting) ---
     holiday_df = fetch_holidays()
     if not holiday_df.empty and 'DATE' in holiday_df.columns:
         for _, h_row in holiday_df.iterrows():
@@ -404,18 +391,15 @@ with st.spinner("Loading calendar data..."):
             
             if raw_date:
                 try:
-                    # Force ANY date format into the strict YYYY-MM-DD format FullCalendar demands!
                     h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
                 except Exception:
-                    h_date = raw_date # Fallback just in case
+                    h_date = raw_date 
                 
-                # 1. The Background Tint (colors the whole square cell)
                 calendar_events.append({
                     "start": h_date,
                     "display": "background",
                     "backgroundColor": "rgba(255, 59, 59, 0.15)" 
                 })
-                # 2. The Solid Text Block (readable banner at the top of the day)
                 calendar_events.append({
                     "title": f"🎌 HOLIDAY: {h_remarks}",
                     "start": h_date,
@@ -425,7 +409,6 @@ with st.spinner("Loading calendar data..."):
                     "display": "block"
                 })
 
-    # --- Plot the Staff Whereabouts ---
     for div in sheets_to_fetch:
         try:
             div_data = fetch_division_data(div) 
@@ -464,17 +447,33 @@ calendar_options = {
         "right": "dayGridMonth,dayGridWeek"
     },
     "displayEventTime": False, 
-    "eventDisplay": "block",
-    "weekends": False, # <-- BANISH THE WEEKENDS!
+    "eventDisplay": "block",   
+    "weekends": False,
     "height": 650
 }
+
+# --- DIRECT CSS INJECTION TO SHRINK FONT SIZE ---
+custom_calendar_css = """
+    .fc-event-title {
+        font-size: 10px !important; 
+        font-weight: normal !important; 
+        line-height: 1.2 !important;
+    }
+    .fc-event-main {
+        padding: 1px 2px !important; 
+    }
+"""
 
 details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
 
 if not calendar_events:
     details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
 
-cal_result = calendar(events=calendar_events, options=calendar_options)
+cal_result = calendar(
+    events=calendar_events, 
+    options=calendar_options,
+    custom_css=custom_calendar_css
+)
 
 if cal_result and cal_result.get("callback") == "eventClick":
     clicked_event = cal_result["eventClick"]["event"]
