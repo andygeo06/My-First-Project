@@ -231,14 +231,32 @@ st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsa
 if st.session_state.logged_in:
     with st.expander("📝 Plot Your Schedule", expanded=True):
         with st.form("schedule_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            start_date = col1.date_input("Start Date")
-            end_date = col2.date_input("End Date")
+            today = datetime.now().date()
+            
+            # --- THE UPGRADED DATE RANGE PICKER ---
+            selected_dates = st.date_input(
+                "Select Date Range", 
+                value=(today, today), # Passing a tuple forces it into Range Mode
+                help="Pick a start date and an end date. If it is a 1-day event, you only need to select the start date!"
+            )
+            
             whereabouts = st.text_input("Whereabouts / Activity Details", placeholder="e.g., Regional Monitoring, Leave, WFH")
             
             submitted = st.form_submit_button("Save Schedule")
             if submitted:
-                if start_date <= end_date and whereabouts:
+                # --- AUTO-ADJUST LOGIC ---
+                # If they clicked two different dates
+                if len(selected_dates) == 2:
+                    start_date = selected_dates[0]
+                    end_date = selected_dates[1]
+                # If they only clicked one date, automatically copy it to the end date!
+                elif len(selected_dates) == 1:
+                    start_date = selected_dates[0]
+                    end_date = selected_dates[0] 
+                else:
+                    start_date, end_date = None, None
+                
+                if start_date and end_date and whereabouts:
                     try:
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), st.session_state.current_user, whereabouts]
@@ -253,7 +271,7 @@ if st.session_state.logged_in:
                     except Exception as e:
                         st.error(f"Error saving to the {st.session_state.user_division} tab. Does it exist?")
                 else:
-                    st.error("Please ensure the End Date is after the Start Date and the Details are filled out.")
+                    st.error("Please ensure your dates and Activity Details are filled out.")
 
 # 2. Calendar View
 divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
