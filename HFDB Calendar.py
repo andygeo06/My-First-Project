@@ -393,7 +393,11 @@ if not calendar_events:
 cal_result = calendar(events=calendar_events, options=calendar_options)
 
 # UPGRADE: Click to view full details!
-if "callback" in cal_result and cal_result["callback"] == "eventClick":
-    event_details = cal_result["event"]["title"]
-    start_date_click = cal_result["event"]["start"][:10] # Clean timezone data
-    st.success(f"🔍 **Details for {start_date_click}:** {event_details}")
+if cal_result and cal_result.get("callback") == "eventClick":
+    # Digging one level deeper into the dictionary to grab the right data!
+    clicked_event = cal_result["eventClick"]["event"]
+    
+    event_details = clicked_event.get("title", "No details provided")
+    start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
+    
+    st.success(f"🔍 **Full Details for {start_date_click}:** {event_details}")
