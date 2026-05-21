@@ -14,10 +14,11 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
+# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 2rem !important;
+            padding-top: 1.5rem !important;
             padding-bottom: 1rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
@@ -27,10 +28,27 @@ st.markdown("""
             top: 2.8rem; 
             background-color: var(--background-color); 
             z-index: 999;
-            padding: 10px 0px 10px 0px;
-            margin-top: -10px;
-            margin-bottom: 15px;
-            border-bottom: 2px solid var(--secondary-background-color);
+            padding: 0px !important;
+            margin-top: -15px !important;
+            margin-bottom: 5px !important;
+        }
+        .compact-alert-info {
+            background-color: rgba(28, 131, 225, 0.1);
+            color: var(--text-color);
+            border-left: 4px solid #1c83e1;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+        .compact-alert-success {
+            background-color: rgba(43, 163, 102, 0.1);
+            color: var(--text-color);
+            border-left: 4px solid #2ba366;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            margin-bottom: 5px;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -88,7 +106,6 @@ def get_color_for_name(name):
     lightness = 30 + ((hash_int // 36000) % 15) 
     return f"hsl({hue}, {saturation}%, {lightness}%)"
 
-# UPGRADE: Safe Data Fetching with Backoff to prevent 429 Errors
 def safe_get_all_records(sheet, max_retries=5):
     for attempt in range(max_retries):
         try:
@@ -111,7 +128,6 @@ def safe_append_row(sheet, row_data, max_retries=5):
                 raise e 
 
 # --- TARGETED CACHING FUNCTIONS ---
-# TTL increased to 5 minutes to vastly reduce read requests
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
@@ -123,7 +139,7 @@ def fetch_staff_data():
 def fetch_division_data(div_name):
     return safe_get_all_records(sh.worksheet(div_name))
 
-@st.cache_data(ttl=3600, show_spinner=False) # Presets rarely change, cache for 1 hour
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_presets():
     try:
         preset_sheet = sh.worksheet("PRESET")
@@ -153,7 +169,7 @@ if 'expiration_time' not in st.session_state:
 check_session_expiration()
 
 if not st.session_state.logged_in:
-    st.info("👈 **Mobile Users:** Tap the `>` arrow in the top left corner to open the Staff Login menu!")
+    st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
 
 # --- UI: SIDEBAR LOGIN ---
 with st.sidebar:
@@ -200,7 +216,6 @@ with st.sidebar:
                         
                         try:
                             send_email(user_email, selected_name, new_code)
-                            # ONLY clear the staff cache so the new code is recognized
                             fetch_staff_data.clear() 
                             st.success(f"Code secured and sent to {user_email}!")
                         except Exception as e:
@@ -213,7 +228,6 @@ with st.sidebar:
         
         if st.button("Login"):
             with st.spinner("Verifying..."):
-                # Call the cached function instead of hitting the API raw!
                 fresh_staff_df = fetch_staff_data()
                 entered_clean = entered_code.strip()
                 
@@ -255,7 +269,6 @@ if st.session_state.logged_in:
             preset_options.insert(0, "Custom Input...")
             selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
             
-            # UPGRADE: Preset + Custom Add-on Logic!
             if selected_preset == "Custom Input...":
                 final_whereabouts = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
             else:
@@ -280,9 +293,8 @@ if st.session_state.logged_in:
                         row_data = [str(start_date), str(end_date), st.session_state.current_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        # TARGETED CACHE CLEAR: Only forget this specific division's data!
                         fetch_division_data.clear(st.session_state.user_division) 
-                        st.success("Schedule successfully added to the tracker!")
+                        st.markdown('<div class="compact-alert-success">✅ Schedule successfully added to the tracker!</div>', unsafe_allow_html=True)
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
@@ -310,13 +322,12 @@ if st.session_state.logged_in:
                     with st.spinner("Deleting..."):
                         active_sheet = sh.worksheet(st.session_state.user_division)
                         active_sheet.delete_rows(target_row)
-                        # TARGETED CACHE CLEAR again!
                         fetch_division_data.clear(st.session_state.user_division)
-                        st.success("Entry removed successfully!")
+                        st.markdown('<div class="compact-alert-success">✅ Entry removed successfully!</div>', unsafe_allow_html=True)
                         time.sleep(1)
                         st.rerun()
             else:
-                st.info("You currently have no scheduled entries to manage.")
+                st.markdown('<div class="compact-alert-info">You currently have no scheduled entries to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error("Unable to load entries for management.")
 
@@ -341,8 +352,7 @@ if selected_div == "ALL":
     st.markdown("**Color Legend:**")
     cols = st.columns(len(division_colors))
     for i, (div_name, color) in enumerate(division_colors.items()):
-        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2);'>{div_name}</div>", unsafe_allow_html=True)
-    st.write("") 
+        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
 
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
@@ -386,16 +396,18 @@ calendar_options = {
     "height": 650
 }
 
-# Provide initial instruction in the placeholder BEFORE a click happens
-details_placeholder.info("💡 **Tip:** Click on any colored bar in the calendar to see the full details here!")
+# Ultra-compact instruction banner!
+details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
+
+if not calendar_events:
+    details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
 
 # Render Calendar & Catch Clicks
 cal_result = calendar(events=calendar_events, options=calendar_options)
 
-# UPGRADE: Send click data back UP to the placeholder!
 if cal_result and cal_result.get("callback") == "eventClick":
     clicked_event = cal_result["eventClick"]["event"]
     event_details = clicked_event.get("title", "No details provided")
     start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
     
-    details_placeholder.success(f"🔍 **Full Details for {start_date_click}:** {event_details}")
+    details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
