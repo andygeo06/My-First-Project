@@ -180,7 +180,7 @@ if 'expiration_time' not in st.session_state:
 check_session_expiration()
 
 if not st.session_state.logged_in:
-    st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
+    st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
 
 # --- UI: SIDEBAR LOGIN ---
 with st.sidebar:
