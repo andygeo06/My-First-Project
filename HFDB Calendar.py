@@ -175,9 +175,13 @@ with st.sidebar:
             fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
             
             user_data = fresh_staff_df[fresh_staff_df['NAME'] == selected_name].iloc[0]
-            stored_code = str(user_data.get('UCODE', ''))
             
-            if entered_code == stored_code and entered_code != "":
+            # --- THE FIX ---
+            # .strip() scrubs away any accidental invisible spaces from copy-pasting!
+            stored_code = str(user_data.get('UCODE', '')).strip()
+            entered_clean = entered_code.strip()
+            
+            if entered_clean == stored_code and entered_clean != "":
                 st.session_state.logged_in = True
                 st.session_state.current_user = selected_name
                 st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
