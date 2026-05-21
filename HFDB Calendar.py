@@ -14,22 +14,22 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# UPGRADE: Space-Maximizing CSS & Ultra-Compact Banners (Clipping Fixed!)
+# Space-Maximizing CSS & Ultra-Compact Banners
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 3.5rem !important; /* Increased to clear the Streamlit Cloud menu */
+            padding-top: 3.5rem !important; 
             padding-bottom: 1rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
         }
         .sticky-header {
             position: sticky;
-            top: 2.875rem; /* Matches Streamlit's default header height perfectly */
+            top: 2.875rem; 
             background-color: var(--background-color); 
             z-index: 999;
             padding: 5px 0px 5px 0px !important;
-            margin-top: 0px !important; /* Removed the negative margin that caused the clipping! */
+            margin-top: 0px !important; 
             margin-bottom: 5px !important;
         }
         .compact-alert-info {
@@ -149,6 +149,17 @@ def fetch_presets():
         return [p for p in presets if p.strip()]
     except Exception:
         return []
+
+# UPGRADE: Fetch Holidays Function
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_holidays():
+    try:
+        holiday_sheet = sh.worksheet("HOLIDAYS")
+        df = pd.DataFrame(safe_get_all_records(holiday_sheet))
+        df.columns = df.columns.astype(str).str.strip().str.upper()
+        return df
+    except Exception:
+        return pd.DataFrame() # Fails safely if the sheet doesn't exist yet
 
 # --- INITIALIZATION ---
 try:
@@ -349,28 +360,56 @@ division_colors = {
 
 if selected_div == "ALL":
     st.markdown("**Color Legend:**")
-    cols = st.columns(len(division_colors))
+    cols = st.columns(len(division_colors) + 1)
+    
+    # Render Division Legend
     for i, (div_name, color) in enumerate(division_colors.items()):
         cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
+    
+    # UPGRADE: Inject the Holiday Legend marker
+    cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
 
-# --- UPGRADE: NICKNAME MAPPING ENGINE ---
 nickname_map = {}
 try:
     current_staff_data = fetch_staff_data()
-    # Check if NICKNAME column exists to prevent crashes
     if 'NICKNAME' in current_staff_data.columns:
         for _, s_row in current_staff_data.iterrows():
             f_name = str(s_row['NAME']).strip()
             n_name = str(s_row['NICKNAME']).strip()
-            if n_name: # Only map if the nickname cell isn't blank
+            if n_name: 
                 nickname_map[f_name] = n_name
 except Exception:
-    pass # If mapping fails, it will just safely fall back to full names
+    pass 
 
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
 with st.spinner("Loading calendar data..."):
+    # --- UPGRADE: Plot the Holidays First ---
+    holiday_df = fetch_holidays()
+    if not holiday_df.empty and 'DATE' in holiday_df.columns:
+        for _, h_row in holiday_df.iterrows():
+            h_date = str(h_row.get('DATE', '')).strip()
+            h_remarks = str(h_row.get('REMARKS', '')).strip()
+            
+            if h_date:
+                # 1. The Background Tint (colors the whole square cell)
+                calendar_events.append({
+                    "start": h_date,
+                    "display": "background",
+                    "backgroundColor": "rgba(255, 59, 59, 0.15)" 
+                })
+                # 2. The Solid Text Block (readable banner at the top of the day)
+                calendar_events.append({
+                    "title": f"🎌 HOLIDAY: {h_remarks}",
+                    "start": h_date,
+                    "backgroundColor": "#FF3B3B", 
+                    "borderColor": "#FF3B3B",
+                    "textColor": "#FFFFFF",
+                    "display": "block"
+                })
+
+    # --- Plot the Staff Whereabouts ---
     for div in sheets_to_fetch:
         try:
             div_data = fetch_division_data(div) 
@@ -382,15 +421,12 @@ with st.spinner("Loading calendar data..."):
                     end_str = str(row['End Date']) 
                 
                 raw_name = str(row['Name']).strip()
-                
-                # --- APPLY THE NICKNAME ---
-                # Looks up the nickname, falls back to raw_name if not found
                 display_name = nickname_map.get(raw_name, raw_name)
                 
                 if selected_div == "ALL":
                     bg_color = division_colors.get(div, "#808080")
                 else:
-                    bg_color = get_color_for_name(raw_name) # Keep hashing the full name so colors stay strictly consistent!
+                    bg_color = get_color_for_name(raw_name) 
                 
                 calendar_events.append({
                     "title": f"{display_name} - {row['Whereabouts']}",
@@ -398,7 +434,8 @@ with st.spinner("Loading calendar data..."):
                     "end": end_str,
                     "backgroundColor": bg_color,
                     "borderColor": bg_color,
-                    "textColor": "#FFFFFF" 
+                    "textColor": "#FFFFFF",
+                    "display": "block" 
                 })
         except Exception:
              pass 
