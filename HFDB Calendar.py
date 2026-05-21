@@ -81,19 +81,12 @@ def init_google_sheets():
     return client.open_by_url(st.secrets["sheets"]["whereabouts_url"])
 
 def get_color_for_name(name):
-    # UPGRADE: 3D Color Hashing!
     hash_object = hashlib.md5(str(name).strip().encode())
     hash_int = int(hash_object.hexdigest(), 16)
-    
-    # 1. Hue: 0 to 360 degrees (The base color)
     hue = hash_int % 360
-    
-    # 2. Saturation: 50% to 95% (Keeps it vibrant, never gray)
-    saturation = 50 + ((hash_int // 360) % 45)
-    
-    # 3. Lightness: 35% to 65% (Keeps text readable, never too dark or too pale)
-    lightness = 35 + ((hash_int // 36000) % 30)
-    
+    saturation = 60 + ((hash_int // 360) % 30)
+    # UPGRADE: Lightness locked to dark/mid range so white text ALWAYS pops!
+    lightness = 30 + ((hash_int // 36000) % 15) 
     return f"hsl({hue}, {saturation}%, {lightness}%)"
 
 def safe_append_row(sheet, row_data, max_retries=5):
@@ -124,7 +117,6 @@ def fetch_presets():
     try:
         preset_sheet = sh.worksheet("PRESET")
         presets = preset_sheet.col_values(1)
-        # Skip header if it exists
         if presets and presets[0].strip().upper() in ["PRESET", "PRESETS", "WHEREABOUTS", "ACTIVITY"]:
             presets = presets[1:]
         return [p for p in presets if p.strip()]
@@ -148,6 +140,10 @@ if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
 
 check_session_expiration()
+
+# UPGRADE: Mobile Guidance Beacon
+if not st.session_state.logged_in:
+    st.info("👈 **Mobile Users:** Tap the `>` arrow in the top left corner to open the Staff Login menu!")
 
 # --- UI: SIDEBAR LOGIN ---
 with st.sidebar:
@@ -223,7 +219,6 @@ with st.sidebar:
                 fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
                 entered_clean = entered_code.strip()
                 
-                # BUG SQUASHED: We now search the entire sheet for the code!
                 match_df = fresh_staff_df[fresh_staff_df['UCODE'].astype(str).str.strip() == entered_clean]
                 
                 if not match_df.empty and entered_clean != "":
@@ -249,14 +244,16 @@ with st.sidebar:
 # --- UI: MAIN DASHBOARD ---
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
-# 1. Schedule Entry Form
+# 1. Schedule Management
 if st.session_state.logged_in:
-    with st.expander("📝 Plot Your Schedule", expanded=True):
+    # UPGRADE: Tabbed interface for Plotting vs Managing
+    tab1, tab2 = st.tabs(["📝 Add Schedule", "🗑️ Manage My Entries"])
+    
+    with tab1:
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
             selected_dates = st.date_input("Select Date Range", value=(today, today))
             
-            # UPGRADE: PRESET LOGIC
             preset_options = fetch_presets()
             preset_options.insert(0, "Custom Input...")
             selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
@@ -283,18 +280,68 @@ if st.session_state.logged_in:
                         
                         st.cache_data.clear() 
                         st.success("Schedule successfully added to the tracker!")
-                        
                         time.sleep(1) 
                         st.rerun() 
                         
                     except Exception as e:
-                        st.error(f"Error saving to the {st.session_state.user_division} tab. Does it exist?")
+                        st.error(f"Error saving. Does your division tab exist?")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
+
+    with tab2:
+        st.caption("Select an entry below to remove it from the calendar. If you need to edit an entry, delete it here and plot a new one in the tab above.")
+        try:
+            div_data = fetch_division_data(st.session_state.user_division)
+            # Find only entries belonging to the logged-in user
+            user_entries = []
+            for i, row in enumerate(div_data):
+                if str(row.get('Name', '')) == st.session_state.current_user:
+                    # Keep track of the raw row index (+2 because of 0-index and header)
+                    user_entries.append({
+                        "display": f"{row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
+                        "row_index": i + 2 
+                    })
+            
+            if user_entries:
+                selected_entry_display = st.selectbox("Select Entry to Delete", [e["display"] for e in user_entries])
+                
+                if st.button("🗑️ Delete Selected Entry", type="primary"):
+                    # Find the corresponding row index
+                    target_row = next(e["row_index"] for e in user_entries if e["display"] == selected_entry_display)
+                    with st.spinner("Deleting..."):
+                        active_sheet = sh.worksheet(st.session_state.user_division)
+                        active_sheet.delete_rows(target_row)
+                        st.cache_data.clear()
+                        st.success("Entry removed successfully!")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("You currently have no scheduled entries to manage.")
+        except Exception as e:
+            st.error("Unable to load entries for management.")
+
+st.divider()
 
 # 2. Calendar View
 divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
 selected_div = st.radio("Filter by Division", divisions, horizontal=True)
+
+# UPGRADE: Division Color Codes for "ALL" View
+division_colors = {
+    "DIRECTOR": "hsl(350, 70%, 40%)",    # Red
+    "HSDMSD": "hsl(210, 70%, 40%)",      # Blue
+    "PPPDD": "hsl(120, 60%, 35%)",       # Green
+    "FPMD": "hsl(35, 90%, 40%)",         # Orange/Gold
+    "ADMIN": "hsl(280, 60%, 45%)"        # Purple
+}
+
+# Display Legend if ALL is selected
+if selected_div == "ALL":
+    st.markdown("**Color Legend:**")
+    cols = st.columns(len(division_colors))
+    for i, (div_name, color) in enumerate(division_colors.items()):
+        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2);'>{div_name}</div>", unsafe_allow_html=True)
+    st.write("") # Spacer
 
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
@@ -310,12 +357,19 @@ with st.spinner("Loading calendar data..."):
                 except ValueError:
                     end_str = str(row['End Date']) 
                 
+                # Determine color based on view
+                if selected_div == "ALL":
+                    bg_color = division_colors.get(div, "#808080")
+                else:
+                    bg_color = get_color_for_name(row['Name'])
+                
                 calendar_events.append({
                     "title": f"{row['Name']} - {row['Whereabouts']}",
                     "start": str(row['Start Date']),
                     "end": end_str,
-                    "backgroundColor": get_color_for_name(row['Name']),
-                    "borderColor": get_color_for_name(row['Name'])
+                    "backgroundColor": bg_color,
+                    "borderColor": bg_color,
+                    "textColor": "#FFFFFF" # Forces text to always be white!
                 })
         except Exception:
              pass 
@@ -335,5 +389,11 @@ calendar_options = {
 if not calendar_events:
     st.info(f"No whereabouts plotted yet for {selected_div}. The calendar is currently empty.")
 
-# Render Calendar
-calendar(events=calendar_events, options=calendar_options)
+# Render Calendar & Catch Clicks
+cal_result = calendar(events=calendar_events, options=calendar_options)
+
+# UPGRADE: Click to view full details!
+if "callback" in cal_result and cal_result["callback"] == "eventClick":
+    event_details = cal_result["event"]["title"]
+    start_date_click = cal_result["event"]["start"][:10] # Clean timezone data
+    st.success(f"🔍 **Details for {start_date_click}:** {event_details}")
