@@ -98,14 +98,14 @@ check_session_expiration()
 with st.sidebar:
     st.header("🔑 Staff Login")
     
-   try:
-        staff_sheet = sh.worksheet("STAFF")
-        staff_df = pd.DataFrame(staff_sheet.get_all_records())
-        staff_df.columns = staff_df.columns.str.strip().str.upper()
+try:
+    staff_sheet = sh.worksheet("STAFF")
+    staff_df = pd.DataFrame(staff_sheet.get_all_records())
+    staff_df.columns = staff_df.columns.str.strip().str.upper()
         
-   except Exception as e:
-        st.error("Could not find or read the 'STAFF' tab in your Google Sheet.")
-        st.stop()
+except Exception as e:
+    st.error("Could not find or read the 'STAFF' tab in your Google Sheet.")
+    st.stop()
     
     if not st.session_state.logged_in:
         selected_name = st.selectbox("Select Name", staff_df['NAME'].tolist())
