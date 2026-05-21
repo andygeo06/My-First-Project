@@ -147,8 +147,6 @@ with st.sidebar:
         if st.button("Send Login Code"):
             with st.spinner("Generating and securing code..."):
                 try:
-                    # --- THE FIX: Absolute Row Finding ---
-                    # Search Column B (in_column=2) directly in Google Sheets
                     name_cell = staff_sheet.find(selected_name, in_column=2)
                     
                     if name_cell is None:
@@ -156,26 +154,40 @@ with st.sidebar:
                         st.stop()
                         
                     exact_row = name_cell.row
-                    
-                    # Grab email directly from Column C (in_column=3) on that exact row
                     user_email = staff_sheet.cell(exact_row, 3).value
-                    
                     new_code = generate_ucode()
                     
-                    # Write UCODE directly to Column A (in_column=1) on that exact row
+                    # --- THE UPGRADED WRITE & VERIFY MECHANISM ---
+                    write_success = False
+                    cell_address = f"A{exact_row}" # Target Column A explicitly
+                    
                     for attempt in range(3):
                         try:
-                            staff_sheet.update_cell(exact_row, 1, new_code)
-                            break
-                        except gspread.exceptions.APIError:
-                            time.sleep(1)
+                            # 1. Write the code
+                            staff_sheet.update_acell(cell_address, new_code)
+                            
+                            # 2. Immediately read it back to verify
+                            verify_val = staff_sheet.acell(cell_address).value
+                            if verify_val == new_code:
+                                write_success = True
+                                break # Write confirmed, break the loop
+                        except Exception:
+                            time.sleep(1.5) # Wait a moment and retry if Google hangs
+                            
+                    # 3. Stop everything if the write absolutely failed
+                    if not write_success:
+                        st.error("Google API blocked the save. The code was NOT generated. Please click send again.")
+                        st.stop()
                     
-                    # Send email
-                    send_email(user_email, selected_name, new_code)
-                    st.success(f"Code sent to {user_email}!")
+                    # 4. Only send the email if the write was confirmed successful
+                    try:
+                        send_email(user_email, selected_name, new_code)
+                        st.success(f"Code secured in database and sent to {user_email}!")
+                    except Exception as e:
+                        st.error("Code was saved, but email failed to send. Check your st.secrets credentials.")
                     
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                    st.error(f"An unexpected error occurred: {e}")
             
         entered_code = st.text_input("Enter Code", type="password")
         
