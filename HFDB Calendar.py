@@ -13,7 +13,6 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# --- CUSTOM CSS FOR PADDING AND STICKY HEADER ---
 st.markdown("""
     <style>
         .block-container {
@@ -95,6 +94,20 @@ def safe_append_row(sheet, row_data, max_retries=5):
             else:
                 raise e 
 
+# --- THE NEW CACHING FUNCTIONS ---
+# These functions will remember the data for 60 seconds, saving dozens of API calls!
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_staff_data():
+    staff_sheet = sh.worksheet("STAFF")
+    df = pd.DataFrame(staff_sheet.get_all_records())
+    df.columns = df.columns.astype(str).str.strip().str.upper()
+    return df
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_division_data(div_name):
+    return sh.worksheet(div_name).get_all_records()
+
+
 # --- INITIALIZATION ---
 try:
     sh = init_google_sheets()
@@ -118,9 +131,9 @@ with st.sidebar:
     st.header("🔑 Staff Login")
     
     try:
-        staff_sheet = sh.worksheet("STAFF")
-        staff_df = pd.DataFrame(staff_sheet.get_all_records())
-        staff_df.columns = staff_df.columns.astype(str).str.strip().str.upper()
+        # Use the cached function!
+        staff_df = fetch_staff_data()
+        staff_sheet = sh.worksheet("STAFF") # Keep object reference for writing later
     except Exception as e:
         st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
         st.stop()
@@ -171,6 +184,7 @@ with st.sidebar:
                     
                     try:
                         send_email(user_email, selected_name, new_code)
+                        st.cache_data.clear() # CLEAR MEMORY: Force app to see the new code!
                         st.success(f"Code secured in database and sent to {user_email}!")
                     except Exception as e:
                         st.error("Code was saved, but email failed to send. Check your st.secrets credentials.")
@@ -182,6 +196,7 @@ with st.sidebar:
         
         if st.button("Login"):
             with st.spinner("Verifying..."):
+                # We intentionally pull a fresh, un-cached read here to verify the newly generated code
                 fresh_staff_df = pd.DataFrame(staff_sheet.get_all_records())
                 fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
                 
@@ -228,7 +243,13 @@ if st.session_state.logged_in:
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), st.session_state.current_user, whereabouts]
                         safe_append_row(div_sheet, row_data)
+                        
+                        st.cache_data.clear() # CLEAR MEMORY: Force calendar to see the new plot!
                         st.success("Schedule successfully added to the tracker!")
+                        
+                        time.sleep(1) 
+                        st.rerun() 
+                        
                     except Exception as e:
                         st.error(f"Error saving to the {st.session_state.user_division} tab. Does it exist?")
                 else:
@@ -244,7 +265,8 @@ sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 with st.spinner("Loading calendar data..."):
     for div in sheets_to_fetch:
         try:
-            div_data = sh.worksheet(div).get_all_records()
+            # Use the cached function!
+            div_data = fetch_division_data(div) 
             for row in div_data:
                 try:
                     end_date_obj = datetime.strptime(str(row['End Date']), "%Y-%m-%d") + timedelta(days=1)
@@ -277,5 +299,5 @@ calendar_options = {
 if not calendar_events:
     st.info(f"No whereabouts plotted yet for {selected_div}. The calendar is currently empty.")
 
-# Render Calendar (Always visible)
+# Render Calendar
 calendar(events=calendar_events, options=calendar_options)
