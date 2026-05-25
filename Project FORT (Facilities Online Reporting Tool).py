@@ -64,10 +64,11 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. SMART MEMORY CACHE ---
+# --- 3. SMART MEMORY CACHE (RAM-FIRST) ---
 @st.cache_data(ttl="10m")
 def get_static_sheet(sheet_name):
-    try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl=0)
+    # CRITICAL FIX: ttl="10m" replaces ttl=0 to stop background API calls
+    try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl="10m")
     except: return pd.DataFrame()
 
 def clear_app_memory(): get_static_sheet.clear()
@@ -92,24 +93,18 @@ def get_module_config(module_name="Mod1"):
         if not row.empty:
             deadline_str = str(row.iloc[0, 1]).strip()
             
-            # 1. Handle Blank or "Not Set"
             if not deadline_str or deadline_str.upper() == "NOT SET": 
                 return "Not Set", False
                 
-            # 2. Handle the new "Upcoming" / "TBA" logic safely
             if deadline_str.upper() in ["UPCOMING", "TBA"]:
                 return deadline_str.upper(), False
                 
-            # 3. BULLETPROOF DATE PARSING
             try:
-                # pd.to_datetime automatically understands MM/DD/YYYY, YYYY-MM-DD, and timestamps
+                # pd.to_datetime handles MM/DD/YYYY securely
                 parsed_date = pd.to_datetime(deadline_str)
                 is_locked = pd.Timestamp.now() > parsed_date
-                
-                # Returns a nice format for the UI (e.g., "Dec 31, 2026") and the True/False lock
                 return parsed_date.strftime("%b %d, %Y"), is_locked
             except Exception:
-                # Fallback if someone typed a completely invalid date
                 return deadline_str, False 
                 
     return "Not Set", False
@@ -122,7 +117,8 @@ def get_announcement():
     return ""
 
 def set_announcement(text):
-    df = get_static_sheet("Config")
+    # Temporarily read raw for an admin action
+    df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
     if df.empty:
         df = pd.DataFrame([["Announcement", text]])
     else:
@@ -136,6 +132,7 @@ def set_announcement(text):
 
 def get_previous_entry(module_name="Mod1"):
     try:
+        # Cache memory fetch: only talks to Sheets once every 10 minutes per user session
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl="10m")
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
@@ -146,6 +143,7 @@ def get_previous_entry(module_name="Mod1"):
 def submit_module_data(res_data, module_name="Mod1"):
     with st.spinner(f"Syncing data to {module_name}..."):
         try:
+            # We explicitly bypass cache here (ttl=0) to ensure we append to the live data properly
             try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
             except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Department", "Encoder"])
             u = st.session_state.user_info
@@ -154,6 +152,9 @@ def submit_module_data(res_data, module_name="Mod1"):
             if "User_ID" in df.columns: df = df[df["User_ID"].astype(str) != str(st.session_state.user_id)]
             updated_df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
             conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
+            
+            # Immediately clear memory to prep for the updated database
+            st.cache_data.clear()
             st.toast(f"Data successfully synced to {module_name}!", icon="✅")
             return True
         except Exception as e: st.error(f"Submission failed: {e}"); return False
@@ -167,7 +168,6 @@ def render_upload_section(module_name):
     st.markdown("### 📤 FINAL STEP: Upload Signed PDF Submission")
     st.info("Please print the documents, secure the required signatures, and upload the scanned PDF.")
     
-    # Fetch Drive Link securely from secrets (defaults to '#' if not set)
     drive_link = st.secrets.get("HFDB_DRIVE_FOLDER", "#")
     st.link_button("📂 OPEN HFDB GOOGLE DRIVE FOLDER", drive_link)
     
@@ -205,11 +205,9 @@ def render_modular_print(title, content_html, head_name="Authorized Signatory", 
         <center><br><button class="no-print" onclick="window.focus(); window.print();" style="padding:12px 25px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirm & Print {title}</button></center>
     </div>"""
     
-    # Send it to a Mod3 specific session state instead of the isolated one
     st.session_state.mod3_print_html = html
     st.rerun()
 
-# --- HELPER UI FUNCTION FOR SUBTLE HIGHLIGHTS ---
 def subtle_header(title, icon="🔹"):
     st.markdown(f"""
     <div style="background-color: rgba(59, 130, 246, 0.1); padding: 8px 15px; border-left: 4px solid #3B82F6; border-radius: 4px; margin-bottom: 15px; margin-top: 25px;">
@@ -229,13 +227,11 @@ def render_faq_section():
 
 def send_access_code_email(receiver_email, user_name, access_code):
     try:
-        # Pulls credentials safely from Streamlit Secrets
         sender_email = st.secrets.get("EMAIL_SENDER", "")
         sender_password = st.secrets.get("EMAIL_PASSWORD", "")
         
         if not sender_email or not sender_password:
             st.error("⚠️ Email credentials not configured in Streamlit Secrets!")
-            # Fallback for testing so you aren't locked out before setting up secrets
             st.info(f"Fallback UI Display - Your Code is: {access_code}") 
             return False
 
@@ -273,8 +269,11 @@ def module_scorecard():
     dd = get_static_sheet("Mod1_DD")
     if dd.empty: st.error("Sheet 'Mod1_DD' not found."); return
     dd.columns = dd.columns.str.strip()
-    if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod1")
+    
+    if "staged_data" not in st.session_state or st.session_state.staged_data is None: 
+        st.session_state.staged_data = get_previous_entry("Mod1")
     prev = st.session_state.staged_data 
+    
     deadline_str, locked = get_module_config("Mod1")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
@@ -416,8 +415,11 @@ def module_scorecard():
 # --- 5. MODULE 2: HOSPITAL CENSUS & HCPN ---
 def module_census_data():
     display_sticky_header()
-    if "staged_data" not in st.session_state or st.session_state.staged_data is None: st.session_state.staged_data = get_previous_entry("Mod2")
-    prev = st.session_state.staged_data
+    
+    if "staged_data_mod2" not in st.session_state or st.session_state.staged_data_mod2 is None: 
+        st.session_state.staged_data_mod2 = get_previous_entry("Mod2")
+    prev = st.session_state.staged_data_mod2
+    
     deadline_str, locked = get_module_config("Mod2")
     if locked: st.error(f"⚠️ The deadline ({deadline_str}) has passed. This module is in READ-ONLY mode.")
 
@@ -511,12 +513,12 @@ def module_census_data():
         btn1, btn2 = st.columns(2)
         if btn1.button("🖨️ GENERATE CENSUS REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
             if submit_module_data(final_data, "Mod2"):
-                st.session_state.staged_data.update(final_data)
+                st.session_state.staged_data_mod2.update(final_data)
                 st.session_state.show_print = True
                 st.rerun()
         if btn2.button("💾 SAVE PROGRESS ONLY", use_container_width=True):
             if submit_module_data(final_data, "Mod2"):
-                st.session_state.staged_data.update(final_data)
+                st.session_state.staged_data_mod2.update(final_data)
                 st.success("Progress saved!")
     else:
         if st.button("🖨️ PRINT SUBMITTED DATA (READ-ONLY)", type="primary", use_container_width=True):
@@ -543,7 +545,7 @@ def module_census_data():
         st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
 
-# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT (PHASE 7 - MASTER UI UPDATE) ---
+# --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     return pd.DataFrame({"Month": months, "Electricity (kWh)": [0.0]*12, "Fuel (L)": [0.0]*12, "Water (m3)": [0.0]*12, "General Waste (kg)": [0.0]*12, "Haz Waste (kg)": [0.0]*12})
@@ -552,8 +554,7 @@ def module_gva():
     display_sticky_header()
     u = st.session_state.user_info
     
-
-    # ADD THESE LINES INSTEAD:
+    # Fully cached locally in Streamlit RAM
     if "staged_mod2_gva" not in st.session_state: 
         st.session_state.staged_mod2_gva = get_previous_entry("Mod2")
     if "staged_mod3_gva" not in st.session_state: 
@@ -752,7 +753,6 @@ def module_gva():
             grid_result = st.data_editor(st.session_state[f"grid_{year}"], hide_index=True, use_container_width=True, disabled=locked, key=f"editor_{year}")
             live_consumption[year] = grid_result
             
-            # --- The Annual Totals Bar ---
             t_df = grid_result.copy()
             st.markdown(f"""
             <div style="background:#161B22; padding:12px; border-radius:6px; display:flex; justify-content:space-between; font-size:0.95em; border: 1px solid #30363D; margin-bottom: 15px;">
@@ -785,7 +785,6 @@ def module_gva():
     st.header("3️⃣ PERFORMANCE STANDARDS")
     st.caption("These questions are synced directly from your Google Sheet!")
     
-    # Official GVA Weights Database
     weights_dict = {
         "GOVERNANCE": 0.10, 
         "ENERGY EFFICIENCY": 0.17, 
@@ -799,7 +798,7 @@ def module_gva():
     
     gva_answers = {}
     score_summary = []
-    total_gva_weighted_score = 0.0  # Master Score Tracker
+    total_gva_weighted_score = 0.0  
     
     perf_df = get_static_sheet("Performance Standards")
     
@@ -851,7 +850,6 @@ def module_gva():
                         html_lines.append("</table>")
                         render_modular_print(cat, "".join(html_lines), sign_name, sign_pos)
                 
-                # --- The Weighted Math Engine ---
                 pct = (cat_actual / cat_max * 100) if cat_max > 0 else 0
                 cat_weight = weights_dict.get(str(cat).strip().upper(), 0.0) 
                 weighted_score = (pct / 100.0) * cat_weight * 100.0 
@@ -866,12 +864,10 @@ def module_gva():
                     "Weighted Score": f"{weighted_score:.2f}%"
                 })
             
-            # --- OVERALL SCORE TABLE ---
             st.markdown("### 🏆 Overall Score Summary")
             score_df = pd.DataFrame(score_summary)
             st.dataframe(score_df, use_container_width=True, hide_index=True)
             
-            # Show The Massive Final Score
             st.markdown(f"""
             <div style="background-color: #064E3B; padding: 20px; border-radius: 8px; border: 2px solid #10B981; text-align: center; margin-bottom: 20px;">
                 <h3 style="margin: 0; color: #A7F3D0; font-weight: normal;">FINAL GVA SCORE</h3>
@@ -890,7 +886,6 @@ def module_gva():
         else:
             st.error("⚠️ Please add the 'MAJOR CATEGORY' column to Row 1 of your Performance Standards sheet to unlock the questions!")
 
-    # --- PART 4: MASTER UPLOAD BOX ---
     st.header("4️⃣ MASTER EVIDENCE UPLOAD")
     st.info("Upload a single ZIP file or provide a link to a Google Drive folder containing all your MOVs (Memo Orders, Photos, Audits) properly labeled.")
     master_link = st.text_input("Paste Google Drive Folder Link Here:", value=str(prev.get("Master_Drive_Link", "")), placeholder="https://drive.google.com/drive/folders/...", disabled=locked)
@@ -922,10 +917,9 @@ def module_gva():
     if not locked:
         if st.button("💾 SAVE ALL PROGRESS TO DATABASE", use_container_width=True, type="primary"):
             if submit_module_data(final_mod3_data, "Mod3"):
-                st.session_state.staged_data.update(final_mod3_data)
+                st.session_state.staged_mod3_gva.update(final_mod3_data)
                 st.success("Progress Saved to Google Sheets!")
 
-# --- THE OG PRINT ENGINE FOR MOD 3 ---
     if st.session_state.get("mod3_print_html"):
         st.divider()
         st.markdown("### 🖨️ Document Ready for Printing")
@@ -942,7 +936,6 @@ def admin_dashboard():
     
     st.markdown(f"<h2 style='text-align: center;'>👑 {u['user']} Portal</h2>", unsafe_allow_html=True)
     
-    # --- NEW: Global Announcement Manager ---
     with st.expander("📢 Manage Global Announcement Banner", expanded=False):
         st.markdown("Set a banner to display at the top of every hospital's screen. Supports [Markdown Links](https://example.com). Leave blank to remove the banner.")
         current_ann = get_announcement()
@@ -950,7 +943,7 @@ def admin_dashboard():
         
         if st.button("💾 Broadcast Announcement", type="primary"):
             set_announcement(new_ann)
-            st.session_state.hide_announcement = False # Resets the 'hide' button for everyone!
+            st.session_state.hide_announcement = False 
             st.success("✅ Announcement broadcasted globally!")
             time.sleep(1); st.rerun()
             
@@ -1064,10 +1057,9 @@ def login_screen():
     t1, t2 = st.tabs(["🔐 Login", "📝 Register"])
     with t1:
         with st.form("login"):
-            code = st.text_input("Access Code", type="password").strip() # Masked for security
+            code = st.text_input("Access Code", type="password").strip() 
             if st.form_submit_button("Login", type="primary"):
                 
-                # --- THE FULL 10-ACCOUNT MASTER ADMIN ROSTER IS RESTORED ---
                 admin_roster = {
                     "ADMIN-SUP3R4DM1N": {"name": "FPMD Administrator", "access": ["Mod1", "Mod2", "Mod3", "Chat"]},
                     "ADMIN-Sc0r3c4rd": {"name": "Scorecard Administrator", "access": ["Mod1", "Chat"]},
@@ -1094,7 +1086,6 @@ def login_screen():
                     }
                     st.rerun()
                 
-                # Regular user check
                 df = get_static_sheet("User_Profiles")
                 if not df.empty:
                     match = df[df["User_ID"].astype(str).str.strip() == code]
@@ -1130,7 +1121,7 @@ def login_screen():
             dept = st.text_input("Department / Unit")
             user = st.text_input("Encoder Name")
             pos = st.text_input("Position / Designation")
-            email = st.text_input("Email Address") # NEW EMAIL FIELD
+            email = st.text_input("Email Address")
             
             if st.form_submit_button("Register & Send Code", use_container_width=True):
                 if hosp == "-- Select Hospital --" or not dept or not user or not pos or not email:
@@ -1142,23 +1133,19 @@ def login_screen():
                     random_chars = "".join(random.choices(string.ascii_letters + string.digits, k=10))
                     new_id = f"HFDB-{current_year}-{random_chars}"
                     
-                    # 1. Update Database (Now includes Email)
                     try:
                         df = get_static_sheet("User_Profiles")
                         new_row = {"User_ID": new_id, "Hospital_Name": hosp, "Department": dept, "Encoder_Name": user, "Position": pos, "Email": email, "Role": "user", "Access": "Mod1, Mod2, Mod3, Chat"}
                         updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True) if not df.empty else pd.DataFrame([new_row])
                         conn.update(spreadsheet=SHEET_URL, worksheet="User_Profiles", data=updated_df)
     
-                        # 👇 THE MISSING MAGIC LINE 👇
                         clear_app_memory()
                         
-                        # 2. Send the Email
                         email_sent = send_access_code_email(email, user, new_id)
                         
-                        # 3. Notify User
                         if email_sent:
                             st.success(f"✅ Registration successful! Your secure access code has been sent to **{email}**. Please check your inbox (and spam folder) to log in.")
-                            time.sleep(4) # Give them a few seconds to read the success message before clearing
+                            time.sleep(4) 
                             st.rerun()
                     except Exception as e:
                         st.error(f"Failed to save user. Error: {e}")
@@ -1167,12 +1154,8 @@ def dashboard():
     u = st.session_state.user_info
     st.markdown("<h2 style='text-align: center;'>🏥 HFDB Online Data Reporting and Submission Portal</h2>", unsafe_allow_html=True)
     
-    # --- BONUS FIX: Solves the 'Department: nan' bug from your screenshot ---
     clean_dept = "General" if pd.isna(u.get('dept')) else u.get('dept', 'General')
     st.info(f"Facility: **{u['hosp']}** | Department: **{clean_dept}** | Encoder: **{u['user']}**")
-    
-    # --- NEW MOBILE UX BANNER --- (Customizeable when needed)
-    # st.success("💡 **TIP:** Need help? Open the menu ( **>** ) in the top left corner to access Live Support Chat!")
     
     d1_str, d1_locked = get_module_config("Mod1")
     d2_str, d2_locked = get_module_config("Mod2")
@@ -1224,11 +1207,9 @@ def dashboard():
 # --- 9.5 SUPPORT CHAT ENGINES ---
 def render_user_sidebar():
     with st.sidebar:
-        # Clean layout for Hospital & User
         st.markdown(f"#### 🏥 {st.session_state.user_info['hosp']}")
         st.markdown(f"**User:** {st.session_state.user_info['user']}")
         
-        # CSS to fix the huge gap in the sidebar
         st.markdown("""
             <style>
                 [data-testid="stSidebar"] hr { margin: 0.5em 0; }
@@ -1238,16 +1219,15 @@ def render_user_sidebar():
         
         st.divider()
         
-        # Perfectly scoped tabs
         tab1, tab2 = st.tabs(["💬 Live Chat", "❓ FAQ"])
         
         with tab1:
-            st.caption("⏳ *Note: Messages may take up to 15 seconds to sync.*")
+            st.caption("⏳ *Note: Messages cache to save bandwidth.*")
             
-            # Full-width refresh button
             if st.button("🔄 Refresh Chat Replies", use_container_width=True): st.rerun()
             
-            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="30s")
+            # CRITICAL FIX: Increased TTL to 5 minutes so it doesn't interrupt standard UI operations
+            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5m")
             except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
                 
             u_id = str(st.session_state.user_id)
@@ -1277,7 +1257,10 @@ def render_user_sidebar():
                 }
                 if chat_df.empty: updated_df = pd.DataFrame([new_msg])
                 else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
+                
+                # Write to DB then clear cache so it immediately displays
                 conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+                st.cache_data.clear()
                 st.rerun()
 
         with tab2:
@@ -1295,7 +1278,8 @@ def admin_chat_view():
     with col2:
         if st.button("🔄 Refresh Inbox", use_container_width=True, type="primary"): st.rerun()
     
-    st_autorefresh(interval=15000, limit=None, key="admin_chat_refresh")
+    # Let the admin refresh every 30 seconds since they aren't filling out massive forms
+    st_autorefresh(interval=30000, limit=None, key="admin_chat_refresh")
     
     try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="30s")
     except: st.error("Could not load 'Support_Logs' tab from Google Sheets."); return
@@ -1338,7 +1322,6 @@ def admin_chat_view():
                 for _, row in hosp_chats.iterrows():
                     is_user = row["Sender"] == "User"
                     with st.chat_message("user" if is_user else "assistant"):
-                        # --- UPGRADED: Fixes the 'nan' bug for the Admin screen ---
                         raw_name = row.get('Encoder_Name', 'Unknown')
                         clean_name = "Unknown" if pd.isna(raw_name) else raw_name
                         sender_name = f"User - {clean_name}" if is_user else "Admin"
@@ -1356,6 +1339,7 @@ def admin_chat_view():
                 
                 updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
                 conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
+                st.cache_data.clear()
                 st.rerun()
         else:
             st.info("👈 Select a hospital from your Inbox to view their chat history and reply.")
@@ -1367,11 +1351,9 @@ if "user_id" not in st.session_state:
         st.info("🔒 Please log in to access the live support chat.")
     login_screen()
 else:
-    # FIX: Made the role check case-insensitive so Returning Users can see the chat!
     if str(st.session_state.user_info.get("role")).strip().lower() == "user":
         render_user_sidebar()
         
-   # --- NEW: Global Persistent Announcement Banner ---
     announcement_text = get_announcement()
     if announcement_text:
         st.warning(f"📢 **ANNOUNCEMENT:** {announcement_text}")
