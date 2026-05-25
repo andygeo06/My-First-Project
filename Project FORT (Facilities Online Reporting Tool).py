@@ -102,10 +102,10 @@ def get_module_config(module_name="Mod1"):
                 
             # 3. Handle actual Dates securely
             try:
-                return deadline_str, datetime.now() > datetime.strptime(deadline_str, "%Y-%m-%d")
+                clean_date = deadline_str[:10]
+                return clean_date, datetime.now() > datetime.strptime(clean_date, "%Y-%m-%d")
             except ValueError:
-                # If someone accidentally types a typo like "2026-15-30", this stops the app from crashing!
-                return deadline_str, False 
+                return deadline_str, False
                 
     return "Not Set", False
 
@@ -548,8 +548,14 @@ def module_gva():
     u = st.session_state.user_info
     
 
-    mod2_data = get_previous_entry("Mod2")
-    prev = get_previous_entry("Mod3")
+    # ADD THESE LINES INSTEAD:
+    if "staged_mod2_gva" not in st.session_state: 
+        st.session_state.staged_mod2_gva = get_previous_entry("Mod2")
+    if "staged_mod3_gva" not in st.session_state: 
+        st.session_state.staged_mod3_gva = get_previous_entry("Mod3")
+
+    mod2_data = st.session_state.staged_mod2_gva
+    prev = st.session_state.staged_mod3_gva
     
     auto_abc = mod2_data.get("ABC_25", prev.get("LTO_ABC", ""))
     auto_coords = mod2_data.get("COORDS", prev.get("Coordinates", ""))
@@ -1236,7 +1242,7 @@ def render_user_sidebar():
             # Full-width refresh button
             if st.button("🔄 Refresh Chat Replies", use_container_width=True): st.rerun()
             
-            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl=1)
+            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5m")
             except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
                 
             u_id = str(st.session_state.user_id)
