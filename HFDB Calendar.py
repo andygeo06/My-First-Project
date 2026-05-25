@@ -379,6 +379,34 @@ try:
 except Exception:
     pass 
 
+# ---> NEW DIVISION LEGEND FUNCTIONALITY STARTS HERE <---
+if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+    st.markdown(f"**{selected_div} Color Legend:**")
+    try:
+        temp_staff_data = fetch_staff_data()
+        if 'DIVISION' in temp_staff_data.columns:
+            # Filter the staff sheet by the currently selected division
+            div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
+            
+            if not div_staff_df.empty:
+                staff_list = div_staff_df['NAME'].dropna().unique()
+                
+                # Create columns for each staff member + 1 for the HOLIDAY block
+                cols = st.columns(len(staff_list) + 1)
+                
+                for i, raw_name in enumerate(staff_list):
+                    raw_name_str = str(raw_name).strip()
+                    display_name = nickname_map.get(raw_name_str, raw_name_str)
+                    color = get_color_for_name(raw_name_str)
+                    
+                    # Tooltip added via 'title' attribute so hovering reveals the full name if squished
+                    cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
+                
+                cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
+    except Exception:
+        pass
+# ---> NEW DIVISION LEGEND FUNCTIONALITY ENDS HERE <---
+
 calendar_events = []
 sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
 
