@@ -100,12 +100,17 @@ def get_module_config(module_name="Mod1"):
             if deadline_str.upper() in ["UPCOMING", "TBA"]:
                 return deadline_str.upper(), False
                 
-            # 3. Handle actual Dates securely
+            # 3. BULLETPROOF DATE PARSING
             try:
-                clean_date = deadline_str[:10]
-                return clean_date, datetime.now() > datetime.strptime(clean_date, "%Y-%m-%d")
-            except ValueError:
-                return deadline_str, False
+                # pd.to_datetime automatically understands MM/DD/YYYY, YYYY-MM-DD, and timestamps
+                parsed_date = pd.to_datetime(deadline_str)
+                is_locked = pd.Timestamp.now() > parsed_date
+                
+                # Returns a nice format for the UI (e.g., "Dec 31, 2026") and the True/False lock
+                return parsed_date.strftime("%b %d, %Y"), is_locked
+            except Exception:
+                # Fallback if someone typed a completely invalid date
+                return deadline_str, False 
                 
     return "Not Set", False
 
@@ -131,7 +136,7 @@ def set_announcement(text):
 
 def get_previous_entry(module_name="Mod1"):
     try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
+        df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl="10m")
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
             if not user_data.empty: return user_data.fillna("").iloc[-1].to_dict()
@@ -1242,7 +1247,7 @@ def render_user_sidebar():
             # Full-width refresh button
             if st.button("🔄 Refresh Chat Replies", use_container_width=True): st.rerun()
             
-            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5m")
+            try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="30s")
             except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
                 
             u_id = str(st.session_state.user_id)
@@ -1292,7 +1297,7 @@ def admin_chat_view():
     
     st_autorefresh(interval=15000, limit=None, key="admin_chat_refresh")
     
-    try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="15s")
+    try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="30s")
     except: st.error("Could not load 'Support_Logs' tab from Google Sheets."); return
         
     if chat_df.empty: st.info("No messages from hospitals yet."); return
