@@ -352,37 +352,44 @@ if st.session_state.logged_in:
     tab1, tab2, tab3 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries", "🌿 Wellness Leave Tracker"])
     
     with tab1:
-        with st.form("schedule_form", clear_on_submit=True):
-            today = datetime.now().date()
-            if st.session_state.is_super_user:
-                st.markdown("**👑 Super User:** Plotting schedule for division staff")
-                staff_df = fetch_staff_data()
-                div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == str(st.session_state.user_division).upper().strip()]['NAME'].dropna().unique().tolist()
-                if not div_staff:
-                    div_staff = [st.session_state.current_user]
-                
-                default_idx = div_staff.index(st.session_state.current_user) if st.session_state.current_user in div_staff else 0
-                target_user = st.selectbox("Select Staff Member", div_staff, index=default_idx)
-            else:
-                target_user = st.session_state.current_user
-                st.text_input("Staff Member", value=target_user, disabled=True)
-                
-            selected_dates = st.date_input("Select Date Range", value=(today, today))
-            preset_options = fetch_presets()
-            preset_options.insert(0, "Custom Input...")
-            selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
+        today = datetime.now().date()
+        
+        # 1. MOVE SELECTORS OUTSIDE THE FORM (Triggers immediate real-time layout updates)
+        if st.session_state.is_super_user:
+            st.markdown("**👑 Super User:** Plotting schedule for division staff")
+            staff_df = fetch_staff_data()
+            div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == str(st.session_state.user_division).upper().strip()]['NAME'].dropna().unique().tolist()
+            if not div_staff:
+                div_staff = [st.session_state.current_user]
             
+            default_idx = div_staff.index(st.session_state.current_user) if st.session_state.current_user in div_staff else 0
+            target_user = st.selectbox("Select Staff Member", div_staff, index=default_idx)
+        else:
+            target_user = st.session_state.current_user
+            st.text_input("Staff Member", value=target_user, disabled=True)
+            
+        selected_dates = st.date_input("Select Date Range", value=(today, today))
+        preset_options = fetch_presets()
+        preset_options.insert(0, "Custom Input...")
+        selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
+        
+        # 2. KEEP ONLY TEXT INPUTS & BUTTON INSIDE THE FORM (Prevents keystroke lags)
+        with st.form("schedule_form", clear_on_submit=True):
             if selected_preset == "Custom Input...":
-                final_whereabouts = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
+                custom_in = st.text_input("Enter Custom Details", placeholder="e.g., Regional Monitoring")
+                final_whereabouts = custom_in
             else:
                 custom_addon = st.text_input(f"Add extra details to '{selected_preset}' (Optional)", placeholder="e.g., Specific location or reason")
-                if custom_addon.strip():
-                    final_whereabouts = f"{selected_preset} - {custom_addon.strip()}"
-                else:
-                    final_whereabouts = selected_preset
             
             submitted = st.form_submit_button("Save Schedule")
             if submitted:
+                # Compile the final text fields reliably upon submission trigger
+                if selected_preset != "Custom Input...":
+                    if custom_addon.strip():
+                        final_whereabouts = f"{selected_preset} - {custom_addon.strip()}"
+                    else:
+                        final_whereabouts = selected_preset
+                
                 if len(selected_dates) == 2:
                     start_date, end_date = selected_dates[0], selected_dates[1]
                 elif len(selected_dates) == 1:
@@ -390,13 +397,13 @@ if st.session_state.logged_in:
                 else:
                     start_date, end_date = None, None
                 
-                if start_date and end_date and final_whereabouts:
+                if start_date and end_date and final_whereabouts.strip():
                     try:
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        # REVISED: Run automated true recalculation overwrite sync on transaction completion
+                        # Run automated true recalculation overwrite sync on transaction completion
                         sync_staff_wellness_credits(target_user, st.session_state.user_division)
                         fetch_all_divisions_data.clear()
                         
