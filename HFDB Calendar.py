@@ -129,7 +129,21 @@ def safe_append_row(sheet, row_data, max_retries=5):
             else:
                 raise e 
 
-# --- TARGETED DATA CACHING ---
+# --- TARGETED DATA CACHING CORE ENGINE ---
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_all_divisions_data():
+    """
+    Downloads spreadsheet data across all divisions at once.
+    Shares this single footprint globally across all office users to completely avoid 429 errors.
+    """
+    all_data = {}
+    for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+        try:
+            all_data[div] = safe_get_all_records(sh.worksheet(div))
+        except Exception:
+            all_data[div] = []
+    return all_data
+
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
@@ -140,18 +154,15 @@ def fetch_staff_data():
         stored_year_val = staff_sheet.cell(1, 8).value  # Column H (8) tracks the active year configuration
         
         if not stored_year_val or str(stored_year_val).strip() != str(current_year):
-            # Fetch names list length to find all active spreadsheet rows securely
             names_list = staff_sheet.col_values(2)
             total_rows = len(names_list)
             
             if total_rows > 1:
-                # Select entire column range from G2 down to the last row entry
                 cell_list = staff_sheet.range(f"G2:G{total_rows}")
                 for cell in cell_list:
                     cell.value = 0
                 staff_sheet.update_cells(cell_list)
                 
-            # Set metadata cell update indicator flags
             staff_sheet.update_cell(1, 8, current_year)
     except Exception:
         pass  # Failsafe protection layer prevents cloud data errors from blocking workflow logins
@@ -181,7 +192,7 @@ def fetch_holidays():
     except Exception:
         return pd.DataFrame() 
 
-# --- INITIALIZATION & RAM DATABASE LOADER ---
+# --- INITIALIZATION ---
 try:
     sh = init_google_sheets()
 except Exception as e:
@@ -198,31 +209,11 @@ if 'is_super_user' not in st.session_state:
     st.session_state.is_super_user = False
 if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
-if 'all_calendar_data' not in st.session_state:
-    st.session_state.all_calendar_data = {}
-if 'last_fetch_time' not in st.session_state:
-    st.session_state.last_fetch_time = None
-
-def load_calendar_data_to_ram(force=False):
-    now = datetime.now()
-    is_expired = st.session_state.last_fetch_time is None or (now - st.session_state.last_fetch_time).total_seconds() > 600
-    if force or not st.session_state.all_calendar_data or is_expired:
-        with st.spinner("Downloading updates to local RAM database..."):
-            st.session_state.all_calendar_data = {}
-            for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
-                try:
-                    st.session_state.all_calendar_data[div] = safe_get_all_records(sh.worksheet(div))
-                except Exception:
-                    st.session_state.all_calendar_data[div] = []
-            st.session_state.last_fetch_time = now
 
 check_session_expiration()
 
 if not st.session_state.logged_in:
     st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
-
-# Pre-load local RAM data to make the UI snappy
-load_calendar_data_to_ram()
 
 # --- UI: SIDEBAR LOGIN & SYNC CONSOLE ---
 with st.sidebar:
@@ -304,8 +295,8 @@ with st.sidebar:
         st.divider()
         st.markdown("### ⚡ RAM Status Console")
         if st.button("🔄 Pull Live Cloud Updates", use_container_width=True):
-            load_calendar_data_to_ram(force=True)
-            st.success("RAM Engine Synced!")
+            fetch_all_divisions_data.clear()
+            st.success("Global RAM Engine Refreshed!")
             time.sleep(0.5)
             st.rerun()
             
@@ -319,7 +310,7 @@ with st.sidebar:
 # --- UI: MAIN DASHBOARD ---
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
-# 1. Schedule Management (Writes directly to RAM + writes through to Sheets background)
+# 1. Schedule Management
 if st.session_state.logged_in:
     tab1, tab2 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries"])
     
@@ -366,18 +357,7 @@ if st.session_state.logged_in:
                 
                 if start_date and end_date and final_whereabouts:
                     try:
-                        # 1. Update RAM database collection instantly
-                        new_row_dict = {
-                            "Start Date": str(start_date),
-                            "End Date": str(end_date),
-                            "Name": target_user,
-                            "Whereabouts": final_whereabouts
-                        }
-                        if st.session_state.user_division not in st.session_state.all_calendar_data:
-                            st.session_state.all_calendar_data[st.session_state.user_division] = []
-                        st.session_state.all_calendar_data[st.session_state.user_division].append(new_row_dict)
-                        
-                        # 2. Write straight through to remote spreadsheet
+                        # Write straight through to remote spreadsheet
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
@@ -395,7 +375,6 @@ if st.session_state.logged_in:
                                     except ValueError:
                                         current_used_num = 0
                                         
-                                    # Calculate working weekdays in date range range boundaries
                                     days_plotted = 0
                                     curr = start_date
                                     while curr <= end_date:
@@ -408,7 +387,10 @@ if st.session_state.logged_in:
                             except Exception as e:
                                 st.error(f"Schedule added, but wellness leave tracking counters failed to sync: {e}")
                         
-                        st.markdown(f'<div class="compact-alert-success">✅ Schedule added instantly to local engine & cloud for {target_user}!</div>', unsafe_allow_html=True)
+                        # Invalidate the global data cache so the update shows up instantly
+                        fetch_all_divisions_data.clear()
+                        
+                        st.markdown(f'<div class="compact-alert-success">✅ Schedule added instantly to cloud for {target_user}!</div>', unsafe_allow_html=True)
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
@@ -419,7 +401,8 @@ if st.session_state.logged_in:
     with tab2:
         st.caption("Select an entry below to Edit or Delete its details.")
         try:
-            div_data = st.session_state.all_calendar_data.get(st.session_state.user_division, [])
+            cached_db = fetch_all_divisions_data()
+            div_data = cached_db.get(st.session_state.user_division, [])
             user_entries = []
             for i, row in enumerate(div_data):
                 entry_owner = str(row.get('Name', ''))
@@ -457,7 +440,6 @@ if st.session_state.logged_in:
 
                     active_sheet = sh.worksheet(st.session_state.user_division)
                     target_row = selected_data['row_index']
-                    ram_index = target_row - 2
 
                     if update_btn:
                         if len(edit_dates) == 2:
@@ -468,7 +450,7 @@ if st.session_state.logged_in:
                             new_start, new_end = None, None
                         
                         if new_start and new_end and edit_whereabouts:
-                            with st.spinner("Processing local RAM & Cloud update transactions..."):
+                            with st.spinner("Processing Cloud update transitions..."):
                                 
                                 # --- UPDATE TRANSACTION CREDIT COMPENSATOR ---
                                 was_wellness = "WELLNESS LEAVE" in selected_data['whereabouts'].upper()
@@ -486,7 +468,6 @@ if st.session_state.logged_in:
                                             except ValueError:
                                                 current_used_num = 0
                                             
-                                            # Deduct old timeframe credits if it was a Wellness Leave
                                             if was_wellness:
                                                 curr = def_start
                                                 while curr <= def_end:
@@ -494,7 +475,6 @@ if st.session_state.logged_in:
                                                         current_used_num -= 1
                                                     curr += timedelta(days=1)
                                             
-                                            # Add newly mapped timeframe working weights
                                             if is_wellness:
                                                 curr = new_start
                                                 while curr <= new_end:
@@ -507,19 +487,13 @@ if st.session_state.logged_in:
                                     except Exception:
                                         pass
 
-                                # Update RAM Database entry instantly
-                                st.session_state.all_calendar_data[st.session_state.user_division][ram_index] = {
-                                    "Start Date": str(new_start),
-                                    "End Date": str(new_end),
-                                    "Name": selected_data['name'],
-                                    "Whereabouts": edit_whereabouts
-                                }
                                 # Target cloud cell range adjustment explicitly
                                 active_sheet.update(
                                     f"A{target_row}:D{target_row}",
                                     [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]]
                                 )
-                                st.markdown('<div class="compact-alert-success">✅ Entry modified successfully in cache & sheet storage!</div>', unsafe_allow_html=True)
+                                fetch_all_divisions_data.clear()
+                                st.markdown('<div class="compact-alert-success">✅ Entry modified successfully in sheet storage!</div>', unsafe_allow_html=True)
                                 time.sleep(1)
                                 st.rerun()
                                 
@@ -551,11 +525,10 @@ if st.session_state.logged_in:
                                 except Exception:
                                     pass
 
-                            # Pop from local RAM map
-                            st.session_state.all_calendar_data[st.session_state.user_division].pop(ram_index)
                             # Extract out row allocation on remote sheet
                             active_sheet.delete_rows(target_row)
-                            st.markdown('<div class="compact-alert-success">✅ Entry cleanly dropped from cache & sheet storage!</div>', unsafe_allow_html=True)
+                            fetch_all_divisions_data.clear()
+                            st.markdown('<div class="compact-alert-success">✅ Entry cleanly dropped from sheet storage!</div>', unsafe_allow_html=True)
                             time.sleep(1)
                             st.rerun()
             else:
@@ -567,7 +540,7 @@ st.divider()
 
 details_placeholder = st.empty()
 
-# 2. Filter Tabs (Calendar View & Trackers)
+# 2. Filter Tabs (Purely individual divisions focus)
 divisions = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
 selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
@@ -606,14 +579,6 @@ if selected_div == "WELLNESS":
 
 # --- CALENDAR TRACKER LOGIC ---
 else:
-    division_colors = {
-        "DIRECTOR": "hsl(350, 70%, 40%)",    
-        "HSDMSD": "hsl(210, 70%, 40%)",      
-        "PPPDD": "hsl(120, 60%, 35%)",       
-        "FPMD": "hsl(35, 90%, 40%)",         
-        "ADMIN": "hsl(280, 60%, 45%)"        
-    }
-
     nickname_map = {}
     try:
         current_staff_data = fetch_staff_data()
@@ -626,7 +591,7 @@ else:
     except Exception:
         pass 
 
-    if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+    if selected_div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
         st.markdown(f"**{selected_div} Color Legend:**")
         try:
             temp_staff_data = fetch_staff_data()
@@ -676,9 +641,10 @@ else:
                     "display": "block"
                 })
 
-    # Render structural values from RAM arrays instead of calling API sheets repeatedly
+    # Render data parameters using the global shared memory cache instead of per-user session arrays
+    cached_db = fetch_all_divisions_data()
     for div in sheets_to_fetch:
-        div_data = st.session_state.all_calendar_data.get(div, [])
+        div_data = cached_db.get(div, [])
         for row in div_data:
             try:
                 end_date_obj = datetime.strptime(str(row.get('End Date','')), "%Y-%m-%d") + timedelta(days=1)
@@ -688,7 +654,6 @@ else:
             
             raw_name = str(row.get('Name','')).strip()
             display_name = nickname_map.get(raw_name, raw_name)
-            
             bg_color = get_color_for_name(raw_name) 
             
             calendar_events.append({
