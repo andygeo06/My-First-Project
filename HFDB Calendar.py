@@ -599,7 +599,7 @@ else:
             raw_name = str(row.get('Name', '')).strip()
             display_name = nickname_map.get(raw_name, raw_name)
             
-                bg_color = get_color_for_name(raw_name) 
+            bg_color = get_color_for_name(raw_name) 
             
             calendar_events.append({
                 "title": f"{display_name} - {row.get('Whereabouts', '')}",
