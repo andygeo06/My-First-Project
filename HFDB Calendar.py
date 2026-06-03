@@ -548,7 +548,7 @@ if st.session_state.logged_in:
                                             
                                         staff_sheet_internal.update_cell(exact_row, 7, max(0, current_used_num - days_plotted))
                                         fetch_staff_data.clear()
-                                catch Exception:
+                                except Exception:
                                     pass
 
                             # Pop from local RAM map
