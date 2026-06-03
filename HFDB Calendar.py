@@ -129,17 +129,13 @@ def safe_append_row(sheet, row_data, max_retries=5):
             else:
                 raise e 
 
-# --- TARGETED CACHING FUNCTIONS ---
-@st.cache_data(ttl=300, show_spinner=False)
+# --- TARGETED DATA CACHING ---
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
     df = pd.DataFrame(safe_get_all_records(staff_sheet))
     df.columns = df.columns.astype(str).str.strip().str.upper()
     return df
-
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_division_data(div_name):
-    return safe_get_all_records(sh.worksheet(div_name))
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_presets():
@@ -162,7 +158,7 @@ def fetch_holidays():
     except Exception:
         return pd.DataFrame() 
 
-# --- INITIALIZATION ---
+# --- INITIALIZATION & RAM DATABASE LOADER ---
 try:
     sh = init_google_sheets()
 except Exception as e:
@@ -179,13 +175,34 @@ if 'is_super_user' not in st.session_state:
     st.session_state.is_super_user = False
 if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
+if 'all_calendar_data' not in st.session_state:
+    st.session_state.all_calendar_data = {}
+if 'last_fetch_time' not in st.session_state:
+    st.session_state.last_fetch_time = None
+
+def load_calendar_data_to_ram(force=False):
+    now = datetime.now()
+    # Automatically pulls cloud updates once every 10 minutes if no forced refresh is running
+    is_expired = st.session_state.last_fetch_time is None or (now - st.session_state.last_fetch_time).total_seconds() > 600
+    if force or not st.session_state.all_calendar_data or is_expired:
+        with st.spinner("Downloading updates to local RAM database..."):
+            st.session_state.all_calendar_data = {}
+            for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+                try:
+                    st.session_state.all_calendar_data[div] = safe_get_all_records(sh.worksheet(div))
+                except Exception:
+                    st.session_state.all_calendar_data[div] = []
+            st.session_state.last_fetch_time = now
 
 check_session_expiration()
 
 if not st.session_state.logged_in:
     st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
 
-# --- UI: SIDEBAR LOGIN ---
+# Pre-load local RAM data to make the UI snappy
+load_calendar_data_to_ram()
+
+# --- UI: SIDEBAR LOGIN & SYNC CONSOLE ---
 with st.sidebar:
     st.header("🔑 Staff Login")
     
@@ -204,7 +221,6 @@ with st.sidebar:
                 with st.spinner("Generating and securing code..."):
                     try:
                         name_cell = staff_sheet.find(selected_name, in_column=2)
-                        
                         if name_cell is None:
                             st.error(f"Could not locate {selected_name} in the sheet.")
                             st.stop()
@@ -244,7 +260,6 @@ with st.sidebar:
             with st.spinner("Verifying..."):
                 fresh_staff_df = fetch_staff_data()
                 entered_clean = entered_code.strip()
-                
                 match_df = fresh_staff_df[fresh_staff_df['UCODE'].astype(str).str.strip() == entered_clean]
                 
                 if not match_df.empty and entered_clean != "":
@@ -264,7 +279,15 @@ with st.sidebar:
         st.info(f"Division: {st.session_state.user_division}")
         st.caption(f"Session expires: {st.session_state.expiration_time.strftime('%b %d, %H:%M')}")
         
-        if st.button("Logout"):
+        st.divider()
+        st.markdown("### ⚡ RAM Status Console")
+        if st.button("🔄 Pull Live Cloud Updates", use_container_width=True):
+            load_calendar_data_to_ram(force=True)
+            st.success("RAM Engine Synced!")
+            time.sleep(0.5)
+            st.rerun()
+            
+        if st.button("Logout", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.current_user = None
             st.session_state.user_division = None
@@ -274,7 +297,7 @@ with st.sidebar:
 # --- UI: MAIN DASHBOARD ---
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
-# 1. Schedule Management
+# 1. Schedule Management (Writes directly to RAM + writes through to Sheets background)
 if st.session_state.logged_in:
     tab1, tab2 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries"])
     
@@ -282,7 +305,6 @@ if st.session_state.logged_in:
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
             
-            # Super User Assignment Check
             if st.session_state.is_super_user:
                 st.markdown("**👑 Super User:** Plotting schedule for division staff")
                 staff_df = fetch_staff_data()
@@ -322,34 +344,46 @@ if st.session_state.logged_in:
                 
                 if start_date and end_date and final_whereabouts:
                     try:
+                        # 1. Update RAM database collection instantly
+                        new_row_dict = {
+                            "Start Date": str(start_date),
+                            "End Date": str(end_date),
+                            "Name": target_user,
+                            "Whereabouts": final_whereabouts
+                        }
+                        if st.session_state.user_division not in st.session_state.all_calendar_data:
+                            st.session_state.all_calendar_data[st.session_state.user_division] = []
+                        st.session_state.all_calendar_data[st.session_state.user_division].append(new_row_dict)
+                        
+                        # 2. Write straight through to remote spreadsheet
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        fetch_division_data.clear(st.session_state.user_division) 
-                        st.markdown(f'<div class="compact-alert-success">✅ Schedule successfully added for {target_user}!</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="compact-alert-success">✅ Schedule added instantly to local engine & cloud for {target_user}!</div>', unsafe_allow_html=True)
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
-                        st.error(f"Error saving. Does your division tab exist?")
+                        st.error(f"Error saving to Cloud sheet collection.")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
         st.caption("Select an entry below to Edit or Delete its details.")
         try:
-            div_data = fetch_division_data(st.session_state.user_division)
+            # Sourced entirely from zero-cost local memory storage
+            div_data = st.session_state.all_calendar_data.get(st.session_state.user_division, [])
             user_entries = []
             for i, row in enumerate(div_data):
                 entry_owner = str(row.get('Name', ''))
                 if st.session_state.is_super_user or entry_owner == st.session_state.current_user:
                     user_entries.append({
-                        "display": f"[{entry_owner}] {row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
+                        "display": f"[{entry_owner}] {row.get('Start Date','')} to {row.get('End Date','')} | {row.get('Whereabouts','')}",
                         "row_index": i + 2,
                         "name": entry_owner,
-                        "start": row['Start Date'],
-                        "end": row['End Date'],
-                        "whereabouts": row['Whereabouts']
+                        "start": row.get('Start Date',''),
+                        "end": row.get('End Date',''),
+                        "whereabouts": row.get('Whereabouts','')
                     })
             
             if user_entries:
@@ -376,6 +410,7 @@ if st.session_state.logged_in:
 
                     active_sheet = sh.worksheet(st.session_state.user_division)
                     target_row = selected_data['row_index']
+                    ram_index = target_row - 2
 
                     if update_btn:
                         if len(edit_dates) == 2:
@@ -386,27 +421,36 @@ if st.session_state.logged_in:
                             new_start, new_end = None, None
                         
                         if new_start and new_end and edit_whereabouts:
-                            with st.spinner("Updating entry..."):
+                            with st.spinner("Processing local RAM & Cloud update transactions..."):
+                                # 1. Synchronize RAM Database entry instantly
+                                st.session_state.all_calendar_data[st.session_state.user_division][ram_index] = {
+                                    "Start Date": str(new_start),
+                                    "End Date": str(new_end),
+                                    "Name": selected_data['name'],
+                                    "Whereabouts": edit_whereabouts
+                                }
+                                # 2. Target cloud cell range adjustment explicitly
                                 active_sheet.update(
                                     f"A{target_row}:D{target_row}",
                                     [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]]
                                 )
-                                fetch_division_data.clear(st.session_state.user_division)
-                                st.markdown('<div class="compact-alert-success">✅ Entry updated successfully!</div>', unsafe_allow_html=True)
+                                st.markdown('<div class="compact-alert-success">✅ Entry modified successfully in cache & sheet storage!</div>', unsafe_allow_html=True)
                                 time.sleep(1)
                                 st.rerun()
                                 
                     if delete_btn:
-                        with st.spinner("Deleting entry..."):
+                        with st.spinner("Executing deletion sequences..."):
+                            # 1. Pop from local RAM map
+                            st.session_state.all_calendar_data[st.session_state.user_division].pop(ram_index)
+                            # 2. Extract out row allocation on remote sheet
                             active_sheet.delete_rows(target_row)
-                            fetch_division_data.clear(st.session_state.user_division)
-                            st.markdown('<div class="compact-alert-success">✅ Entry removed successfully!</div>', unsafe_allow_html=True)
+                            st.markdown('<div class="compact-alert-success">✅ Entry cleanly dropped from cache & sheet storage!</div>', unsafe_allow_html=True)
                             time.sleep(1)
                             st.rerun()
             else:
                 st.markdown('<div class="compact-alert-info">You currently have no entries to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"Unable to load entries for management. Error: {e}")
+            st.error(f"Unable to safely access entries data models. Error: {e}")
 
 st.divider()
 
@@ -449,7 +493,7 @@ if selected_div == "WELLNESS":
     except Exception as e:
         st.error(f"Could not load Wellness Leave data: {e}")
 
-# --- CALENDAR TRACKER LOGIC ---
+# --- CALENDAR TRACKER LOGIC (Pulled completely from internal RAM memory storage) ---
 else:
     division_colors = {
         "DIRECTOR": "hsl(350, 70%, 40%)",    
@@ -462,10 +506,8 @@ else:
     if selected_div == "ALL":
         st.markdown("**Color Legend:**")
         cols = st.columns(len(division_colors) + 1)
-        
         for i, (div_name, color) in enumerate(division_colors.items()):
             cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
-        
         cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
 
     nickname_map = {}
@@ -495,7 +537,6 @@ else:
                         raw_name_str = str(raw_name).strip()
                         display_name = nickname_map.get(raw_name_str, raw_name_str)
                         color = get_color_for_name(raw_name_str)
-                        
                         cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
                     
                     cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
@@ -503,65 +544,61 @@ else:
             pass
 
     calendar_events = []
-    # Fetch sheets ignoring the "WELLNESS" tracker index element
-    sheets_to_fetch = divisions[1:-1] if selected_div == "ALL" else [selected_div]
+    sheets_to_fetch = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"] if selected_div == "ALL" else [selected_div]
 
-    with st.spinner("Loading calendar data..."):
-        holiday_df = fetch_holidays()
-        if not holiday_df.empty and 'DATE' in holiday_df.columns:
-            for _, h_row in holiday_df.iterrows():
-                raw_date = str(h_row.get('DATE', '')).strip()
-                h_remarks = str(h_row.get('REMARKS', '')).strip()
+    # Render background structural configuration for holidays
+    holiday_df = fetch_holidays()
+    if not holiday_df.empty and 'DATE' in holiday_df.columns:
+        for _, h_row in holiday_df.iterrows():
+            raw_date = str(h_row.get('DATE', '')).strip()
+            h_remarks = str(h_row.get('REMARKS', '')).strip()
+            if raw_date:
+                try:
+                    h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
+                except Exception:
+                    h_date = raw_date 
                 
-                if raw_date:
-                    try:
-                        h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
-                    except Exception:
-                        h_date = raw_date 
-                    
-                    calendar_events.append({
-                        "start": h_date,
-                        "display": "background",
-                        "backgroundColor": "rgba(255, 59, 59, 0.15)" 
-                    })
-                    calendar_events.append({
-                        "title": f"🎌 HOLIDAY: {h_remarks}",
-                        "start": h_date,
-                        "backgroundColor": "#FF3B3B", 
-                        "borderColor": "#FF3B3B",
-                        "textColor": "#FFFFFF",
-                        "display": "block"
-                    })
+                calendar_events.append({
+                    "start": h_date,
+                    "display": "background",
+                    "backgroundColor": "rgba(255, 59, 59, 0.15)" 
+                })
+                calendar_events.append({
+                    "title": f"🎌 HOLIDAY: {h_remarks}",
+                    "start": h_date,
+                    "backgroundColor": "#FF3B3B", 
+                    "borderColor": "#FF3B3B",
+                    "textColor": "#FFFFFF",
+                    "display": "block"
+                })
 
-        for div in sheets_to_fetch:
+    # Render structural values from RAM arrays instead of calling API sheets repeatedly
+    for div in sheets_to_fetch:
+        div_data = st.session_state.all_calendar_data.get(div, [])
+        for row in div_data:
             try:
-                div_data = fetch_division_data(div) 
-                for row in div_data:
-                    try:
-                        end_date_obj = datetime.strptime(str(row['End Date']), "%Y-%m-%d") + timedelta(days=1)
-                        end_str = end_date_obj.strftime("%Y-%m-%d")
-                    except ValueError:
-                        end_str = str(row['End Date']) 
-                    
-                    raw_name = str(row['Name']).strip()
-                    display_name = nickname_map.get(raw_name, raw_name)
-                    
-                    if selected_div == "ALL":
-                        bg_color = division_colors.get(div, "#808080")
-                    else:
-                        bg_color = get_color_for_name(raw_name) 
-                    
-                    calendar_events.append({
-                        "title": f"{display_name} - {row['Whereabouts']}",
-                        "start": str(row['Start Date']),
-                        "end": end_str,
-                        "backgroundColor": bg_color,
-                        "borderColor": bg_color,
-                        "textColor": "#FFFFFF",
-                        "display": "block" 
-                    })
+                end_date_obj = datetime.strptime(str(row.get('End Date','')), "%Y-%m-%d") + timedelta(days=1)
+                end_str = end_date_obj.strftime("%Y-%m-%d")
             except Exception:
-                 pass 
+                end_str = str(row.get('End Date','')) 
+            
+            raw_name = str(row.get('Name','')).strip()
+            display_name = nickname_map.get(raw_name, raw_name)
+            
+            if selected_div == "ALL":
+                bg_color = division_colors.get(div, "#808080")
+            else:
+                bg_color = get_color_for_name(raw_name) 
+            
+            calendar_events.append({
+                "title": f"{display_name} - {row.get('Whereabouts','')}",
+                "start": str(row.get('Start Date','')),
+                "end": end_str,
+                "backgroundColor": bg_color,
+                "borderColor": bg_color,
+                "textColor": "#FFFFFF",
+                "display": "block" 
+            })
 
     calendar_options = {
         "initialView": "dayGridMonth",
@@ -602,5 +639,4 @@ else:
         clicked_event = cal_result["eventClick"]["event"]
         event_details = clicked_event.get("title", "No details provided")
         start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
-        
         details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
