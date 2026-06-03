@@ -415,7 +415,7 @@ if st.session_state.logged_in:
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
-with tab2:
+    with tab2:
         st.caption("Select an entry below to Edit or Delete its details.")
         try:
             cached_db = fetch_all_divisions_data()
@@ -499,7 +499,7 @@ with tab2:
                 st.markdown('<div class="compact-alert-info">You currently have no entries to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Unable to safely access entries data models. Error: {e}")
-
+            
     # REVISED: Wellness Leave Tracker Logic integrated seamlessly inside the dedicated Tab 3 layout
     with tab3:
         st.markdown("### 🌿 HFDB Staff Wellness Leave Tracker")
