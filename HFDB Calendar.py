@@ -174,6 +174,10 @@ if 'current_user' not in st.session_state:
     st.session_state.current_user = None
 if 'user_division' not in st.session_state:
     st.session_state.user_division = None
+if 'is_super_user' not in st.session_state:
+    st.session_state.is_super_user = False
+if 'expiration_time' not in st.session_state:
+    st.session_state.expiration_time = None
 if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
 
@@ -249,6 +253,7 @@ with st.sidebar:
                     st.session_state.logged_in = True
                     st.session_state.current_user = user_data['NAME']
                     st.session_state.user_division = user_data.get('DIVISION', 'Unknown')
+                    st.session_state.is_super_user = entered_clean.startswith("SU-")
                     st.session_state.expiration_time = get_next_expiration()
                     st.rerun()
                 else:
@@ -269,11 +274,26 @@ st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsa
 
 # 1. Schedule Management
 if st.session_state.logged_in:
-    tab1, tab2 = st.tabs(["📝 Add Schedule", "🗑️ Manage My Entries"])
+    tab1, tab2 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries"])
     
     with tab1:
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
+            
+            # --- SUPER USER LOGIC: Select Staff ---
+            if st.session_state.is_super_user:
+                st.markdown("**👑 Super User Access**")
+                staff_df = fetch_staff_data()
+                # Filter staff by the SU's division
+                div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == st.session_state.user_division]['NAME'].tolist()
+                
+                # Default to the logged-in user if they are in the list
+                default_idx = div_staff.index(st.session_state.current_user) if st.session_state.current_user in div_staff else 0
+                target_user = st.selectbox("Select Staff Member to Plot:", div_staff, index=default_idx)
+            else:
+                target_user = st.session_state.current_user
+                st.text_input("Staff Member", value=target_user, disabled=True)
+            
             selected_dates = st.date_input("Select Date Range", value=(today, today))
             
             preset_options = fetch_presets()
@@ -301,83 +321,155 @@ if st.session_state.logged_in:
                 if start_date and end_date and final_whereabouts:
                     try:
                         div_sheet = sh.worksheet(st.session_state.user_division)
-                        row_data = [str(start_date), str(end_date), st.session_state.current_user, final_whereabouts]
+                        row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
                         fetch_division_data.clear(st.session_state.user_division) 
-                        st.markdown('<div class="compact-alert-success">✅ Schedule successfully added to the tracker!</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="compact-alert-success">✅ Schedule successfully added for {target_user}!</div>', unsafe_allow_html=True)
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
-                        st.error(f"Error saving. Does your division tab exist?")
+                        st.error("Error saving. Does your division tab exist?")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
-        st.caption("Select an entry below to remove it from the calendar.")
+        st.caption("Select an entry below to Edit or Delete.")
         try:
             div_data = fetch_division_data(st.session_state.user_division)
             user_entries = []
+            
             for i, row in enumerate(div_data):
-                if str(row.get('Name', '')) == st.session_state.current_user:
+                entry_owner = str(row.get('Name', ''))
+                # SU sees all division entries; normal users see only their own
+                if st.session_state.is_super_user or entry_owner == st.session_state.current_user:
                     user_entries.append({
-                        "display": f"{row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
-                        "row_index": i + 2 
+                        "display": f"[{entry_owner}] {row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
+                        "row_index": i + 2,
+                        "name": entry_owner,
+                        "start": row['Start Date'],
+                        "end": row['End Date'],
+                        "whereabouts": row['Whereabouts']
                     })
             
             if user_entries:
-                selected_entry_display = st.selectbox("Select Entry to Delete", [e["display"] for e in user_entries])
+                selected_entry_display = st.selectbox("Select Entry to Manage", [e["display"] for e in user_entries])
+                selected_data = next(e for e in user_entries if e["display"] == selected_entry_display)
                 
-                if st.button("🗑️ Delete Selected Entry", type="primary"):
-                    target_row = next(e["row_index"] for e in user_entries if e["display"] == selected_entry_display)
-                    with st.spinner("Deleting..."):
-                        active_sheet = sh.worksheet(st.session_state.user_division)
-                        active_sheet.delete_rows(target_row)
-                        fetch_division_data.clear(st.session_state.user_division)
-                        st.markdown('<div class="compact-alert-success">✅ Entry removed successfully!</div>', unsafe_allow_html=True)
-                        time.sleep(1)
-                        st.rerun()
+                with st.form("edit_delete_form"):
+                    # Parse existing dates for the date_input default
+                    try:
+                        def_start = datetime.strptime(selected_data['start'], "%Y-%m-%d").date()
+                        def_end = datetime.strptime(selected_data['end'], "%Y-%m-%d").date()
+                    except:
+                        today_date = datetime.now().date()
+                        def_start, def_end = today_date, today_date
+
+                    edit_dates = st.date_input("Update Date Range", value=(def_start, def_end))
+                    edit_whereabouts = st.text_input("Update Whereabouts", value=selected_data['whereabouts'])
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        update_btn = st.form_submit_button("💾 Save Changes", type="primary")
+                    with col2:
+                        delete_btn = st.form_submit_button("🗑️ Delete Entry")
+
+                    active_sheet = sh.worksheet(st.session_state.user_division)
+                    target_row = selected_data['row_index']
+
+                    if update_btn:
+                        if len(edit_dates) == 2:
+                            new_start, new_end = edit_dates[0], edit_dates[1]
+                        elif len(edit_dates) == 1:
+                            new_start, new_end = edit_dates[0], edit_dates[0]
+                        else:
+                            new_start, new_end = None, None
+                        
+                        if new_start and new_end and edit_whereabouts:
+                            with st.spinner("Updating..."):
+                                # gspread update format
+                                active_sheet.update(
+                                    values=[[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]], 
+                                    range_name=f"A{target_row}:D{target_row}"
+                                )
+                                fetch_division_data.clear(st.session_state.user_division)
+                                st.markdown('<div class="compact-alert-success">✅ Entry updated successfully!</div>', unsafe_allow_html=True)
+                                time.sleep(1)
+                                st.rerun()
+                                
+                    if delete_btn:
+                        with st.spinner("Deleting..."):
+                            active_sheet.delete_rows(target_row)
+                            fetch_division_data.clear(st.session_state.user_division)
+                            st.markdown('<div class="compact-alert-success">✅ Entry removed successfully!</div>', unsafe_allow_html=True)
+                            time.sleep(1)
+                            st.rerun()
             else:
-                st.markdown('<div class="compact-alert-info">You currently have no scheduled entries to manage.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="compact-alert-info">No entries found to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
-            st.error("Unable to load entries for management.")
+            st.error(f"Unable to load entries for management. Error: {e}")
 
 st.divider()
 
 details_placeholder = st.empty()
 
-# 2. Calendar View
-divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
-selected_div = st.radio("Filter by Division", divisions, horizontal=True)
+# 2. Calendar View & Trackers
+divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"] # ADDED WELLNESS
+selected_div = st.radio("Filter Dashboard", divisions, horizontal=True)
 
-division_colors = {
-    "DIRECTOR": "hsl(350, 70%, 40%)",    
-    "HSDMSD": "hsl(210, 70%, 40%)",      
-    "PPPDD": "hsl(120, 60%, 35%)",       
-    "FPMD": "hsl(35, 90%, 40%)",         
-    "ADMIN": "hsl(280, 60%, 45%)"        
-}
+if selected_div == "WELLNESS":
+    st.markdown("### 🌿 Job Order Wellness Leave Tracker")
+    try:
+        staff_df = fetch_staff_data()
+        
+        # Check if the necessary columns exist
+        if 'STATUS' in staff_df.columns and 'USED WELLNESS LEAVE' in staff_df.columns:
+            # Filter for Job Orders
+            jo_df = staff_df[staff_df['STATUS'].astype(str).str.upper().str.strip() == "JOB ORDER"].copy()
+            
+            if not jo_df.empty:
+                # Convert the 'USED WELLNESS LEAVE' column to numbers, setting empty cells to 0
+                jo_df['USED WELLNESS LEAVE'] = pd.to_numeric(jo_df['USED WELLNESS LEAVE'], errors='coerce').fillna(0)
+                # Calculate Remaining (Default 5)
+                jo_df['REMAINING LEAVE'] = 5 - jo_df['USED WELLNESS LEAVE']
+                
+                # Format for display
+                display_df = jo_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
+                
+                # Display using Streamlit's native dataframe (adapts perfectly to dark mode)
+                st.dataframe(
+                    display_df, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "NAME": "Staff Name",
+                        "DIVISION": "Division",
+                        "USED WELLNESS LEAVE": st.column_config.NumberColumn("Used Credits", format="%d"),
+                        "REMAINING LEAVE": st.column_config.ProgressColumn("Remaining Credits", format="%d", min_value=0, max_value=5)
+                    }
+                )
+            else:
+                st.info("No Job Order staff found in the directory.")
+        else:
+            st.error("Missing 'STATUS' or 'USED WELLNESS LEAVE' columns in the STAFF sheet. Please ensure they exist (Columns F and G).")
+    except Exception as e:
+        st.error(f"Could not load Wellness Leave data: {e}")
 
-if selected_div == "ALL":
-    st.markdown("**Color Legend:**")
-    cols = st.columns(len(division_colors) + 1)
+else:
+    # --- IF NOT WELLNESS, SHOW THE CALENDAR AS USUAL ---
     
-    for i, (div_name, color) in enumerate(division_colors.items()):
-        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
+    division_colors = {
+        "DIRECTOR": "hsl(350, 70%, 40%)",    
+        "HSDMSD": "hsl(210, 70%, 40%)",      
+        "PPPDD": "hsl(120, 60%, 35%)",       
+        "FPMD": "hsl(35, 90%, 40%)",         
+        "ADMIN": "hsl(280, 60%, 45%)"        
+    }
     
-    cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
-
-nickname_map = {}
-try:
-    current_staff_data = fetch_staff_data()
-    if 'NICKNAME' in current_staff_data.columns:
-        for _, s_row in current_staff_data.iterrows():
-            f_name = str(s_row['NAME']).strip()
-            n_name = str(s_row['NICKNAME']).strip()
-            if n_name: 
-                nickname_map[f_name] = n_name
-except Exception:
-    pass 
+    # [PASTE YOUR EXISTING CALENDAR CODE HERE]
+    # Keep everything from `if selected_div == "ALL":` all the way down to the end of the script!
+    # Just make sure it is indented properly to sit inside this `else:` block.
 
 # ---> NEW DIVISION LEGEND FUNCTIONALITY STARTS HERE <---
 if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
