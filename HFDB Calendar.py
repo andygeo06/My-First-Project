@@ -474,7 +474,7 @@ st.divider()
 details_placeholder = st.empty()
 
 # 2. Filter Tabs (Calendar View & Trackers)
-divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
+divisions = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
 selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
 # --- WELLNESS LEAVE TRACKER LOGIC (UPDATED FOR ALL STAFF) ---
@@ -524,13 +524,6 @@ else:
         "ADMIN": "hsl(280, 60%, 45%)"        
     }
 
-    if selected_div == "ALL":
-        st.markdown("**Color Legend:**")
-        cols = st.columns(len(division_colors) + 1)
-        for i, (div_name, color) in enumerate(division_colors.items()):
-            cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
-        cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
-
     nickname_map = {}
     try:
         current_staff_data = st.session_state.staff_df
@@ -565,7 +558,7 @@ else:
             pass
 
     calendar_events = []
-    sheets_to_fetch = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"] if selected_div == "ALL" else [selected_div]
+    sheets_to_fetch = [selected_div]
 
     # Render Background Structural Holidays from Local RAM Dataframe 
     holiday_df = st.session_state.holidays_df
@@ -606,9 +599,6 @@ else:
             raw_name = str(row.get('Name', '')).strip()
             display_name = nickname_map.get(raw_name, raw_name)
             
-            if selected_div == "ALL":
-                bg_color = division_colors.get(div, "#808080")
-            else:
                 bg_color = get_color_for_name(raw_name) 
             
             calendar_events.append({
