@@ -14,7 +14,7 @@ from streamlit_calendar import calendar
 # --- CONFIGURATION ---
 st.set_page_config(page_title="HFDB Whereabouts", page_icon="📅", layout="wide")
 
-# Space-Maximizing CSS & Ultra-Compact Banners (Clipping Fixed!)
+# Space-Maximizing CSS & Ultra-Compact Banners
 st.markdown("""
     <style>
         .block-container {
@@ -71,6 +71,7 @@ def check_session_expiration():
             st.session_state.logged_in = False
             st.session_state.current_user = None
             st.session_state.user_division = None
+            st.session_state.is_super_user = False
             st.warning("Session expired. Please log in again for the new week.")
 
 def generate_ucode():
@@ -178,8 +179,6 @@ if 'is_super_user' not in st.session_state:
     st.session_state.is_super_user = False
 if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
-if 'expiration_time' not in st.session_state:
-    st.session_state.expiration_time = None
 
 check_session_expiration()
 
@@ -260,6 +259,8 @@ with st.sidebar:
                     st.error("Invalid Code.")
     else:
         st.success(f"Logged in as: **{st.session_state.current_user}**")
+        if st.session_state.is_super_user:
+            st.warning("👑 Super User Access Enabled")
         st.info(f"Division: {st.session_state.user_division}")
         st.caption(f"Session expires: {st.session_state.expiration_time.strftime('%b %d, %H:%M')}")
         
@@ -267,6 +268,7 @@ with st.sidebar:
             st.session_state.logged_in = False
             st.session_state.current_user = None
             st.session_state.user_division = None
+            st.session_state.is_super_user = False
             st.rerun()
 
 # --- UI: MAIN DASHBOARD ---
@@ -280,20 +282,20 @@ if st.session_state.logged_in:
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
             
-            # --- SUPER USER LOGIC: Select Staff ---
+            # Super User Assignment Check
             if st.session_state.is_super_user:
-                st.markdown("**👑 Super User Access**")
+                st.markdown("**👑 Super User:** Plotting schedule for division staff")
                 staff_df = fetch_staff_data()
-                # Filter staff by the SU's division
-                div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == st.session_state.user_division]['NAME'].tolist()
+                div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == str(st.session_state.user_division).upper().strip()]['NAME'].dropna().unique().tolist()
+                if not div_staff:
+                    div_staff = [st.session_state.current_user]
                 
-                # Default to the logged-in user if they are in the list
                 default_idx = div_staff.index(st.session_state.current_user) if st.session_state.current_user in div_staff else 0
-                target_user = st.selectbox("Select Staff Member to Plot:", div_staff, index=default_idx)
+                target_user = st.selectbox("Select Staff Member", div_staff, index=default_idx)
             else:
                 target_user = st.session_state.current_user
                 st.text_input("Staff Member", value=target_user, disabled=True)
-            
+                
             selected_dates = st.date_input("Select Date Range", value=(today, today))
             
             preset_options = fetch_presets()
@@ -329,19 +331,17 @@ if st.session_state.logged_in:
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
-                        st.error("Error saving. Does your division tab exist?")
+                        st.error(f"Error saving. Does your division tab exist?")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
-        st.caption("Select an entry below to Edit or Delete.")
+        st.caption("Select an entry below to Edit or Delete its details.")
         try:
             div_data = fetch_division_data(st.session_state.user_division)
             user_entries = []
-            
             for i, row in enumerate(div_data):
                 entry_owner = str(row.get('Name', ''))
-                # SU sees all division entries; normal users see only their own
                 if st.session_state.is_super_user or entry_owner == st.session_state.current_user:
                     user_entries.append({
                         "display": f"[{entry_owner}] {row['Start Date']} to {row['End Date']} | {row['Whereabouts']}",
@@ -357,7 +357,6 @@ if st.session_state.logged_in:
                 selected_data = next(e for e in user_entries if e["display"] == selected_entry_display)
                 
                 with st.form("edit_delete_form"):
-                    # Parse existing dates for the date_input default
                     try:
                         def_start = datetime.strptime(selected_data['start'], "%Y-%m-%d").date()
                         def_end = datetime.strptime(selected_data['end'], "%Y-%m-%d").date()
@@ -387,11 +386,10 @@ if st.session_state.logged_in:
                             new_start, new_end = None, None
                         
                         if new_start and new_end and edit_whereabouts:
-                            with st.spinner("Updating..."):
-                                # gspread update format
+                            with st.spinner("Updating entry..."):
                                 active_sheet.update(
-                                    values=[[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]], 
-                                    range_name=f"A{target_row}:D{target_row}"
+                                    f"A{target_row}:D{target_row}",
+                                    [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]]
                                 )
                                 fetch_division_data.clear(st.session_state.user_division)
                                 st.markdown('<div class="compact-alert-success">✅ Entry updated successfully!</div>', unsafe_allow_html=True)
@@ -399,14 +397,14 @@ if st.session_state.logged_in:
                                 st.rerun()
                                 
                     if delete_btn:
-                        with st.spinner("Deleting..."):
+                        with st.spinner("Deleting entry..."):
                             active_sheet.delete_rows(target_row)
                             fetch_division_data.clear(st.session_state.user_division)
                             st.markdown('<div class="compact-alert-success">✅ Entry removed successfully!</div>', unsafe_allow_html=True)
                             time.sleep(1)
                             st.rerun()
             else:
-                st.markdown('<div class="compact-alert-info">No entries found to manage.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="compact-alert-info">You currently have no entries to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Unable to load entries for management. Error: {e}")
 
@@ -414,30 +412,25 @@ st.divider()
 
 details_placeholder = st.empty()
 
-# 2. Calendar View & Trackers
-divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"] # ADDED WELLNESS
-selected_div = st.radio("Filter Dashboard", divisions, horizontal=True)
+# 2. Filter Tabs (Calendar View & Trackers)
+divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
+selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
+# --- WELLNESS LEAVE TRACKER LOGIC ---
 if selected_div == "WELLNESS":
     st.markdown("### 🌿 Job Order Wellness Leave Tracker")
     try:
         staff_df = fetch_staff_data()
         
-        # Check if the necessary columns exist
         if 'STATUS' in staff_df.columns and 'USED WELLNESS LEAVE' in staff_df.columns:
-            # Filter for Job Orders
             jo_df = staff_df[staff_df['STATUS'].astype(str).str.upper().str.strip() == "JOB ORDER"].copy()
             
             if not jo_df.empty:
-                # Convert the 'USED WELLNESS LEAVE' column to numbers, setting empty cells to 0
                 jo_df['USED WELLNESS LEAVE'] = pd.to_numeric(jo_df['USED WELLNESS LEAVE'], errors='coerce').fillna(0)
-                # Calculate Remaining (Default 5)
                 jo_df['REMAINING LEAVE'] = 5 - jo_df['USED WELLNESS LEAVE']
                 
-                # Format for display
                 display_df = jo_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
                 
-                # Display using Streamlit's native dataframe (adapts perfectly to dark mode)
                 st.dataframe(
                     display_df, 
                     use_container_width=True, 
@@ -450,15 +443,14 @@ if selected_div == "WELLNESS":
                     }
                 )
             else:
-                st.info("No Job Order staff found in the directory.")
+                st.info("No Job Order staff records found in the directory.")
         else:
-            st.error("Missing 'STATUS' or 'USED WELLNESS LEAVE' columns in the STAFF sheet. Please ensure they exist (Columns F and G).")
+            st.error("Required columns ('STATUS' or 'USED WELLNESS LEAVE') not found in the STAFF sheet. Please check columns F and G.")
     except Exception as e:
         st.error(f"Could not load Wellness Leave data: {e}")
 
+# --- CALENDAR TRACKER LOGIC ---
 else:
-    # --- IF NOT WELLNESS, SHOW THE CALENDAR AS USUAL ---
-    
     division_colors = {
         "DIRECTOR": "hsl(350, 70%, 40%)",    
         "HSDMSD": "hsl(210, 70%, 40%)",      
@@ -466,138 +458,149 @@ else:
         "FPMD": "hsl(35, 90%, 40%)",         
         "ADMIN": "hsl(280, 60%, 45%)"        
     }
-    
-    # [PASTE YOUR EXISTING CALENDAR CODE HERE]
-    # Keep everything from `if selected_div == "ALL":` all the way down to the end of the script!
-    # Just make sure it is indented properly to sit inside this `else:` block.
 
-# ---> NEW DIVISION LEGEND FUNCTIONALITY STARTS HERE <---
-if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
-    st.markdown(f"**{selected_div} Color Legend:**")
+    if selected_div == "ALL":
+        st.markdown("**Color Legend:**")
+        cols = st.columns(len(division_colors) + 1)
+        
+        for i, (div_name, color) in enumerate(division_colors.items()):
+            cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>{div_name}</div>", unsafe_allow_html=True)
+        
+        cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px;'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
+
+    nickname_map = {}
     try:
-        temp_staff_data = fetch_staff_data()
-        if 'DIVISION' in temp_staff_data.columns:
-            # Filter the staff sheet by the currently selected division
-            div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
-            
-            if not div_staff_df.empty:
-                staff_list = div_staff_df['NAME'].dropna().unique()
-                
-                # Create columns for each staff member + 1 for the HOLIDAY block
-                cols = st.columns(len(staff_list) + 1)
-                
-                for i, raw_name in enumerate(staff_list):
-                    raw_name_str = str(raw_name).strip()
-                    display_name = nickname_map.get(raw_name_str, raw_name_str)
-                    color = get_color_for_name(raw_name_str)
-                    
-                    # Tooltip added via 'title' attribute so hovering reveals the full name if squished
-                    cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
-                
-                cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
+        current_staff_data = fetch_staff_data()
+        if 'NICKNAME' in current_staff_data.columns:
+            for _, s_row in current_staff_data.iterrows():
+                f_name = str(s_row['NAME']).strip()
+                n_name = str(s_row['NICKNAME']).strip()
+                if n_name: 
+                    nickname_map[f_name] = n_name
     except Exception:
-        pass
-# ---> NEW DIVISION LEGEND FUNCTIONALITY ENDS HERE <---
+        pass 
 
-calendar_events = []
-sheets_to_fetch = divisions[1:] if selected_div == "ALL" else [selected_div]
-
-with st.spinner("Loading calendar data..."):
-    holiday_df = fetch_holidays()
-    if not holiday_df.empty and 'DATE' in holiday_df.columns:
-        for _, h_row in holiday_df.iterrows():
-            raw_date = str(h_row.get('DATE', '')).strip()
-            h_remarks = str(h_row.get('REMARKS', '')).strip()
-            
-            if raw_date:
-                try:
-                    h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
-                except Exception:
-                    h_date = raw_date 
-                
-                calendar_events.append({
-                    "start": h_date,
-                    "display": "background",
-                    "backgroundColor": "rgba(255, 59, 59, 0.15)" 
-                })
-                calendar_events.append({
-                    "title": f"🎌 HOLIDAY: {h_remarks}",
-                    "start": h_date,
-                    "backgroundColor": "#FF3B3B", 
-                    "borderColor": "#FF3B3B",
-                    "textColor": "#FFFFFF",
-                    "display": "block"
-                })
-
-    for div in sheets_to_fetch:
+    if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+        st.markdown(f"**{selected_div} Color Legend:**")
         try:
-            div_data = fetch_division_data(div) 
-            for row in div_data:
-                try:
-                    end_date_obj = datetime.strptime(str(row['End Date']), "%Y-%m-%d") + timedelta(days=1)
-                    end_str = end_date_obj.strftime("%Y-%m-%d")
-                except ValueError:
-                    end_str = str(row['End Date']) 
+            temp_staff_data = fetch_staff_data()
+            if 'DIVISION' in temp_staff_data.columns:
+                div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
                 
-                raw_name = str(row['Name']).strip()
-                display_name = nickname_map.get(raw_name, raw_name)
-                
-                if selected_div == "ALL":
-                    bg_color = division_colors.get(div, "#808080")
-                else:
-                    bg_color = get_color_for_name(raw_name) 
-                
-                calendar_events.append({
-                    "title": f"{display_name} - {row['Whereabouts']}",
-                    "start": str(row['Start Date']),
-                    "end": end_str,
-                    "backgroundColor": bg_color,
-                    "borderColor": bg_color,
-                    "textColor": "#FFFFFF",
-                    "display": "block" 
-                })
+                if not div_staff_df.empty:
+                    staff_list = div_staff_df['NAME'].dropna().unique()
+                    cols = st.columns(len(staff_list) + 1)
+                    
+                    for i, raw_name in enumerate(staff_list):
+                        raw_name_str = str(raw_name).strip()
+                        display_name = nickname_map.get(raw_name_str, raw_name_str)
+                        color = get_color_for_name(raw_name_str)
+                        
+                        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
+                    
+                    cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
         except Exception:
-             pass 
+            pass
 
-calendar_options = {
-    "initialView": "dayGridMonth",
-    "headerToolbar": {
-        "left": "prev,next today",
-        "center": "title",
-        "right": "dayGridMonth,dayGridWeek"
-    },
-    "displayEventTime": False, 
-    "eventDisplay": "block",   
-    "weekends": False,
-    "height": 650
-}
+    calendar_events = []
+    # Fetch sheets ignoring the "WELLNESS" tracker index element
+    sheets_to_fetch = divisions[1:-1] if selected_div == "ALL" else [selected_div]
 
-# --- DIRECT CSS INJECTION TO SHRINK FONT SIZE ---
-custom_calendar_css = """
-    .fc-event-title {
-        font-size: 10px !important; 
-        font-weight: normal !important; 
-        line-height: 1.2 !important;
+    with st.spinner("Loading calendar data..."):
+        holiday_df = fetch_holidays()
+        if not holiday_df.empty and 'DATE' in holiday_df.columns:
+            for _, h_row in holiday_df.iterrows():
+                raw_date = str(h_row.get('DATE', '')).strip()
+                h_remarks = str(h_row.get('REMARKS', '')).strip()
+                
+                if raw_date:
+                    try:
+                        h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
+                    except Exception:
+                        h_date = raw_date 
+                    
+                    calendar_events.append({
+                        "start": h_date,
+                        "display": "background",
+                        "backgroundColor": "rgba(255, 59, 59, 0.15)" 
+                    })
+                    calendar_events.append({
+                        "title": f"🎌 HOLIDAY: {h_remarks}",
+                        "start": h_date,
+                        "backgroundColor": "#FF3B3B", 
+                        "borderColor": "#FF3B3B",
+                        "textColor": "#FFFFFF",
+                        "display": "block"
+                    })
+
+        for div in sheets_to_fetch:
+            try:
+                div_data = fetch_division_data(div) 
+                for row in div_data:
+                    try:
+                        end_date_obj = datetime.strptime(str(row['End Date']), "%Y-%m-%d") + timedelta(days=1)
+                        end_str = end_date_obj.strftime("%Y-%m-%d")
+                    except ValueError:
+                        end_str = str(row['End Date']) 
+                    
+                    raw_name = str(row['Name']).strip()
+                    display_name = nickname_map.get(raw_name, raw_name)
+                    
+                    if selected_div == "ALL":
+                        bg_color = division_colors.get(div, "#808080")
+                    else:
+                        bg_color = get_color_for_name(raw_name) 
+                    
+                    calendar_events.append({
+                        "title": f"{display_name} - {row['Whereabouts']}",
+                        "start": str(row['Start Date']),
+                        "end": end_str,
+                        "backgroundColor": bg_color,
+                        "borderColor": bg_color,
+                        "textColor": "#FFFFFF",
+                        "display": "block" 
+                    })
+            except Exception:
+                 pass 
+
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,dayGridWeek"
+        },
+        "displayEventTime": False, 
+        "eventDisplay": "block",   
+        "weekends": False,
+        "height": 650
     }
-    .fc-event-main {
-        padding: 1px 2px !important; 
-    }
-"""
 
-details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
+    custom_calendar_css = """
+        .fc-event-title {
+            font-size: 10px !important; 
+            font-weight: normal !important; 
+            line-height: 1.2 !important;
+        }
+        .fc-event-main {
+            padding: 1px 2px !important; 
+        }
+    """
 
-if not calendar_events:
-    details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
+    details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
 
-cal_result = calendar(
-    events=calendar_events, 
-    options=calendar_options,
-    custom_css=custom_calendar_css
-)
+    if not calendar_events:
+        details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
 
-if cal_result and cal_result.get("callback") == "eventClick":
-    clicked_event = cal_result["eventClick"]["event"]
-    event_details = clicked_event.get("title", "No details provided")
-    start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
-    
-    details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
+    cal_result = calendar(
+        events=calendar_events, 
+        options=calendar_options,
+        custom_css=custom_calendar_css
+    )
+
+    if cal_result and cal_result.get("callback") == "eventClick":
+        clicked_event = cal_result["eventClick"]["event"]
+        event_details = clicked_event.get("title", "No details provided")
+        start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
+        
+        details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
