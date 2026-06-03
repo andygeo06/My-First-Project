@@ -415,7 +415,7 @@ if st.session_state.logged_in:
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
-    with tab2:
+with tab2:
         st.caption("Select an entry below to Edit or Delete its details.")
         try:
             cached_db = fetch_all_divisions_data()
@@ -437,7 +437,8 @@ if st.session_state.logged_in:
                 selected_entry_display = st.selectbox("Select Entry to Manage", [e["display"] for e in user_entries])
                 selected_data = next(e for e in user_entries if e["display"] == selected_entry_display)
                 
-                with st.form("edit_delete_form"):
+                # FIX: Appending the row_index dynamically forces an instant cache refresh when switching selections
+                with st.form(f"edit_delete_form_{selected_data['row_index']}"):
                     try:
                         def_start = datetime.strptime(selected_data['start'], "%Y-%m-%d").date()
                         def_end = datetime.strptime(selected_data['end'], "%Y-%m-%d").date()
@@ -445,8 +446,9 @@ if st.session_state.logged_in:
                         today_date = datetime.now().date()
                         def_start, def_end = today_date, today_date
 
-                    edit_dates = st.date_input("Update Date Range", value=(def_start, def_end))
-                    edit_whereabouts = st.text_input("Update Whereabouts", value=selected_data['whereabouts'])
+                    # Unique keys bound to the row ensure text fields refresh completely
+                    edit_dates = st.date_input("Update Date Range", value=(def_start, def_end), key=f"edit_dates_{selected_data['row_index']}")
+                    edit_whereabouts = st.text_input("Update Whereabouts / Custom Details", value=selected_data['whereabouts'], key=f"edit_txt_{selected_data['row_index']}")
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     col1, col2 = st.columns(2)
@@ -465,15 +467,15 @@ if st.session_state.logged_in:
                         else:
                             new_start, new_end = None, None
                         
-                        if new_start and new_end and edit_whereabouts:
+                        if new_start and new_end and edit_whereabouts.strip():
                             with st.spinner("Processing Cloud update transitions..."):
                                 active_sheet = sh.worksheet(st.session_state.user_division)
                                 active_sheet.update(
                                     f"A{target_row}:D{target_row}",
-                                    [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]]
+                                    [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts.strip()]]
                                 )
                                 
-                                # REVISED: Execute clean, true recalculation sweep for the employee
+                                # Run clean, true recalculation sweep for the employee
                                 sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                                 fetch_all_divisions_data.clear()
                                 
@@ -486,7 +488,7 @@ if st.session_state.logged_in:
                             active_sheet = sh.worksheet(st.session_state.user_division)
                             active_sheet.delete_rows(target_row)
                             
-                            # REVISED: Execute clean, true recalculation sweep for the employee
+                            # Run clean, true recalculation sweep for the employee
                             sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                             fetch_all_divisions_data.clear()
                             
