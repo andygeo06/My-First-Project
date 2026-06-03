@@ -129,36 +129,7 @@ def safe_append_row(sheet, row_data, max_retries=5):
             else:
                 raise e 
 
-# --- TARGETED DATA CACHING ---
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_staff_data():
-    staff_sheet = sh.worksheet("STAFF")
-    df = pd.DataFrame(safe_get_all_records(staff_sheet))
-    df.columns = df.columns.astype(str).str.strip().str.upper()
-    return df
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_presets():
-    try:
-        preset_sheet = sh.worksheet("PRESET")
-        presets = preset_sheet.col_values(1)
-        if presets and presets[0].strip().upper() in ["PRESET", "PRESETS", "WHEREABOUTS", "ACTIVITY"]:
-            presets = presets[1:]
-        return [p for p in presets if p.strip()]
-    except Exception:
-        return []
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_holidays():
-    try:
-        holiday_sheet = sh.worksheet("HOLIDAYS")
-        df = pd.DataFrame(safe_get_all_records(holiday_sheet))
-        df.columns = df.columns.astype(str).str.strip().str.upper()
-        return df
-    except Exception:
-        return pd.DataFrame() 
-
-# --- INITIALIZATION & RAM DATABASE LOADER ---
+# --- INITIALIZATION & RAM DATABASE STORAGE ---
 try:
     sh = init_google_sheets()
 except Exception as e:
@@ -175,42 +146,76 @@ if 'is_super_user' not in st.session_state:
     st.session_state.is_super_user = False
 if 'expiration_time' not in st.session_state:
     st.session_state.expiration_time = None
-if 'all_calendar_data' not in st.session_state:
-    st.session_state.all_calendar_data = {}
-if 'last_fetch_time' not in st.session_state:
-    st.session_state.last_fetch_time = None
 
-def load_calendar_data_to_ram(force=False):
-    now = datetime.now()
-    # Automatically pulls cloud updates once every 10 minutes if no forced refresh is running
-    is_expired = st.session_state.last_fetch_time is None or (now - st.session_state.last_fetch_time).total_seconds() > 600
-    if force or not st.session_state.all_calendar_data or is_expired:
-        with st.spinner("Downloading updates to local RAM database..."):
-            st.session_state.all_calendar_data = {}
-            for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+# RAM Data Cache Stores
+if 'calendar_data' not in st.session_state:
+    st.session_state.calendar_data = None
+if 'staff_df' not in st.session_state:
+    st.session_state.staff_df = None
+if 'presets' not in st.session_state:
+    st.session_state.presets = None
+if 'holidays_df' not in st.session_state:
+    st.session_state.holidays_df = None
+
+def ensure_data_loaded(force=False):
+    need_load = (
+        st.session_state.calendar_data is None or 
+        st.session_state.staff_df is None or 
+        st.session_state.presets is None or 
+        st.session_state.holidays_df is None or 
+        force
+    )
+    if need_load:
+        with st.spinner("Downloading updates to local RAM engine..."):
+            if st.session_state.calendar_data is None or force:
+                st.session_state.calendar_data = {}
+                for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+                    try:
+                        st.session_state.calendar_data[div] = safe_get_all_records(sh.worksheet(div))
+                    except Exception:
+                        st.session_state.calendar_data[div] = []
+            
+            if st.session_state.staff_df is None or force:
                 try:
-                    st.session_state.all_calendar_data[div] = safe_get_all_records(sh.worksheet(div))
+                    df = pd.DataFrame(safe_get_all_records(sh.worksheet("STAFF")))
+                    df.columns = df.columns.astype(str).str.strip().str.upper()
+                    st.session_state.staff_df = df
                 except Exception:
-                    st.session_state.all_calendar_data[div] = []
-            st.session_state.last_fetch_time = now
+                    st.session_state.staff_df = pd.DataFrame()
+                    
+            if st.session_state.presets is None or force:
+                try:
+                    preset_sheet = sh.worksheet("PRESET")
+                    presets = preset_sheet.col_values(1)
+                    if presets and presets[0].strip().upper() in ["PRESET", "PRESETS", "WHEREABOUTS", "ACTIVITY"]:
+                        presets = presets[1:]
+                    st.session_state.presets = [p for p in presets if p.strip()]
+                except Exception:
+                    st.session_state.presets = []
+                    
+            if st.session_state.holidays_df is None or force:
+                try:
+                    df = pd.DataFrame(safe_get_all_records(sh.worksheet("HOLIDAYS")))
+                    df.columns = df.columns.astype(str).str.strip().str.upper()
+                    st.session_state.holidays_df = df
+                except Exception:
+                    st.session_state.holidays_df = pd.DataFrame()
 
+# Populate RAM cache layer instantly on startup
+ensure_data_loaded()
 check_session_expiration()
 
 if not st.session_state.logged_in:
     st.markdown('<div class="compact-alert-info">👈 <b>Mobile Users:</b> Tap the <b>></b> arrow in the top left to open the Staff Login!</div>', unsafe_allow_html=True)
 
-# Pre-load local RAM data to make the UI snappy
-load_calendar_data_to_ram()
-
-# --- UI: SIDEBAR LOGIN & SYNC CONSOLE ---
+# --- UI: SIDEBAR LOGIN & SYNC CONTROL ---
 with st.sidebar:
     st.header("🔑 Staff Login")
     
-    try:
-        staff_df = fetch_staff_data()
-        staff_sheet = sh.worksheet("STAFF") 
-    except Exception as e:
-        st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
+    if st.session_state.staff_df is not None and not st.session_state.staff_df.empty:
+        staff_df = st.session_state.staff_df
+    else:
+        st.error("The 'STAFF' repository data model is empty or missing.")
         st.stop()
         
     if not st.session_state.logged_in:
@@ -220,7 +225,10 @@ with st.sidebar:
             if st.button("Send Login Code"):
                 with st.spinner("Generating and securing code..."):
                     try:
+                        # Isolated single execution handling prevents 429 loops
+                        staff_sheet = sh.worksheet("STAFF")
                         name_cell = staff_sheet.find(selected_name, in_column=2)
+                        
                         if name_cell is None:
                             st.error(f"Could not locate {selected_name} in the sheet.")
                             st.stop()
@@ -246,7 +254,7 @@ with st.sidebar:
                         
                         try:
                             send_email(user_email, selected_name, new_code)
-                            fetch_staff_data.clear() 
+                            ensure_data_loaded(force=True) # Synchronize local cache state
                             st.success(f"Code secured and sent to {user_email}!")
                         except Exception as e:
                             st.error("Code saved, but email failed to send.")
@@ -258,7 +266,15 @@ with st.sidebar:
         
         if st.button("Login"):
             with st.spinner("Verifying..."):
-                fresh_staff_df = fetch_staff_data()
+                try:
+                    staff_sheet = sh.worksheet("STAFF")
+                    fresh_records = safe_get_all_records(staff_sheet)
+                    fresh_staff_df = pd.DataFrame(fresh_records)
+                    fresh_staff_df.columns = fresh_staff_df.columns.astype(str).str.strip().str.upper()
+                    st.session_state.staff_df = fresh_staff_df
+                except Exception:
+                    fresh_staff_df = st.session_state.staff_df
+                
                 entered_clean = entered_code.strip()
                 match_df = fresh_staff_df[fresh_staff_df['UCODE'].astype(str).str.strip() == entered_clean]
                 
@@ -282,8 +298,8 @@ with st.sidebar:
         st.divider()
         st.markdown("### ⚡ RAM Status Console")
         if st.button("🔄 Pull Live Cloud Updates", use_container_width=True):
-            load_calendar_data_to_ram(force=True)
-            st.success("RAM Engine Synced!")
+            ensure_data_loaded(force=True)
+            st.success("RAM Engine Refreshed!")
             time.sleep(0.5)
             st.rerun()
             
@@ -297,7 +313,7 @@ with st.sidebar:
 # --- UI: MAIN DASHBOARD ---
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
-# 1. Schedule Management (Writes directly to RAM + writes through to Sheets background)
+# 1. Schedule Management
 if st.session_state.logged_in:
     tab1, tab2 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries"])
     
@@ -307,7 +323,7 @@ if st.session_state.logged_in:
             
             if st.session_state.is_super_user:
                 st.markdown("**👑 Super User:** Plotting schedule for division staff")
-                staff_df = fetch_staff_data()
+                staff_df = st.session_state.staff_df
                 div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == str(st.session_state.user_division).upper().strip()]['NAME'].dropna().unique().tolist()
                 if not div_staff:
                     div_staff = [st.session_state.current_user]
@@ -320,7 +336,7 @@ if st.session_state.logged_in:
                 
             selected_dates = st.date_input("Select Date Range", value=(today, today))
             
-            preset_options = fetch_presets()
+            preset_options = list(st.session_state.presets) if st.session_state.presets else []
             preset_options.insert(0, "Custom Input...")
             selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
             
@@ -344,35 +360,35 @@ if st.session_state.logged_in:
                 
                 if start_date and end_date and final_whereabouts:
                     try:
-                        # 1. Update RAM database collection instantly
-                        new_row_dict = {
+                        # 1. Instantly write directly through to cloud spreadsheet
+                        div_sheet = sh.worksheet(st.session_state.user_division)
+                        row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
+                        safe_append_row(div_sheet, row_data)
+                        
+                        # 2. Mutate state structure locally without re-downloading sheets
+                        new_entry = {
                             "Start Date": str(start_date),
                             "End Date": str(end_date),
                             "Name": target_user,
                             "Whereabouts": final_whereabouts
                         }
-                        if st.session_state.user_division not in st.session_state.all_calendar_data:
-                            st.session_state.all_calendar_data[st.session_state.user_division] = []
-                        st.session_state.all_calendar_data[st.session_state.user_division].append(new_row_dict)
-                        
-                        # 2. Write straight through to remote spreadsheet
-                        div_sheet = sh.worksheet(st.session_state.user_division)
-                        row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
-                        safe_append_row(div_sheet, row_data)
+                        if st.session_state.user_division not in st.session_state.calendar_data:
+                            st.session_state.calendar_data[st.session_state.user_division] = []
+                        st.session_state.calendar_data[st.session_state.user_division].append(new_entry)
                         
                         st.markdown(f'<div class="compact-alert-success">✅ Schedule added instantly to local engine & cloud for {target_user}!</div>', unsafe_allow_html=True)
                         time.sleep(1) 
                         st.rerun() 
                     except Exception as e:
-                        st.error(f"Error saving to Cloud sheet collection.")
+                        st.error(f"Error saving data models.")
                 else:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
         st.caption("Select an entry below to Edit or Delete its details.")
         try:
-            # Sourced entirely from zero-cost local memory storage
-            div_data = st.session_state.all_calendar_data.get(st.session_state.user_division, [])
+            # Pulled completely from zero-cost local session memory storage
+            div_data = st.session_state.calendar_data.get(st.session_state.user_division, [])
             user_entries = []
             for i, row in enumerate(div_data):
                 entry_owner = str(row.get('Name', ''))
@@ -380,6 +396,7 @@ if st.session_state.logged_in:
                     user_entries.append({
                         "display": f"[{entry_owner}] {row.get('Start Date','')} to {row.get('End Date','')} | {row.get('Whereabouts','')}",
                         "row_index": i + 2,
+                        "ram_index": i,
                         "name": entry_owner,
                         "start": row.get('Start Date',''),
                         "end": row.get('End Date',''),
@@ -410,7 +427,7 @@ if st.session_state.logged_in:
 
                     active_sheet = sh.worksheet(st.session_state.user_division)
                     target_row = selected_data['row_index']
-                    ram_index = target_row - 2
+                    ram_index = selected_data['ram_index']
 
                     if update_btn:
                         if len(edit_dates) == 2:
@@ -423,7 +440,7 @@ if st.session_state.logged_in:
                         if new_start and new_end and edit_whereabouts:
                             with st.spinner("Processing local RAM & Cloud update transactions..."):
                                 # 1. Synchronize RAM Database entry instantly
-                                st.session_state.all_calendar_data[st.session_state.user_division][ram_index] = {
+                                st.session_state.calendar_data[st.session_state.user_division][ram_index] = {
                                     "Start Date": str(new_start),
                                     "End Date": str(new_end),
                                     "Name": selected_data['name'],
@@ -441,7 +458,7 @@ if st.session_state.logged_in:
                     if delete_btn:
                         with st.spinner("Executing deletion sequences..."):
                             # 1. Pop from local RAM map
-                            st.session_state.all_calendar_data[st.session_state.user_division].pop(ram_index)
+                            st.session_state.calendar_data[st.session_state.user_division].pop(ram_index)
                             # 2. Extract out row allocation on remote sheet
                             active_sheet.delete_rows(target_row)
                             st.markdown('<div class="compact-alert-success">✅ Entry cleanly dropped from cache & sheet storage!</div>', unsafe_allow_html=True)
@@ -450,7 +467,7 @@ if st.session_state.logged_in:
             else:
                 st.markdown('<div class="compact-alert-info">You currently have no entries to manage.</div>', unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"Unable to safely access entries data models. Error: {e}")
+            st.error(f"Unable to safely access entries data models.")
 
 st.divider()
 
@@ -460,36 +477,40 @@ details_placeholder = st.empty()
 divisions = ["ALL", "DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
 selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
-# --- WELLNESS LEAVE TRACKER LOGIC ---
+# --- WELLNESS LEAVE TRACKER LOGIC (UPDATED FOR ALL STAFF) ---
 if selected_div == "WELLNESS":
-    st.markdown("### 🌿 Job Order Wellness Leave Tracker")
+    st.markdown("### 🌿 Staff Wellness Leave Tracker")
     try:
-        staff_df = fetch_staff_data()
+        # Load instantly from state RAM memory instead of querying Google Sheets
+        staff_df = st.session_state.staff_df
         
-        if 'STATUS' in staff_df.columns and 'USED WELLNESS LEAVE' in staff_df.columns:
-            jo_df = staff_df[staff_df['STATUS'].astype(str).str.upper().str.strip() == "JOB ORDER"].copy()
+        if staff_df is not None and not staff_df.empty and 'USED WELLNESS LEAVE' in staff_df.columns:
             
-            if not jo_df.empty:
-                jo_df['USED WELLNESS LEAVE'] = pd.to_numeric(jo_df['USED WELLNESS LEAVE'], errors='coerce').fillna(0)
-                jo_df['REMAINING LEAVE'] = 5 - jo_df['USED WELLNESS LEAVE']
-                
-                display_df = jo_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
-                
-                st.dataframe(
-                    display_df, 
-                    use_container_width=True, 
-                    hide_index=True,
-                    column_config={
-                        "NAME": "Staff Name",
-                        "DIVISION": "Division",
-                        "USED WELLNESS LEAVE": st.column_config.NumberColumn("Used Credits", format="%d"),
-                        "REMAINING LEAVE": st.column_config.ProgressColumn("Remaining Credits", format="%d", min_value=0, max_value=5)
-                    }
-                )
-            else:
-                st.info("No Job Order staff records found in the directory.")
+            # Use all staff without filtering by "JOB ORDER" status
+            wellness_df = staff_df.copy()
+            
+            # Convert the 'USED WELLNESS LEAVE' column to numbers, setting empty cells to 0
+            wellness_df['USED WELLNESS LEAVE'] = pd.to_numeric(wellness_df['USED WELLNESS LEAVE'], errors='coerce').fillna(0)
+            
+            # Calculate Remaining Credits (Default 5)
+            wellness_df['REMAINING LEAVE'] = 5 - wellness_df['USED WELLNESS LEAVE']
+            
+            # Format strictly for display
+            display_df = wellness_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
+            
+            st.dataframe(
+                display_df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "NAME": "Staff Name",
+                    "DIVISION": "Division",
+                    "USED WELLNESS LEAVE": st.column_config.NumberColumn("Used Credits", format="%d"),
+                    "REMAINING LEAVE": st.column_config.ProgressColumn("Remaining Credits", format="%d", min_value=0, max_value=5)
+                }
+            )
         else:
-            st.error("Required columns ('STATUS' or 'USED WELLNESS LEAVE') not found in the STAFF sheet. Please check columns F and G.")
+            st.error("Required column 'USED WELLNESS LEAVE' not found in the STAFF sheet. Please check column G.")
     except Exception as e:
         st.error(f"Could not load Wellness Leave data: {e}")
 
@@ -512,12 +533,12 @@ else:
 
     nickname_map = {}
     try:
-        current_staff_data = fetch_staff_data()
-        if 'NICKNAME' in current_staff_data.columns:
+        current_staff_data = st.session_state.staff_df
+        if current_staff_data is not None and 'NICKNAME' in current_staff_data.columns:
             for _, s_row in current_staff_data.iterrows():
                 f_name = str(s_row['NAME']).strip()
                 n_name = str(s_row['NICKNAME']).strip()
-                if n_name: 
+                if n_name and n_name != "nan": 
                     nickname_map[f_name] = n_name
     except Exception:
         pass 
@@ -525,8 +546,8 @@ else:
     if selected_div in ["HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
         st.markdown(f"**{selected_div} Color Legend:**")
         try:
-            temp_staff_data = fetch_staff_data()
-            if 'DIVISION' in temp_staff_data.columns:
+            temp_staff_data = st.session_state.staff_df
+            if temp_staff_data is not None and 'DIVISION' in temp_staff_data.columns:
                 div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
                 
                 if not div_staff_df.empty:
@@ -546,13 +567,13 @@ else:
     calendar_events = []
     sheets_to_fetch = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"] if selected_div == "ALL" else [selected_div]
 
-    # Render background structural configuration for holidays
-    holiday_df = fetch_holidays()
-    if not holiday_df.empty and 'DATE' in holiday_df.columns:
+    # Render Background Structural Holidays from Local RAM Dataframe 
+    holiday_df = st.session_state.holidays_df
+    if holiday_df is not None and not holiday_df.empty and 'DATE' in holiday_df.columns:
         for _, h_row in holiday_df.iterrows():
             raw_date = str(h_row.get('DATE', '')).strip()
             h_remarks = str(h_row.get('REMARKS', '')).strip()
-            if raw_date:
+            if raw_date and raw_date != "nan":
                 try:
                     h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
                 except Exception:
@@ -572,17 +593,17 @@ else:
                     "display": "block"
                 })
 
-    # Render structural values from RAM arrays instead of calling API sheets repeatedly
+    # Render Entry Values directly from state memory maps
     for div in sheets_to_fetch:
-        div_data = st.session_state.all_calendar_data.get(div, [])
+        div_data = st.session_state.calendar_data.get(div, [])
         for row in div_data:
             try:
-                end_date_obj = datetime.strptime(str(row.get('End Date','')), "%Y-%m-%d") + timedelta(days=1)
+                end_date_obj = datetime.strptime(str(row.get('End Date', '')), "%Y-%m-%d") + timedelta(days=1)
                 end_str = end_date_obj.strftime("%Y-%m-%d")
             except Exception:
-                end_str = str(row.get('End Date','')) 
+                end_str = str(row.get('End Date', '')) 
             
-            raw_name = str(row.get('Name','')).strip()
+            raw_name = str(row.get('Name', '')).strip()
             display_name = nickname_map.get(raw_name, raw_name)
             
             if selected_div == "ALL":
@@ -591,8 +612,8 @@ else:
                 bg_color = get_color_for_name(raw_name) 
             
             calendar_events.append({
-                "title": f"{display_name} - {row.get('Whereabouts','')}",
-                "start": str(row.get('Start Date','')),
+                "title": f"{display_name} - {row.get('Whereabouts', '')}",
+                "start": str(row.get('Start Date', '')),
                 "end": end_str,
                 "backgroundColor": bg_color,
                 "borderColor": bg_color,
