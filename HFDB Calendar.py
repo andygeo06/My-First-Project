@@ -132,13 +132,8 @@ def safe_append_row(sheet, row_data, max_retries=5):
 # --- TARGETED DATA CACHING CORE ENGINE ---
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_all_divisions_data():
-    """
-    Downloads spreadsheet data across all individual divisions at once.
-    Uses batch worksheet pulling to minimize API connection footprints.
-    """
     all_data = {}
     try:
-        # One single API request to get all sheet references at once
         all_sheets = sh.worksheets()
         sheet_map = {sheet.title: sheet for sheet in all_sheets}
         
@@ -148,7 +143,6 @@ def fetch_all_divisions_data():
             else:
                 all_data[div] = []
     except Exception:
-        # Structural fallback if batch pulling fails
         for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
             try:
                 all_data[div] = safe_get_all_records(sh.worksheet(div))
@@ -159,11 +153,9 @@ def fetch_all_divisions_data():
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_staff_data():
     staff_sheet = sh.worksheet("STAFF")
-    
-    # --- AUTOMATED ANNUAL WELLNESS RESET ENGINE ---
     try:
         current_year = datetime.now().year
-        stored_year_val = staff_sheet.cell(1, 8).value  # Column H (8) tracks the active year configuration
+        stored_year_val = staff_sheet.cell(1, 8).value  
         
         if not stored_year_val or str(stored_year_val).strip() != str(current_year):
             names_list = staff_sheet.col_values(2)
@@ -177,7 +169,7 @@ def fetch_staff_data():
                 
             staff_sheet.update_cell(1, 8, current_year)
     except Exception:
-        pass  # Failsafe protection layer prevents cloud data errors from blocking workflow logins
+        pass  
         
     df = pd.DataFrame(safe_get_all_records(staff_sheet))
     df.columns = df.columns.astype(str).str.strip().str.upper()
@@ -203,6 +195,40 @@ def fetch_holidays():
         return df
     except Exception:
         return pd.DataFrame() 
+
+# --- ULTRALIGHT AUTOMATED CREDIT OVERWRITE SYNC ENGINE ---
+def sync_staff_wellness_credits(target_user, division_name):
+    """
+    Scans the specific division sheet, counts all mapped weekdays for Wellness Leave,
+    and accurately overwrites column G on the STAFF directory to eliminate counter drifting bugs.
+    """
+    try:
+        div_sheet = sh.worksheet(division_name)
+        records = div_sheet.get_all_records()
+        total_days = 0
+        
+        for row in records:
+            row_name = str(row.get('Name', '')).strip()
+            whereabouts = str(row.get('Whereabouts', '')).upper()
+            if row_name == target_user and "WELLNESS LEAVE" in whereabouts:
+                try:
+                    start_dt = datetime.strptime(str(row.get('Start Date', '')), "%Y-%m-%d").date()
+                    end_dt = datetime.strptime(str(row.get('End Date', '')), "%Y-%m-%d").date()
+                    curr = start_dt
+                    while curr <= end_dt:
+                        if curr.weekday() < 5:  # Count Mon-Fri working days
+                            total_days += 1
+                        curr += timedelta(days=1)
+                except Exception:
+                    pass
+                    
+        staff_sheet_internal = sh.worksheet("STAFF")
+        name_cell = staff_sheet_internal.find(target_user, in_column=2)
+        if name_cell:
+            staff_sheet_internal.update_cell(name_cell.row, 7, total_days)
+        fetch_staff_data.clear()
+    except Exception:
+        pass
 
 # --- INITIALIZATION ---
 try:
@@ -230,9 +256,8 @@ if not st.session_state.logged_in:
 # --- UI: SIDEBAR LOGIN & SYNC CONSOLE ---
 with st.sidebar:
     st.header("🔑 Staff Login")
-    
     try:
-        staff_df = fetch_staff_data() # Securely cached setup read
+        staff_df = fetch_staff_data()
     except Exception as e:
         st.error(f"Could not connect to the 'STAFF' tab directory cache. Error: {e}")
         st.stop()
@@ -240,11 +265,9 @@ with st.sidebar:
     if not st.session_state.logged_in:
         with st.expander("Generate New Code"):
             selected_name = st.selectbox("Select Name to Generate Code", staff_df['NAME'].tolist())
-            
             if st.button("Send Login Code"):
                 with st.spinner("Generating and securing code..."):
                     try:
-                        # LEAK FIXED: sheet connection handles now execute strictly upon confirmed button request intent
                         staff_sheet = sh.worksheet("STAFF")
                         name_cell = staff_sheet.find(selected_name, in_column=2)
                         if name_cell is None:
@@ -281,7 +304,6 @@ with st.sidebar:
         
         st.divider()
         entered_code = st.text_input("Enter Code", type="password")
-        
         if st.button("Login"):
             with st.spinner("Verifying..."):
                 fresh_staff_df = fetch_staff_data()
@@ -309,6 +331,7 @@ with st.sidebar:
         st.markdown("### ⚡ RAM Status Console")
         if st.button("🔄 Pull Live Cloud Updates", use_container_width=True):
             fetch_all_divisions_data.clear()
+            fetch_staff_data.clear()
             st.success("Global RAM Engine Refreshed!")
             time.sleep(0.5)
             st.rerun()
@@ -323,14 +346,14 @@ with st.sidebar:
 # --- UI: MAIN DASHBOARD ---
 st.markdown('<h1 class="sticky-header">📅 HFDB Whereabouts Tracker</h1>', unsafe_allow_html=True)
 
-# 1. Schedule Management
+# 1. Schedule & Tracker Management View
 if st.session_state.logged_in:
-    tab1, tab2 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries"])
+    # REVISED: Added '🌿 Wellness Leave Tracker' directly as a prominent top tab utility
+    tab1, tab2, tab3 = st.tabs(["📝 Add Schedule", "✏️ Manage Entries", "🌿 Wellness Leave Tracker"])
     
     with tab1:
         with st.form("schedule_form", clear_on_submit=True):
             today = datetime.now().date()
-            
             if st.session_state.is_super_user:
                 st.markdown("**👑 Super User:** Plotting schedule for division staff")
                 staff_df = fetch_staff_data()
@@ -345,7 +368,6 @@ if st.session_state.logged_in:
                 st.text_input("Staff Member", value=target_user, disabled=True)
                 
             selected_dates = st.date_input("Select Date Range", value=(today, today))
-            
             preset_options = fetch_presets()
             preset_options.insert(0, "Custom Input...")
             selected_preset = st.selectbox("Whereabouts / Activity", preset_options)
@@ -370,37 +392,12 @@ if st.session_state.logged_in:
                 
                 if start_date and end_date and final_whereabouts:
                     try:
-                        # Write straight through to remote spreadsheet
                         div_sheet = sh.worksheet(st.session_state.user_division)
                         row_data = [str(start_date), str(end_date), target_user, final_whereabouts]
                         safe_append_row(div_sheet, row_data)
                         
-                        # --- INTERCEPT WELLNESS LEAVE TRANSACTION ---
-                        if "WELLNESS LEAVE" in final_whereabouts.upper():
-                            try:
-                                staff_sheet_internal = sh.worksheet("STAFF")
-                                name_cell = staff_sheet_internal.find(target_user, in_column=2)
-                                if name_cell:
-                                    exact_row = name_cell.row
-                                    current_used = staff_sheet_internal.cell(exact_row, 7).value
-                                    try:
-                                        current_used_num = int(current_used) if current_used else 0
-                                    except ValueError:
-                                        current_used_num = 0
-                                        
-                                    days_plotted = 0
-                                    curr = start_date
-                                    while curr <= end_date:
-                                        if curr.weekday() < 5:  # Monday to Friday
-                                            days_plotted += 1
-                                        curr += timedelta(days=1)
-                                        
-                                    staff_sheet_internal.update_cell(exact_row, 7, current_used_num + days_plotted)
-                                    fetch_staff_data.clear()
-                            except Exception as e:
-                                st.error(f"Schedule added, but wellness leave tracking counters failed to sync: {e}")
-                        
-                        # Invalidate the global data cache so the update shows up instantly
+                        # REVISED: Run automated true recalculation overwrite sync on transaction completion
+                        sync_staff_wellness_credits(target_user, st.session_state.user_division)
                         fetch_all_divisions_data.clear()
                         
                         st.markdown(f'<div class="compact-alert-success">✅ Schedule added instantly to cloud for {target_user}!</div>', unsafe_allow_html=True)
@@ -463,87 +460,29 @@ if st.session_state.logged_in:
                         
                         if new_start and new_end and edit_whereabouts:
                             with st.spinner("Processing Cloud update transitions..."):
-                                # LEAK FIXED: Connects only on actual submission transaction
                                 active_sheet = sh.worksheet(st.session_state.user_division)
-                                
-                                # --- UPDATE TRANSACTION CREDIT COMPENSATOR ---
-                                was_wellness = "WELLNESS LEAVE" in selected_data['whereabouts'].upper()
-                                is_wellness = "WELLNESS LEAVE" in edit_whereabouts.upper()
-                                
-                                if was_wellness or is_wellness:
-                                    try:
-                                        staff_sheet_internal = sh.worksheet("STAFF")
-                                        name_cell = staff_sheet_internal.find(selected_data['name'], in_column=2)
-                                        if name_cell:
-                                            exact_row = name_cell.row
-                                            current_used = staff_sheet_internal.cell(exact_row, 7).value
-                                            try:
-                                                current_used_num = int(current_used) if current_used else 0
-                                            except ValueError:
-                                                current_used_num = 0
-                                            
-                                            if was_wellness:
-                                                curr = def_start
-                                                while curr <= def_end:
-                                                    if curr.weekday() < 5:
-                                                        current_used_num -= 1
-                                                    curr += timedelta(days=1)
-                                            
-                                            if is_wellness:
-                                                curr = new_start
-                                                while curr <= new_end:
-                                                    if curr.weekday() < 5:
-                                                        current_used_num += 1
-                                                    curr += timedelta(days=1)
-                                                    
-                                            staff_sheet_internal.update_cell(exact_row, 7, max(0, current_used_num))
-                                            fetch_staff_data.clear()
-                                    except Exception:
-                                        pass
-
-                                # Target cloud cell range adjustment explicitly
                                 active_sheet.update(
                                     f"A{target_row}:D{target_row}",
                                     [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts]]
                                 )
+                                
+                                # REVISED: Execute clean, true recalculation sweep for the employee
+                                sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                                 fetch_all_divisions_data.clear()
+                                
                                 st.markdown('<div class="compact-alert-success">✅ Entry modified successfully in sheet storage!</div>', unsafe_allow_html=True)
                                 time.sleep(1)
                                 st.rerun()
                                 
                     if delete_btn:
                         with st.spinner("Executing deletion sequences..."):
-                            # LEAK FIXED: Connects only when the deletion sequence is explicitly triggered
                             active_sheet = sh.worksheet(st.session_state.user_division)
-                            
-                            # --- REVERT AND REFUND CREDIT UPON ENTRIES DELETION ---
-                            if "WELLNESS LEAVE" in selected_data['whereabouts'].upper():
-                                try:
-                                    staff_sheet_internal = sh.worksheet("STAFF")
-                                    name_cell = staff_sheet_internal.find(selected_data['name'], in_column=2)
-                                    if name_cell:
-                                        exact_row = name_cell.row
-                                        current_used = staff_sheet_internal.cell(exact_row, 7).value
-                                        try:
-                                            current_used_num = int(current_used) if current_used else 0
-                                        except ValueError:
-                                            current_used_num = 0
-                                            
-                                        days_plotted = 0
-                                        curr = def_start
-                                        while curr <= def_end:
-                                            if curr.weekday() < 5:
-                                                days_plotted += 1
-                                            curr += timedelta(days=1)
-                                            
-                                        staff_sheet_internal.update_cell(exact_row, 7, max(0, current_used_num - days_plotted))
-                                        fetch_staff_data.clear()
-                                except Exception:
-                                    pass
-
-                            # Extract out row allocation on remote sheet
                             active_sheet.delete_rows(target_row)
+                            
+                            # REVISED: Execute clean, true recalculation sweep for the employee
+                            sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                             fetch_all_divisions_data.clear()
+                            
                             st.markdown('<div class="compact-alert-success">✅ Entry cleanly dropped from sheet storage!</div>', unsafe_allow_html=True)
                             time.sleep(1)
                             st.rerun()
@@ -552,29 +491,40 @@ if st.session_state.logged_in:
         except Exception as e:
             st.error(f"Unable to safely access entries data models. Error: {e}")
 
-st.divider()
-
-details_placeholder = st.empty()
-
-# 2. Filter Tabs (Purely individual divisions focus, no 'ALL' tab traces remain)
-divisions = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
-selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
-
-# --- WELLNESS LEAVE TRACKER LOGIC ---
-if selected_div == "WELLNESS":
-    st.markdown("### 🌿 Job Order Wellness Leave Tracker")
-    try:
-        staff_df = fetch_staff_data()
-        
-        if 'STATUS' in staff_df.columns and 'USED WELLNESS LEAVE' in staff_df.columns:
-            jo_df = staff_df[staff_df['STATUS'].astype(str).str.upper().str.strip() == "JOB ORDER"].copy()
+    # REVISED: Wellness Leave Tracker Logic integrated seamlessly inside the dedicated Tab 3 layout
+    with tab3:
+        st.markdown("### 🌿 HFDB Staff Wellness Leave Tracker")
+        try:
+            cached_db_internal = fetch_all_divisions_data()
+            raw_staff_df = fetch_staff_data().copy()
             
-            if not jo_df.empty:
-                jo_df['USED WELLNESS LEAVE'] = pd.to_numeric(jo_df['USED WELLNESS LEAVE'], errors='coerce').fillna(0)
-                jo_df['REMAINING LEAVE'] = 5 - jo_df['USED WELLNESS LEAVE']
+            if 'NAME' in raw_staff_df.columns:
+                # DYNAMIC ENGINE: Computes live weekday metrics from division logs to guarantee instant sync display
+                live_calculated_counts = {}
+                for div_name, rows_list in cached_db_internal.items():
+                    for entry_row in rows_list:
+                        e_name = str(entry_row.get('Name', '')).strip()
+                        e_activity = str(entry_row.get('Whereabouts', '')).upper()
+                        if "WELLNESS LEAVE" in e_activity:
+                            try:
+                                s_d = datetime.strptime(str(entry_row.get('Start Date', '')), "%Y-%m-%d").date()
+                                e_d = datetime.strptime(str(entry_row.get('End Date', '')), "%Y-%m-%d").date()
+                                active_curr = s_d
+                                days_counter = 0
+                                while active_curr <= e_d:
+                                    if active_curr.weekday() < 5:
+                                        days_counter += 1
+                                    active_curr += timedelta(days=1)
+                                live_calculated_counts[e_name] = live_calculated_counts.get(e_name, 0) + days_counter
+                            except Exception:
+                                pass
+
+                # REVISED: Removed Job Order filtering to cleanly render ALL recorded Bureau staff rows
+                raw_staff_df['USED WELLNESS LEAVE'] = raw_staff_df['NAME'].apply(lambda name_val: live_calculated_counts.get(str(name_val).strip(), 0))
+                raw_staff_df['REMAINING LEAVE'] = 5 - raw_staff_df['USED WELLNESS LEAVE']
+                raw_staff_df['REMAINING LEAVE'] = raw_staff_df['REMAINING LEAVE'].clip(lower=0)
                 
-                display_df = jo_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
-                
+                display_df = raw_staff_df[['NAME', 'DIVISION', 'USED WELLNESS LEAVE', 'REMAINING LEAVE']]
                 st.dataframe(
                     display_df, 
                     use_container_width=True, 
@@ -582,143 +532,147 @@ if selected_div == "WELLNESS":
                     column_config={
                         "NAME": "Staff Name",
                         "DIVISION": "Division",
-                        "USED WELLNESS LEAVE": st.column_config.NumberColumn("Used Credits", format="%d"),
-                        "REMAINING LEAVE": st.column_config.ProgressColumn("Remaining Credits", format="%d", min_value=0, max_value=5)
+                        "USED WELLNESS LEAVE": st.column_config.NumberColumn("Used Credits (Days Plotted)", format="%d"),
+                        "REMAINING LEAVE": st.column_config.ProgressColumn("Remaining Credits (Out of 5)", format="%d", min_value=0, max_value=5)
                     }
                 )
             else:
-                st.info("No Job Order staff records found in the directory.")
-        else:
-            st.error("Required columns ('STATUS' or 'USED WELLNESS LEAVE') not found in the STAFF sheet. Please check columns F and G.")
-    except Exception as e:
-        st.error(f"Could not load Wellness Leave data: {e}")
+                st.error("Staff directory structural mismatch encountered.")
+        except Exception as e:
+            st.error(f"Could not load Wellness Leave data models: {e}")
+
+st.divider()
+
+details_placeholder = st.empty()
+
+# 2. Filter Tabs (REVISED: Focuses purely on individual divisions; 'WELLNESS' option cleanly removed)
+divisions = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]
+selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
 # --- CALENDAR TRACKER LOGIC ---
-else:
-    nickname_map = {}
+nickname_map = {}
+try:
+    current_staff_data = fetch_staff_data()
+    if 'NICKNAME' in current_staff_data.columns:
+        for _, s_row in current_staff_data.iterrows():
+            f_name = str(s_row['NAME']).strip()
+            n_name = str(s_row['NICKNAME']).strip()
+            if n_name: 
+                nickname_map[f_name] = n_name
+except Exception:
+    pass 
+
+if selected_div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+    st.markdown(f"**{selected_div} Color Legend:**")
     try:
-        current_staff_data = fetch_staff_data()
-        if 'NICKNAME' in current_staff_data.columns:
-            for _, s_row in current_staff_data.iterrows():
-                f_name = str(s_row['NAME']).strip()
-                n_name = str(s_row['NICKNAME']).strip()
-                if n_name: 
-                    nickname_map[f_name] = n_name
+        temp_staff_data = fetch_staff_data()
+        if 'DIVISION' in temp_staff_data.columns:
+            div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
+            if not div_staff_df.empty:
+                staff_list = div_staff_df['NAME'].dropna().unique()
+                cols = st.columns(len(staff_list) + 1)
+                
+                for i, raw_name in enumerate(staff_list):
+                    raw_name_str = str(raw_name).strip()
+                    display_name = nickname_map.get(raw_name_str, raw_name_str)
+                    color = get_color_for_name(raw_name_str)
+                    cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
+                
+                cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
     except Exception:
-        pass 
+        pass
 
-    if selected_div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
-        st.markdown(f"**{selected_div} Color Legend:**")
-        try:
-            temp_staff_data = fetch_staff_data()
-            if 'DIVISION' in temp_staff_data.columns:
-                div_staff_df = temp_staff_data[temp_staff_data['DIVISION'].astype(str).str.upper().str.strip() == selected_div]
-                
-                if not div_staff_df.empty:
-                    staff_list = div_staff_df['NAME'].dropna().unique()
-                    cols = st.columns(len(staff_list) + 1)
-                    
-                    for i, raw_name in enumerate(staff_list):
-                        raw_name_str = str(raw_name).strip()
-                        display_name = nickname_map.get(raw_name_str, raw_name_str)
-                        color = get_color_for_name(raw_name_str)
-                        cols[i].markdown(f"<div style='background-color:{color}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{display_name}'>{display_name}</div>", unsafe_allow_html=True)
-                    
-                    cols[-1].markdown("<div style='background-color:#FF3B3B; color:white; padding:5px; border-radius:5px; text-align:center; font-size:14px; font-weight:bold; box-shadow: 0px 2px 4px rgba(0,0,0,0.2); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='🎌 HOLIDAY'>🎌 HOLIDAY</div>", unsafe_allow_html=True)
-        except Exception:
-            pass
+calendar_events = []
+sheets_to_fetch = [selected_div]
 
-    calendar_events = []
-    sheets_to_fetch = [selected_div]
-
-    # Render background structural configuration for holidays
-    holiday_df = fetch_holidays()
-    if not holiday_df.empty and 'DATE' in holiday_df.columns:
-        for _, h_row in holiday_df.iterrows():
-            raw_date = str(h_row.get('DATE', '')).strip()
-            h_remarks = str(h_row.get('REMARKS', '')).strip()
-            if raw_date:
-                try:
-                    h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
-                except Exception:
-                    h_date = raw_date 
-                
-                calendar_events.append({
-                    "start": h_date,
-                    "display": "background",
-                    "backgroundColor": "rgba(255, 59, 59, 0.15)" 
-                })
-                calendar_events.append({
-                    "title": f"🎌 HOLIDAY: {h_remarks}",
-                    "start": h_date,
-                    "backgroundColor": "#FF3B3B", 
-                    "borderColor": "#FF3B3B",
-                    "textColor": "#FFFFFF",
-                    "display": "block"
-                })
-
-    # Render data parameters using optimized global data cache map
-    cached_db = fetch_all_divisions_data()
-    for div in sheets_to_fetch:
-        div_data = cached_db.get(div, [])
-        for row in div_data:
+# Render background structural configuration for holidays
+holiday_df = fetch_holidays()
+if not holiday_df.empty and 'DATE' in holiday_df.columns:
+    for _, h_row in holiday_df.iterrows():
+        raw_date = str(h_row.get('DATE', '')).strip()
+        h_remarks = str(h_row.get('REMARKS', '')).strip()
+        if raw_date:
             try:
-                end_date_obj = datetime.strptime(str(row.get('End Date','')), "%Y-%m-%d") + timedelta(days=1)
-                end_str = end_date_obj.strftime("%Y-%m-%d")
+                h_date = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
             except Exception:
-                end_str = str(row.get('End Date','')) 
-            
-            raw_name = str(row.get('Name','')).strip()
-            display_name = nickname_map.get(raw_name, raw_name)
-            bg_color = get_color_for_name(raw_name) 
+                h_date = raw_date 
             
             calendar_events.append({
-                "title": f"{display_name} - {row.get('Whereabouts','')}",
-                "start": str(row.get('Start Date','')),
-                "end": end_str,
-                "backgroundColor": bg_color,
-                "borderColor": bg_color,
+                "start": h_date,
+                "display": "background",
+                "backgroundColor": "rgba(255, 59, 59, 0.15)" 
+            })
+            calendar_events.append({
+                "title": f"🎌 HOLIDAY: {h_remarks}",
+                "start": h_date,
+                "backgroundColor": "#FF3B3B", 
+                "borderColor": "#FF3B3B",
                 "textColor": "#FFFFFF",
-                "display": "block" 
+                "display": "block"
             })
 
-    calendar_options = {
-        "initialView": "dayGridMonth",
-        "headerToolbar": {
-            "left": "prev,next today",
-            "center": "title",
-            "right": "dayGridMonth,dayGridWeek"
-        },
-        "displayEventTime": False, 
-        "eventDisplay": "block",   
-        "weekends": False,
-        "height": 650
+# Render data parameters using optimized global data cache map
+cached_db = fetch_all_divisions_data()
+for div in sheets_to_fetch:
+    div_data = cached_db.get(div, [])
+    for row in div_data:
+        try:
+            end_date_obj = datetime.strptime(str(row.get('End Date','')), "%Y-%m-%d") + timedelta(days=1)
+            end_str = end_date_obj.strftime("%Y-%m-%d")
+        except Exception:
+            end_str = str(row.get('End Date','')) 
+        
+        raw_name = str(row.get('Name','')).strip()
+        display_name = nickname_map.get(raw_name, raw_name)
+        bg_color = get_color_for_name(raw_name) 
+        
+        calendar_events.append({
+            "title": f"{display_name} - {row.get('Whereabouts','')}",
+            "start": str(row.get('Start Date','')),
+            "end": end_str,
+            "backgroundColor": bg_color,
+            "borderColor": bg_color,
+            "textColor": "#FFFFFF",
+            "display": "block" 
+        })
+
+calendar_options = {
+    "initialView": "dayGridMonth",
+    "headerToolbar": {
+        "left": "prev,next today",
+        "center": "title",
+        "right": "dayGridMonth,dayGridWeek"
+    },
+    "displayEventTime": False, 
+    "eventDisplay": "block",   
+    "weekends": False,
+    "height": 650
+}
+
+custom_calendar_css = """
+    .fc-event-title {
+        font-size: 10px !important; 
+        font-weight: normal !important; 
+        line-height: 1.2 !important;
     }
+    .fc-event-main {
+        padding: 1px 2px !important; 
+    }
+"""
 
-    custom_calendar_css = """
-        .fc-event-title {
-            font-size: 10px !important; 
-            font-weight: normal !important; 
-            line-height: 1.2 !important;
-        }
-        .fc-event-main {
-            padding: 1px 2px !important; 
-        }
-    """
+details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
 
-    details_placeholder.markdown('<div class="compact-alert-info">💡 <b>Tip:</b> Click on any colored bar in the calendar to see the full details here!</div>', unsafe_allow_html=True)
+if not calendar_events:
+    details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
 
-    if not calendar_events:
-        details_placeholder.markdown(f'<div class="compact-alert-info">No whereabouts plotted yet for {selected_div}. The calendar is currently empty.</div>', unsafe_allow_html=True)
+cal_result = calendar(
+    events=calendar_events, 
+    options=calendar_options,
+    custom_css=custom_calendar_css
+)
 
-    cal_result = calendar(
-        events=calendar_events, 
-        options=calendar_options,
-        custom_css=custom_calendar_css
-    )
-
-    if cal_result and cal_result.get("callback") == "eventClick":
-        clicked_event = cal_result["eventClick"]["event"]
-        event_details = clicked_event.get("title", "No details provided")
-        start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
-        details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
+if cal_result and cal_result.get("callback") == "eventClick":
+    clicked_event = cal_result["eventClick"]["event"]
+    event_details = clicked_event.get("title", "No details provided")
+    start_date_click = clicked_event.get("start", "Unknown Date")[:10] 
+    details_placeholder.markdown(f'<div class="compact-alert-success">🔍 <b>Full Details for {start_date_click}:</b> {event_details}</div>', unsafe_allow_html=True)
