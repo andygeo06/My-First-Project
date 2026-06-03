@@ -416,29 +416,67 @@ if st.session_state.logged_in:
                     st.error("Please ensure your dates and Activity Details are filled out.")
 
     with tab2:
-        st.caption("Select an entry below to Edit or Delete its details.")
+        st.markdown("### ✏️ Manage and Edit Existing Entries")
         try:
             cached_db = fetch_all_divisions_data()
             div_data = cached_db.get(st.session_state.user_division, [])
+            
+            # Fetch all registered names in this division for filtering options
+            staff_df = fetch_staff_data()
+            div_staff = staff_df[staff_df['DIVISION'].astype(str).str.strip().str.upper() == str(st.session_state.user_division).upper().strip()]['NAME'].dropna().unique().tolist()
+            
+            # --- SUPER USER OPTIMIZATION: STEP 1 (Filter Isolation) ---
+            if st.session_state.is_super_user:
+                filter_staff_options = ["📋 Show All Staff"] + sorted(div_staff)
+                selected_filter_staff = st.selectbox("Step 1: Filter by Staff Member", filter_staff_options)
+            else:
+                selected_filter_staff = st.session_state.current_user
+
+            # Compile entries that clear the selection filter criteria
             user_entries = []
             for i, row in enumerate(div_data):
-                entry_owner = str(row.get('Name', ''))
-                if st.session_state.is_super_user or entry_owner == st.session_state.current_user:
-                    user_entries.append({
-                        "display": f"[{entry_owner}] {row.get('Start Date','')} to {row.get('End Date','')} | {row.get('Whereabouts','')}",
-                        "row_index": i + 2,
-                        "name": entry_owner,
-                        "start": row.get('Start Date',''),
-                        "end": row.get('End Date',''),
-                        "whereabouts": row.get('Whereabouts','')
-                    })
-            
-            if user_entries:
-                selected_entry_display = st.selectbox("Select Entry to Manage", [e["display"] for e in user_entries])
-                selected_data = next(e for e in user_entries if e["display"] == selected_entry_display)
+                entry_owner = str(row.get('Name', '')).strip()
                 
-                # FIX: Appending the row_index dynamically forces an instant cache refresh when switching selections
+                if st.session_state.is_super_user:
+                    if selected_filter_staff != "📋 Show All Staff" and entry_owner != selected_filter_staff:
+                        continue
+                else:
+                    if entry_owner != st.session_state.current_user:
+                        continue
+                        
+                user_entries.append({
+                    "row_index": i + 2, # Offset accounting for sheet headers
+                    "name": entry_owner,
+                    "start": str(row.get('Start Date','')).strip(),
+                    "end": str(row.get('End Date','')).strip(),
+                    "whereabouts": str(row.get('Whereabouts','')).strip()
+                })
+            
+            # --- OPTIMIZATION STEP 2: CHRONOLOGICAL SORTING (Newest First) ---
+            def parse_start_date(entry_item):
+                try:
+                    return datetime.strptime(entry_item["start"], "%Y-%m-%d").date()
+                except:
+                    return datetime.min.date()
+            
+            user_entries = sorted(user_entries, key=parse_start_date, reverse=True)
+
+            if user_entries:
+                # Build an elegant, highly scannable layout label list
+                display_options = []
+                for e in user_entries:
+                    if st.session_state.is_super_user and selected_filter_staff == "📋 Show All Staff":
+                        lbl = f"👤 {e['name']} | 📅 {e['start']} to {e['end']} | 📍 {e['whereabouts']}"
+                    else:
+                        lbl = f"📅 {e['start']} to {e['end']} | 📍 {e['whereabouts']}"
+                    display_options.append(lbl)
+                
+                selected_display = st.selectbox("Step 2: Select the Entry to Modify/Delete", display_options)
+                selected_data = user_entries[display_options.index(selected_display)]
+                
+                # --- STEP 3: THE TARGETED UPDATE FORM ---
                 with st.form(f"edit_delete_form_{selected_data['row_index']}"):
+                    st.markdown(f"**Modifying schedule for:** `{selected_data['name']}`")
                     try:
                         def_start = datetime.strptime(selected_data['start'], "%Y-%m-%d").date()
                         def_end = datetime.strptime(selected_data['end'], "%Y-%m-%d").date()
@@ -446,7 +484,6 @@ if st.session_state.logged_in:
                         today_date = datetime.now().date()
                         def_start, def_end = today_date, today_date
 
-                    # Unique keys bound to the row ensure text fields refresh completely
                     edit_dates = st.date_input("Update Date Range", value=(def_start, def_end), key=f"edit_dates_{selected_data['row_index']}")
                     edit_whereabouts = st.text_input("Update Whereabouts / Custom Details", value=selected_data['whereabouts'], key=f"edit_txt_{selected_data['row_index']}")
                     
@@ -468,14 +505,16 @@ if st.session_state.logged_in:
                             new_start, new_end = None, None
                         
                         if new_start and new_end and edit_whereabouts.strip():
-                            with st.spinner("Processing Cloud update transitions..."):
+                            with st.spinner("Saving modifications directly to cloud..."):
                                 active_sheet = sh.worksheet(st.session_state.user_division)
+                                
+                                # THE CORE FIX: Named keyword arguments enforce strict cell range targeting 
                                 active_sheet.update(
-                                    f"A{target_row}:D{target_row}",
-                                    [[str(new_start), str(new_end), selected_data['name'], edit_whereabouts.strip()]]
+                                    range_name=f"A{target_row}:D{target_row}",
+                                    values=[[str(new_start), str(new_end), selected_data['name'], edit_whereabouts.strip()]]
                                 )
                                 
-                                # Run clean, true recalculation sweep for the employee
+                                # Recalculate and sync wellness credits to ensure totals match instantly
                                 sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                                 fetch_all_divisions_data.clear()
                                 
@@ -484,11 +523,11 @@ if st.session_state.logged_in:
                                 st.rerun()
                                 
                     if delete_btn:
-                        with st.spinner("Executing deletion sequences..."):
+                        with st.spinner("Removing entry from cloud database..."):
                             active_sheet = sh.worksheet(st.session_state.user_division)
                             active_sheet.delete_rows(target_row)
                             
-                            # Run clean, true recalculation sweep for the employee
+                            # Clean recalculation sweep for the employee credits balance
                             sync_staff_wellness_credits(selected_data['name'], st.session_state.user_division)
                             fetch_all_divisions_data.clear()
                             
@@ -496,7 +535,7 @@ if st.session_state.logged_in:
                             time.sleep(1)
                             st.rerun()
             else:
-                st.markdown('<div class="compact-alert-info">You currently have no entries to manage.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="compact-alert-info">No entries found matching this filter criteria.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Unable to safely access entries data models. Error: {e}")
             
