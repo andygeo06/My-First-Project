@@ -133,15 +133,27 @@ def safe_append_row(sheet, row_data, max_retries=5):
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_all_divisions_data():
     """
-    Downloads spreadsheet data across all divisions at once.
-    Shares this single footprint globally across all office users to completely avoid 429 errors.
+    Downloads spreadsheet data across all individual divisions at once.
+    Uses batch worksheet pulling to minimize API connection footprints.
     """
     all_data = {}
-    for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
-        try:
-            all_data[div] = safe_get_all_records(sh.worksheet(div))
-        except Exception:
-            all_data[div] = []
+    try:
+        # One single API request to get all sheet references at once
+        all_sheets = sh.worksheets()
+        sheet_map = {sheet.title: sheet for sheet in all_sheets}
+        
+        for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+            if div in sheet_map:
+                all_data[div] = safe_get_all_records(sheet_map[div])
+            else:
+                all_data[div] = []
+    except Exception:
+        # Structural fallback if batch pulling fails
+        for div in ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN"]:
+            try:
+                all_data[div] = safe_get_all_records(sh.worksheet(div))
+            except Exception:
+                all_data[div] = []
     return all_data
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -220,10 +232,9 @@ with st.sidebar:
     st.header("🔑 Staff Login")
     
     try:
-        staff_df = fetch_staff_data()
-        staff_sheet = sh.worksheet("STAFF") 
+        staff_df = fetch_staff_data() # Securely cached setup read
     except Exception as e:
-        st.error(f"Could not connect to the 'STAFF' tab. Error: {e}")
+        st.error(f"Could not connect to the 'STAFF' tab directory cache. Error: {e}")
         st.stop()
         
     if not st.session_state.logged_in:
@@ -233,6 +244,8 @@ with st.sidebar:
             if st.button("Send Login Code"):
                 with st.spinner("Generating and securing code..."):
                     try:
+                        # LEAK FIXED: sheet connection handles now execute strictly upon confirmed button request intent
+                        staff_sheet = sh.worksheet("STAFF")
                         name_cell = staff_sheet.find(selected_name, in_column=2)
                         if name_cell is None:
                             st.error(f"Could not locate {selected_name} in the sheet.")
@@ -438,7 +451,6 @@ if st.session_state.logged_in:
                     with col2:
                         delete_btn = st.form_submit_button("🗑️ Delete Entry")
 
-                    active_sheet = sh.worksheet(st.session_state.user_division)
                     target_row = selected_data['row_index']
 
                     if update_btn:
@@ -451,6 +463,8 @@ if st.session_state.logged_in:
                         
                         if new_start and new_end and edit_whereabouts:
                             with st.spinner("Processing Cloud update transitions..."):
+                                # LEAK FIXED: Connects only on actual submission transaction
+                                active_sheet = sh.worksheet(st.session_state.user_division)
                                 
                                 # --- UPDATE TRANSACTION CREDIT COMPENSATOR ---
                                 was_wellness = "WELLNESS LEAVE" in selected_data['whereabouts'].upper()
@@ -499,6 +513,8 @@ if st.session_state.logged_in:
                                 
                     if delete_btn:
                         with st.spinner("Executing deletion sequences..."):
+                            # LEAK FIXED: Connects only when the deletion sequence is explicitly triggered
+                            active_sheet = sh.worksheet(st.session_state.user_division)
                             
                             # --- REVERT AND REFUND CREDIT UPON ENTRIES DELETION ---
                             if "WELLNESS LEAVE" in selected_data['whereabouts'].upper():
@@ -540,7 +556,7 @@ st.divider()
 
 details_placeholder = st.empty()
 
-# 2. Filter Tabs (Purely individual divisions focus)
+# 2. Filter Tabs (Purely individual divisions focus, no 'ALL' tab traces remain)
 divisions = ["DIRECTOR", "HSDMSD", "PPPDD", "FPMD", "ADMIN", "WELLNESS"]
 selected_div = st.radio("Filter Dashboard View", divisions, horizontal=True)
 
@@ -641,7 +657,7 @@ else:
                     "display": "block"
                 })
 
-    # Render data parameters using the global shared memory cache instead of per-user session arrays
+    # Render data parameters using optimized global data cache map
     cached_db = fetch_all_divisions_data()
     for div in sheets_to_fetch:
         div_data = cached_db.get(div, [])
