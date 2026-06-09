@@ -1174,29 +1174,41 @@ def login_screen():
                     }
                     st.rerun()
                 
-                # Check Regular Users
+               # Check Regular Users
                 df = get_static_sheet("User_Profiles")
                 
-                # --- NEW SAFETY CATCH HERE ---
-                if not df.empty:
-                    match = df[df["User_ID"].astype(str).str.strip() == code]
-                    if not match.empty:
-                        u = match.iloc[0]
-                        st.session_state.user_id = code
-                        st.session_state.user_info = {
-                            "user": u.get("Encoder_Name", "Unknown"), 
-                            "role": u.get("Role", "user"), 
-                            "hosp": u.get("Hospital_Name", "N/A"), 
-                            "dept": u.get("Department", "General"), 
-                            "pos": u.get("Position", "Encoder"), 
-                            "access": [m.strip() for m in str(u.get("Access", "")).split(",")]
-                        }
-                        st.rerun()
-                    else: 
-                        st.error("❌ Invalid Access Code. Please check your email and try again.")
+                # Safely attempt to find a match in the current cache
+                if df.empty:
+                    match = pd.DataFrame()
                 else:
-                    st.error("⚠️ The database is empty or the 'User_Profiles' sheet could not be reached.")
+                    match = df[df["User_ID"].astype(str).str.strip() == code]
 
+                # --- THE SMART CACHE BYPASS ---
+                # If the code isn't found, it might be a new user!
+                # Clear the cache and check the live Google Sheet exactly once.
+                if match.empty:
+                    st.cache_data.clear()
+                    # Re-fetch directly using conn.read to guarantee fresh data
+                    df = conn.read(spreadsheet=SHEET_URL, worksheet="User_Profiles", ttl="10m")
+                    if not df.empty:
+                        match = df[df["User_ID"].astype(str).str.strip() == code]
+
+                # --- FINAL LOGIN EXECUTION ---
+                if not match.empty:
+                    u = match.iloc[0]
+                    st.session_state.user_id = code
+                    st.session_state.user_info = {
+                        "user": u.get("Encoder_Name", "Unknown"), 
+                        "role": u.get("Role", "user"), 
+                        "hosp": u.get("Hospital_Name", "N/A"), 
+                        "dept": u.get("Department", "General"), 
+                        "pos": u.get("Position", "Encoder"), 
+                        "access": [m.strip() for m in str(u.get("Access", "")).split(",")]
+                    }
+                    st.rerun()
+                else: 
+                    st.error("❌ Invalid Access Code. Please check your email and try again.")
+                    
     with t2:
         st.info("First time here? Register to receive your unique Access Code via email.")
         try:
