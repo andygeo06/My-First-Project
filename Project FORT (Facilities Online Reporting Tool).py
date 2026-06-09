@@ -68,8 +68,12 @@ st.markdown(f"""
 # --- 3. SMART MEMORY CACHE (RAM-FIRST) ---
 @st.cache_data(ttl="10m")
 def get_static_sheet(sheet_name):
-    try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl="10m")
-    except: return pd.DataFrame()
+    try: 
+        return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl="10m")
+    except Exception as e: 
+        # THIS WILL NOW SHOW YOU WHY IT FAILS TO LOAD
+        st.error(f"⚠️ Connection Error on sheet '{sheet_name}': {e}")
+        return pd.DataFrame()
 
 def clear_app_memory(): get_static_sheet.clear()
 def generate_custom_id(): return f"HFDB-2026-{''.join(random.choices(string.ascii_letters + string.digits, k=10))}"
