@@ -1161,6 +1161,7 @@ def login_screen():
                     "ADMIN-10": {"name": "Backup Admin (Admin 10)", "access": ["Mod1", "Mod2", "Mod3", "Chat"]}
                 }
                 
+                # Check Admins First
                 if code in admin_roster:
                     st.session_state.user_id = code
                     admin_data = admin_roster[code]
@@ -1173,7 +1174,10 @@ def login_screen():
                     }
                     st.rerun()
                 
+                # Check Regular Users
                 df = get_static_sheet("User_Profiles")
+                
+                # --- NEW SAFETY CATCH HERE ---
                 if not df.empty:
                     match = df[df["User_ID"].astype(str).str.strip() == code]
                     if not match.empty:
@@ -1188,7 +1192,10 @@ def login_screen():
                             "access": [m.strip() for m in str(u.get("Access", "")).split(",")]
                         }
                         st.rerun()
-                    else: st.error("❌ Invalid Access Code. Please check your email and try again.")
+                    else: 
+                        st.error("❌ Invalid Access Code. Please check your email and try again.")
+                else:
+                    st.error("⚠️ The database is empty or the 'User_Profiles' sheet could not be reached.")
 
     with t2:
         st.info("First time here? Register to receive your unique Access Code via email.")
