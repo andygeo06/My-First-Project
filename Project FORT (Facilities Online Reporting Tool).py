@@ -10,6 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from streamlit_browser_storage import session_storage
 
 # --- 1. CORE CONFIG & COMPACT THEME ---
 st.set_page_config(page_title="Project FORT", layout="wide", initial_sidebar_state="expanded")
@@ -67,7 +68,6 @@ st.markdown(f"""
 # --- 3. SMART MEMORY CACHE (RAM-FIRST) ---
 @st.cache_data(ttl="10m")
 def get_static_sheet(sheet_name):
-    # CRITICAL FIX: ttl="10m" replaces ttl=0 to stop background API calls
     try: return conn.read(spreadsheet=SHEET_URL, worksheet=sheet_name, ttl="10m")
     except: return pd.DataFrame()
 
@@ -100,7 +100,6 @@ def get_module_config(module_name="Mod1"):
                 return deadline_str.upper(), False
                 
             try:
-                # pd.to_datetime handles MM/DD/YYYY securely
                 parsed_date = pd.to_datetime(deadline_str)
                 is_locked = pd.Timestamp.now() > parsed_date
                 return parsed_date.strftime("%b %d, %Y"), is_locked
@@ -117,7 +116,6 @@ def get_announcement():
     return ""
 
 def set_announcement(text):
-    # Temporarily read raw for an admin action
     df = conn.read(spreadsheet=SHEET_URL, worksheet="Config", ttl=0)
     if df.empty:
         df = pd.DataFrame([["Announcement", text]])
@@ -132,7 +130,6 @@ def set_announcement(text):
 
 def get_previous_entry(module_name="Mod1"):
     try:
-        # Cache memory fetch: only talks to Sheets once every 10 minutes per user session
         df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl="10m")
         if df is not None and "User_ID" in df.columns:
             user_data = df[df["User_ID"].astype(str) == str(st.session_state.user_id)]
@@ -143,7 +140,6 @@ def get_previous_entry(module_name="Mod1"):
 def submit_module_data(res_data, module_name="Mod1"):
     with st.spinner(f"Syncing data to {module_name}..."):
         try:
-            # We explicitly bypass cache here (ttl=0) to ensure we append to the live data properly
             try: df = conn.read(spreadsheet=SHEET_URL, worksheet=module_name, ttl=0)
             except: df = pd.DataFrame(columns=["User_ID", "Timestamp", "Hospital", "Department", "Encoder"])
             u = st.session_state.user_info
@@ -153,7 +149,6 @@ def submit_module_data(res_data, module_name="Mod1"):
             updated_df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
             conn.update(spreadsheet=SHEET_URL, worksheet=module_name, data=updated_df)
             
-            # Immediately clear memory to prep for the updated database
             st.cache_data.clear()
             st.toast(f"Data successfully synced to {module_name}!", icon="✅")
             return True
@@ -270,8 +265,10 @@ def module_scorecard():
     if dd.empty: st.error("Sheet 'Mod1_DD' not found."); return
     dd.columns = dd.columns.str.strip()
     
+    ss = session_storage()
     if "staged_data" not in st.session_state or st.session_state.staged_data is None: 
-        st.session_state.staged_data = get_previous_entry("Mod1")
+        draft = ss.get("draft_mod1")
+        st.session_state.staged_data = draft if draft else get_previous_entry("Mod1")
     prev = st.session_state.staged_data 
     
     deadline_str, locked = get_module_config("Mod1")
@@ -361,6 +358,9 @@ def module_scorecard():
         "CI4_N": ci4n, "CI4_D": ci4d, "CI5_N": ci5n, "CI5_D": ci5d, "CI6_N": ci6n, "CI6_D": ci6d,
         "Head_Name": h_name, "Head_Pos": h_pos
     }
+    
+    ss.set("draft_mod1", res_db)
+    
     res_print = res_db.copy()
     res_print.update({"SI6": s6v, "SI7": s7v, "SI8": s8v, "CI1": ci1v, "CI2": ci2v, "CI3": ci3v, "CI4": ci4v, "CI5": ci5v, "CI6": ci6v})
 
@@ -369,12 +369,14 @@ def module_scorecard():
         with btn_col1:
             if st.button("🖨️ GENERATE REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
                 if submit_module_data(res_db, "Mod1"):
+                    ss.delete("draft_mod1")
                     st.session_state.staged_data.update(res_db)
                     st.session_state.show_print = True
                     st.rerun()
         with btn_col2:
             if st.button("💾 SUBMIT DATA ONLY", use_container_width=True):
                 if submit_module_data(res_db, "Mod1"):
+                    ss.delete("draft_mod1")
                     st.session_state.staged_data.update(res_db)
                     st.session_state.show_print = False
                     st.rerun()
@@ -416,8 +418,10 @@ def module_scorecard():
 def module_census_data():
     display_sticky_header()
     
+    ss = session_storage()
     if "staged_data_mod2" not in st.session_state or st.session_state.staged_data_mod2 is None: 
-        st.session_state.staged_data_mod2 = get_previous_entry("Mod2")
+        draft = ss.get("draft_mod2")
+        st.session_state.staged_data_mod2 = draft if draft else get_previous_entry("Mod2")
     prev = st.session_state.staged_data_mod2
     
     deadline_str, locked = get_module_config("Mod2")
@@ -459,7 +463,6 @@ def module_census_data():
     with st.expander("Expand to fill out Census Data", expanded=False):
         census_data = [
             ("Bed Occupancy Rate (BOR) (2025):", "BOR_25", "pct"), 
-            # --- UPGRADED: Swapped ALOS from 'float' to 'text' ---
             ("Average Length of Stay (ALOS) (2025):", "ALOS_25", "text"), 
             ("Total Inpatient Days Served (TIDS):", "TIDS_25", "int"), 
             ("Total Number of Inpatients (2025):", "INP_25", "int"),
@@ -471,13 +474,11 @@ def module_census_data():
             c1, c2, c3 = st.columns([5, 2, 2])
             c1.markdown(f"**{label}**")
             
-            # Form UI Logic
             if dtype == "pct": 
                 res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
             elif dtype == "float": 
                 res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0) or 0.0), step=0.1, disabled=locked, label_visibility="collapsed")
             elif dtype == "text": 
-                # --- NEW HANDLER for text inputs (Used for ALOS range) ---
                 res_census[key] = c2.text_input(label, value=str(prev.get(key, "")), disabled=locked, label_visibility="collapsed", placeholder="e.g. 3-5 Days")
             else: 
                 res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
@@ -521,16 +522,20 @@ def module_census_data():
         "Head_Name": h_name, "Head_Pos": h_pos
     }
     final_data.update(res_census)
+    
+    ss.set("draft_mod2", final_data)
 
     if not locked:
         btn1, btn2 = st.columns(2)
         if btn1.button("🖨️ GENERATE CENSUS REPORT & AUTO-SUBMIT", type="primary", use_container_width=True):
             if submit_module_data(final_data, "Mod2"):
+                ss.delete("draft_mod2")
                 st.session_state.staged_data_mod2.update(final_data)
                 st.session_state.show_print = True
                 st.rerun()
         if btn2.button("💾 SAVE PROGRESS ONLY", use_container_width=True):
             if submit_module_data(final_data, "Mod2"):
+                ss.delete("draft_mod2")
                 st.session_state.staged_data_mod2.update(final_data)
                 st.success("Progress saved!")
     else:
@@ -540,7 +545,6 @@ def module_census_data():
     if st.session_state.get("show_print", False):
         u = st.session_state.user_info
         
-        # --- NEW DYNAMIC PRINT ENGINE ---
         print_sections = [
             ("I. BASIC INFORMATION", [
                 ("Service Capability (2026)", "LV_26", "RM_LV26"),
@@ -589,7 +593,7 @@ def module_census_data():
         
         st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
-        
+
 # --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -599,11 +603,12 @@ def module_gva():
     display_sticky_header()
     u = st.session_state.user_info
     
-    # Fully cached locally in Streamlit RAM
+    ss = session_storage()
     if "staged_mod2_gva" not in st.session_state: 
         st.session_state.staged_mod2_gva = get_previous_entry("Mod2")
     if "staged_mod3_gva" not in st.session_state: 
-        st.session_state.staged_mod3_gva = get_previous_entry("Mod3")
+        draft = ss.get("draft_mod3")
+        st.session_state.staged_mod3_gva = draft if draft else get_previous_entry("Mod3")
 
     mod2_data = st.session_state.staged_mod2_gva
     prev = st.session_state.staged_mod3_gva
@@ -958,10 +963,13 @@ def module_gva():
     }
     final_mod3_data.update(gva_answers)
     final_mod3_data.update(admin_co2e_save)
+    
+    ss.set("draft_mod3", final_mod3_data)
 
     if not locked:
         if st.button("💾 SAVE ALL PROGRESS TO DATABASE", use_container_width=True, type="primary"):
             if submit_module_data(final_mod3_data, "Mod3"):
+                ss.delete("draft_mod3")
                 st.session_state.staged_mod3_gva.update(final_mod3_data)
                 st.success("Progress Saved to Google Sheets!")
 
@@ -1071,7 +1079,6 @@ def generate_print_view(d):
 def generate_print_view_mod2(d):
     u = st.session_state.user_info
     
-    # --- SAME DYNAMIC PRINT ENGINE ---
     print_sections = [
         ("I. BASIC INFORMATION", [
             ("Service Capability (2026)", "LV_26", "RM_LV26"),
@@ -1302,7 +1309,6 @@ def render_user_sidebar():
             
             if st.button("🔄 Refresh Chat Replies", use_container_width=True): st.rerun()
             
-            # CRITICAL FIX: Increased TTL to 5 minutes so it doesn't interrupt standard UI operations
             try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="5m")
             except: chat_df = pd.DataFrame(columns=["Timestamp", "User_ID", "Hospital", "Encoder_Name", "Sender", "Message"])
                 
@@ -1334,7 +1340,6 @@ def render_user_sidebar():
                 if chat_df.empty: updated_df = pd.DataFrame([new_msg])
                 else: updated_df = pd.concat([chat_df, pd.DataFrame([new_msg])], ignore_index=True)
                 
-                # Write to DB then clear cache so it immediately displays
                 conn.update(spreadsheet=SHEET_URL, worksheet="Support_Logs", data=updated_df)
                 st.cache_data.clear()
                 st.rerun()
@@ -1354,7 +1359,6 @@ def admin_chat_view():
     with col2:
         if st.button("🔄 Refresh Inbox", use_container_width=True, type="primary"): st.rerun()
     
-    # Let the admin refresh every 30 seconds since they aren't filling out massive forms
     st_autorefresh(interval=30000, limit=None, key="admin_chat_refresh")
     
     try: chat_df = conn.read(spreadsheet=SHEET_URL, worksheet="Support_Logs", ttl="30s")
