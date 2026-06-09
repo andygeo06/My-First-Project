@@ -458,17 +458,30 @@ def module_census_data():
     st.header("2️⃣ HOSPITAL CENSUS DATA")
     with st.expander("Expand to fill out Census Data", expanded=False):
         census_data = [
-            ("Bed Occupancy Rate (BOR) (2025):", "BOR_25", "pct"), ("Average Length of Stay (ALOS) (2025):", "ALOS_25", "float"),
-            ("Total Inpatient Days Served (TIDS):", "TIDS_25", "int"), ("Total Number of Inpatients (2025):", "INP_25", "int"),
-            ("Total Number of Outpatient Visits:", "OUT_25", "int"), ("Total ER Visits (2025):", "ERV_25", "int")
+            ("Bed Occupancy Rate (BOR) (2025):", "BOR_25", "pct"), 
+            # --- UPGRADED: Swapped ALOS from 'float' to 'text' ---
+            ("Average Length of Stay (ALOS) (2025):", "ALOS_25", "text"), 
+            ("Total Inpatient Days Served (TIDS):", "TIDS_25", "int"), 
+            ("Total Number of Inpatients (2025):", "INP_25", "int"),
+            ("Total Number of Outpatient Visits:", "OUT_25", "int"), 
+            ("Total ER Visits (2025):", "ERV_25", "int")
         ]
         res_census = {}
         for label, key, dtype in census_data:
             c1, c2, c3 = st.columns([5, 2, 2])
             c1.markdown(f"**{label}**")
-            if dtype == "pct": res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
-            elif dtype == "float": res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0) or 0.0), step=0.1, disabled=locked, label_visibility="collapsed")
-            else: res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            
+            # Form UI Logic
+            if dtype == "pct": 
+                res_census[key] = c2.text_input(label, value=str(prev.get(key, "0%")), disabled=locked, label_visibility="collapsed")
+            elif dtype == "float": 
+                res_census[key] = c2.number_input(label, value=float(prev.get(key, 0.0) or 0.0), step=0.1, disabled=locked, label_visibility="collapsed")
+            elif dtype == "text": 
+                # --- NEW HANDLER for text inputs (Used for ALOS range) ---
+                res_census[key] = c2.text_input(label, value=str(prev.get(key, "")), disabled=locked, label_visibility="collapsed", placeholder="e.g. 3-5 Days")
+            else: 
+                res_census[key] = c2.number_input(label, value=int(float(prev.get(key, 0) or 0)), step=1, disabled=locked, label_visibility="collapsed")
+            
             res_census[f"RM_{key}"] = c3.text_input(f"Remarks {key}", value=str(prev.get(f"RM_{key}", "")), disabled=locked, label_visibility="collapsed")
 
     st.header("3️⃣ HCPN, BUCAS AND COORDINATES")
@@ -526,25 +539,57 @@ def module_census_data():
 
     if st.session_state.get("show_print", False):
         u = st.session_state.user_info
+        
+        # --- NEW DYNAMIC PRINT ENGINE ---
+        print_sections = [
+            ("I. BASIC INFORMATION", [
+                ("Service Capability (2026)", "LV_26", "RM_LV26"),
+                ("Target Service Capability (2027)", "LV_27", "RM_LV27"),
+                ("ABC by Licensing (2025)", "ABC_25", "RM_ABC_25"),
+                ("Target ABC by Licensing (2026)", "ABC_26", "RM_ABC_26"),
+                ("ABC by Law (2025)", "LAW_25", "RM_LAW_25"),
+                ("ABC by Law (2026)", "LAW_26", "RM_LAW_26"),
+                ("Target ABC by Licensing (2027)", "ABC_27", "RM_ABC27"),
+                ("Implementing Bed Capacity (2025)", "IBC_25", "RM_IBC25"),
+            ]),
+            ("II. HOSPITAL CENSUS (2025)", [
+                ("Bed Occupancy Rate (BOR)", "BOR_25", "RM_BOR_25"),
+                ("Average Length of Stay (ALOS)", "ALOS_25", "RM_ALOS_25"),
+                ("Total Inpatient Days Served (TIDS)", "TIDS_25", "RM_TIDS_25"),
+                ("Total Number of Inpatients", "INP_25", "RM_INP_25"),
+                ("Total Number of Outpatient Visits", "OUT_25", "RM_OUT_25"),
+                ("Total ER Visits", "ERV_25", "RM_ERV_25"),
+            ]),
+            ("III. HCPN, BUCAS & COORDINATES", [
+                ("Apex/End-Referral Status", "APEX", "RM_APEX"),
+                ("HCPNs Linked Count", "HCPN_COUNT", "RM_HCPN"),
+                ("BUCAS Center Operations", "BUCAS", "RM_BUCAS"),
+                ("BUCAS Coordinates", "COORDS", "RM_COORDS"),
+            ])
+        ]
+
+        html_rows = ""
+        for section_title, fields in print_sections:
+            html_rows += f'<tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">{section_title}</td></tr>'
+            for label, val_key, rm_key in fields:
+                val = final_data.get(val_key, '')
+                rm = final_data.get(rm_key, '')
+                html_rows += f'<tr><td style="border: 1px solid #333; padding: 4px;">{label}</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{val}</td><td style="border: 1px solid #333; padding: 4px;">{rm}</td></tr>'
+
         html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
         <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
             <center><h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2><h4 style="margin:5px 0;">{u['hosp']} — {u['dept']} Department</h4><hr style="border:1px solid #111;"></center>
             <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
                 <tr style="background: #eee;"><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 45%;">Data Parameter</th><th style="border: 1px solid #333; padding: 6px; text-align: center; width: 15%;">Value</th><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 40%;">Remarks</th></tr>
-                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 4px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('LV_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_LV26', '')}</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('ABC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_ABC_25', '')}</td></tr>
-                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 4px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('BOR_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_BOR_25', '')}</td></tr>
-                <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
-                <tr><td style="border: 1px solid #333; padding: 4px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{final_data.get('APEX', '')}</td><td style="border: 1px solid #333; padding: 4px;">{final_data.get('RM_APEX', '')}</td></tr>
+                {html_rows}
             </table><br><br><br>
             <table style="width:100%; text-align:center; font-size:14px;"><tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{final_data.get('Head_Name', '')}</b><br>{final_data.get('Head_Pos', '')}</td></tr></table>
             <center><br><button class="no-print" onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
         </div>"""
+        
         st.components.v1.html(html, height=1000, scrolling=True)
         render_upload_section("Mod2")
-
+        
 # --- 6. MODULE 3: GREEN VIABILITY ASSESSMENT ---
 def get_blank_consumption_grid():
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -1025,18 +1070,49 @@ def generate_print_view(d):
 
 def generate_print_view_mod2(d):
     u = st.session_state.user_info
+    
+    # --- SAME DYNAMIC PRINT ENGINE ---
+    print_sections = [
+        ("I. BASIC INFORMATION", [
+            ("Service Capability (2026)", "LV_26", "RM_LV26"),
+            ("Target Service Capability (2027)", "LV_27", "RM_LV27"),
+            ("ABC by Licensing (2025)", "ABC_25", "RM_ABC_25"),
+            ("Target ABC by Licensing (2026)", "ABC_26", "RM_ABC_26"),
+            ("ABC by Law (2025)", "LAW_25", "RM_LAW_25"),
+            ("ABC by Law (2026)", "LAW_26", "RM_LAW_26"),
+            ("Target ABC by Licensing (2027)", "ABC_27", "RM_ABC27"),
+            ("Implementing Bed Capacity (2025)", "IBC_25", "RM_IBC25"),
+        ]),
+        ("II. HOSPITAL CENSUS (2025)", [
+            ("Bed Occupancy Rate (BOR)", "BOR_25", "RM_BOR_25"),
+            ("Average Length of Stay (ALOS)", "ALOS_25", "RM_ALOS_25"),
+            ("Total Inpatient Days Served (TIDS)", "TIDS_25", "RM_TIDS_25"),
+            ("Total Number of Inpatients", "INP_25", "RM_INP_25"),
+            ("Total Number of Outpatient Visits", "OUT_25", "RM_OUT_25"),
+            ("Total ER Visits", "ERV_25", "RM_ERV_25"),
+        ]),
+        ("III. HCPN, BUCAS & COORDINATES", [
+            ("Apex/End-Referral Status", "APEX", "RM_APEX"),
+            ("HCPNs Linked Count", "HCPN_COUNT", "RM_HCPN"),
+            ("BUCAS Center Operations", "BUCAS", "RM_BUCAS"),
+            ("BUCAS Coordinates", "COORDS", "RM_COORDS"),
+        ])
+    ]
+
+    html_rows = ""
+    for section_title, fields in print_sections:
+        html_rows += f'<tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">{section_title}</td></tr>'
+        for label, val_key, rm_key in fields:
+            val = d.get(val_key, '')
+            rm = d.get(rm_key, '')
+            html_rows += f'<tr><td style="border: 1px solid #333; padding: 4px;">{label}</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{val}</td><td style="border: 1px solid #333; padding: 4px;">{rm}</td></tr>'
+
     html = f"""<style>@media print {{ .no-print {{ display: none !important; }} }}</style>
     <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: black; border: 2px solid #333; max-width: 850px; margin: 0 auto;">
         <center><h2 style="margin:0;">HEALTH FACILITY CENSUS & HCPN DATA (2025-2026)</h2><h4 style="margin:5px 0;">{u['hosp']} — {u['dept']} Department</h4><hr style="border:1px solid #111;"></center>
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px;">
             <tr style="background: #eee;"><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 45%;">Data Parameter</th><th style="border: 1px solid #333; padding: 6px; text-align: center; width: 15%;">Value</th><th style="border: 1px solid #333; padding: 6px; text-align: left; width: 40%;">Remarks</th></tr>
-            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">I. BASIC INFORMATION</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 4px;">Service Capability (2026)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('LV_26', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_LV26', '')}</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 4px;">ABC by Licensing (2025)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('ABC_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_ABC_25', '')}</td></tr>
-            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">II. HOSPITAL CENSUS (2025)</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 4px;">Bed Occupancy Rate (BOR)</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('BOR_25', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_BOR_25', '')}</td></tr>
-            <tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px; border: 1px solid #333;">III. HCPN & BUCAS</td></tr>
-            <tr><td style="border: 1px solid #333; padding: 4px;">Apex/End-Referral Status</td><td style="border: 1px solid #333; padding: 4px; text-align: center;">{d.get('APEX', '')}</td><td style="border: 1px solid #333; padding: 4px;">{d.get('RM_APEX', '')}</td></tr>
+            {html_rows}
         </table><br><br><br>
         <table style="width:100%; text-align:center; font-size:14px;"><tr><td style="width:50%;">__________________________<br><b>{u['user']}</b><br>{u['pos']}</td><td style="width:50%;">__________________________<br><b>{d.get('Head_Name', '')}</b><br>{d.get('Head_Pos', '')}</td></tr></table>
         <center><br><button class="no-print" onclick="window.print()" style="padding:10px 20px; background:#222; color:white; border:none; border-radius:5px; cursor:pointer;">Print Submission</button></center>
