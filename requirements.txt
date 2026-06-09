@@ -5,3 +5,4 @@ streamlit-autorefresh
 gspread
 oauth2client
 streamlit-calendar
+streamlit-browser-storage
