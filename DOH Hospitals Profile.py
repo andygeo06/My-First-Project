@@ -82,7 +82,7 @@ def load_sheet_data():
     client = gspread.authorize(creds)
     
     # Connect using the public/private sheet URL parameter matching your secrets file
-    sheet_url = st.secrets["GSHEETS_URL"]
+    sheet_url = st.secrets["https://docs.google.com/spreadsheets/d/1jX5bZX6V3M399a8D6vJjtx2BtNSkl8yfvcKGE_XLgco/edit?usp=sharing"]
     workbook = client.open_by_url(sheet_url)
     sheet = workbook.worksheet("DATA")
     
