@@ -152,7 +152,7 @@ with col_right_profile:
         st.markdown(f"### {row['Q. 2.1 - Name of the facility chief']}")
         st.caption(f"**{row['Q. 2.2 - Position title of the facility chief']}**")
         st.write(f"**Founding Identity:** {row['Q. 2.7 - Founding name and year']}")
-        st.write(f"**Motto/Slogan:** *{row['Q. 2.5 - Institution's motto or slogan']}*")
+        st.write(f"**Motto/Slogan:** *{row['Q. 2.5 - Institution's motto or slogan']}**")
         
     st.markdown(f"**Institution Vision:**\n> {row['Q. 2.3 - Institution's vision']}")
     st.markdown(f"**Institution Mission:**\n> {row['Q. 2.4 - Institution's mission']}")
