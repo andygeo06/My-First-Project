@@ -62,10 +62,10 @@ st.markdown("""
         margin: 10px 0;
     }
     
-    /* --- STRICT NAVIGATION BUTTON STYLING OVERRIDES --- */
+    /* --- NAVIGATION BUTTON HIGH CONTRAST OVERRIDES --- */
     div.stButton > button {
         background-color: #7D6E57 !important; /* Warm editorial brown */
-        color: #FFFFFF !important;            /* Crisp white text */
+        color: #FFFFFF !important;            /* High contrast crisp white text */
         border: 1px solid #7D6E57 !important;
         border-radius: 4px !important;
         padding: 0.5rem 1.5rem !important;
@@ -74,30 +74,58 @@ st.markdown("""
         width: 100%;
     }
     div.stButton > button:hover {
-        background-color: #5D513F !important; /* Slightly darker shade on hover */
+        background-color: #5D513F !important; /* Elegant dark shade on hover */
         color: #FFFFFF !important;
         border-color: #5D513F !important;
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     div.stButton > button:disabled {
-        background-color: #E2DCD2 !important; /* Muted gray-cream when disabled */
+        background-color: #E2DCD2 !important; /* Clean muted gray-cream when unclickable */
         color: #A19B91 !important;
         border-color: #E2DCD2 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- AUTOMATIC GOOGLE DRIVE URL CONVERTER ---
+# --- ROBUST GOOGLE FORMS LINK TRANSLATOR ---
 def convert_drive_url(url):
-    """Converts a standard Google Drive sharing link into a direct image stream link."""
+    """Converts a standard or Google Form uploaded Drive link into a raw direct image stream."""
     url = str(url).strip()
+    if not url or url.lower() == "n/a" or url == "":
+        return None
+        
     if "drive.google.com" in url:
-        # Extract the file ID using regex
-        match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
-        if match:
-            file_id = match.group(1)
+        file_id = None
+        # Handle form link format 1: /file/d/[ID]/view
+        if "/file/d/" in url:
+            match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+            if match:
+                file_id = match.group(1)
+        # Handle form link format 2: open?id=[ID] or uc?id=[ID]
+        elif "id=" in url:
+            match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
+            if match:
+                file_id = match.group(1)
+                
+        if file_id:
             return f"https://drive.google.com/uc?export=view&id={file_id}"
-    return url
+            
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+        
+    return None
+
+# --- SAFE IMAGE RENDERING FRAMEWORK ---
+def display_magazine_image(url_string, caption_text, width_override=None):
+    """Safely renders single or multi-url image arrays with neat textual placeholders if missing."""
+    cleaned_url = convert_drive_url(url_string)
+    if cleaned_url:
+        if width_override:
+            st.image(cleaned_url, caption=caption_text, width=width_override)
+        else:
+            st.image(cleaned_url, caption=caption_text, use_container_width=True)
+    else:
+        st.caption(f"ℹ️ *No publication image file attached for {caption_text}*")
 
 # --- AUTHENTICATION & SECURITY CONTROL ---
 @st.cache_data(ttl=600)
@@ -185,30 +213,30 @@ st.markdown(f"""
 spread_left, spread_right = st.columns([2, 3])
 
 with spread_left:
-    # Asset Management Grid with Auto-Drive Translation
-    seal_url = convert_drive_url(get_val(row, 'Q. 6.3'))
-    if seal_url != "N/A":
-        st.image(seal_url, caption="Official Institutional Seal", width=150)
+    # Asset Management Grid with Fixed Auto-Drive Translations
+    seal_val = get_val(row, 'Q. 6.3')
+    display_magazine_image(seal_val, "Official Institutional Seal", width_override=150)
         
     facade_val = get_val(row, 'Q. 6.1')
     if facade_val != "N/A":
+        # Google Forms handles multiple file uploads separated by commas
         facade_urls = facade_val.split(',')
-        st.image(convert_drive_url(facade_urls[0].strip()), caption="Exterior Facade (Primary View)", use_container_width=True)
+        display_magazine_image(facade_urls[0].strip(), "Exterior Facade (Primary View)")
         if len(facade_urls) > 1 and facade_urls[1].strip():
-            st.image(convert_drive_url(facade_urls[1].strip()), caption="Exterior Facade (Alternate View)", use_container_width=True)
+            display_magazine_image(facade_urls[1].strip(), "Exterior Facade (Alternate View)")
+    else:
+        st.caption("ℹ️ *No publication image file attached for Exterior Facade*")
             
-    lobby_url = convert_drive_url(get_val(row, 'Q. 6.2'))
-    if lobby_url != "N/A":
-        st.image(lobby_url, caption="Main Interior Lobby", use_container_width=True)
+    lobby_val = get_val(row, 'Q. 6.2')
+    display_magazine_image(lobby_val, "Main Interior Lobby")
 
 with spread_right:
     st.markdown('<div class="section-banner">I. LEADERSHIP, VISION & CORPORATE IDENTITY</div>', unsafe_allow_html=True)
     
     chief_col1, chief_col2 = st.columns([1, 2])
     with chief_col1:
-        chief_img = convert_drive_url(get_val(row, 'Q. 6.4'))
-        if chief_img != "N/A":
-            st.image(chief_img, use_container_width=True, caption="Chief of Facility")
+        chief_img_val = get_val(row, 'Q. 6.4')
+        display_magazine_image(chief_img_val, "Chief of Facility")
     with chief_col2:
         st.markdown(f"### {get_val(row, 'Q. 2.1')}")
         st.markdown(f"**Designated Role:** *{get_val(row, 'Q. 2.2')}*")
