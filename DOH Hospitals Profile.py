@@ -10,46 +10,60 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CUSTOM MAGAZINE-STYLE CSS ---
+# --- EDITORIAL SYSTEM DESIGN (CSS) ---
 st.markdown("""
     <style>
-    /* Classic editorial paper color background */
+    /* Premium editorial paper texture style background */
     .stApp {
-        background-color: #FDFBF7;
-        color: #2F2E2C;
+        background-color: #FAF8F5;
+        color: #2B2A28;
     }
-    /* Typography customizations */
-    h1, h2, h3 {
+    h1, h2, h3, h4 {
         font-family: 'Georgia', 'Times New Roman', serif;
-        color: #1A1A19;
+        color: #1C1B1A;
+        font-weight: 700;
     }
     .magazine-header {
         text-align: center;
-        border-bottom: 3px double #1A1A19;
-        padding-bottom: 15px;
-        margin-bottom: 30px;
+        border-bottom: 4px double #1C1B1A;
+        padding-bottom: 20px;
+        margin-bottom: 35px;
+    }
+    .magazine-header h1 {
+        font-size: 2.8rem;
+        margin-bottom: 5px;
     }
     .section-banner {
-        background-color: #F4EFE6;
-        padding: 10px;
-        border-left: 5px solid #8B7E66;
+        background-color: #F1EAE0;
+        padding: 12px 18px;
+        border-left: 6px solid #7D6E57;
         font-weight: bold;
-        margin-top: 25px;
-        margin-bottom: 15px;
+        font-size: 1.1rem;
+        margin-top: 35px;
+        margin-bottom: 20px;
         font-family: 'Georgia', serif;
+        letter-spacing: 1px;
     }
-    /* Simple table card styling */
     .data-card {
         background-color: #FFFFFF;
-        padding: 15px;
-        border: 1px solid #E6E1DA;
+        padding: 20px;
+        border: 1px solid #E2DCD2;
         border-radius: 4px;
-        margin-bottom: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        margin-bottom: 15px;
+        height: 100%;
+    }
+    .block-quote-editorial {
+        border-left: 3px italic #7D6E57;
+        padding-left: 15px;
+        font-style: italic;
+        color: #4A4946;
+        margin: 10px 0;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION & DATA FETCHING ---
+# --- AUTHENTICATION & SECURITY CONTROL ---
 @st.cache_data(ttl=600)
 def load_sheet_data():
     scope = [
@@ -59,222 +73,256 @@ def load_sheet_data():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Extract service account directly from st.secrets to match your configuration structure
+    # Safely parse service account block dictionary from st.secrets TOML
     creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Handle newline escaping often caused by TOH environmental conversions
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     
-    # Access sheet using the URL parameter defined in your secrets file
-    sheet_url = st.secrets["https://docs.google.com/spreadsheets/d/1jX5bZX6V3M399a8D6vJjtx2BtNSkl8yfvcKGE_XLgco/edit?usp=sharing"]
+    # Connect using the public/private sheet URL parameter matching your secrets file
+    sheet_url = st.secrets["GSHEETS_URL"]
     workbook = client.open_by_url(sheet_url)
     sheet = workbook.worksheet("DATA")
     
     return pd.DataFrame(sheet.get_all_records())
 
-# Try loading data safely
 try:
     df = load_sheet_data()
 except Exception as e:
-    st.error("Authentication or connection failed. Please check your st.secrets configurations.")
+    st.error(f"Data Connection Error: {str(e)}")
     st.stop()
 
-total_hospitals = len(df)
+# --- RESILIENT DATA LOOKUP ENGINE ---
+# This ensures string mismatches, single quotes, or minor tracking variations won't break runtime execution.
+def get_val(row_data, prefix_token, fallback="N/A"):
+    matched_col = [col for col in row_data.index if str(col).strip().startswith(prefix_token)]
+    if matched_col:
+        val = row_data[matched_col[0]]
+        if pd.isna(val) or str(val).strip() == "":
+            return fallback
+        return str(val).strip()
+    return fallback
 
-# --- MAGAZINE PAGE NAVIGATION STATE ---
+total_records = len(df)
+
+# --- SESSION NAVIGATION STATE ---
 if 'page_index' not in st.session_state:
     st.session_state.page_index = 0
 
-# Navigation Functions
-def next_page():
-    if st.session_state.page_index < total_hospitals - 1:
+def page_forward():
+    if st.session_state.page_index < total_records - 1:
         st.session_state.page_index += 1
 
-def prev_page():
+def page_backward():
     if st.session_state.page_index > 0:
         st.session_state.page_index -= 1
 
-# --- HEADER NAVIGATION CONTROLS ---
-nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
-with nav_col1:
-    st.button("◀ Previous Page", on_click=prev_page, disabled=(st.session_state.page_index == 0), key="top_prev")
-with nav_col2:
-    page_select = st.selectbox(
-        "Jump to Page", 
-        options=range(total_hospitals), 
-        format_func=lambda x: f"Page {x+1}: {df.iloc[x]['Q. 1.2 - Official acronym'] or df.iloc[x]['Q. 1.1 - Official name of the facility']}",
+# --- TOP EDITORIAL NAVIGATIONSpread BAR ---
+nav_t1, nav_t2, nav_t3 = st.columns([1, 2, 1])
+with nav_t1:
+    st.button("◀ Previous Page", on_click=page_backward, disabled=(st.session_state.page_index == 0), key="t_prev")
+with nav_t2:
+    selected_idx = st.selectbox(
+        "Jump directly to facility index:",
+        options=range(total_records),
+        format_func=lambda x: f"Page {x+1}: {get_val(df.iloc[x], 'Q. 1.2')} - {get_val(df.iloc[x], 'Q. 1.1')[:45]}...",
         index=st.session_state.page_index,
-        key="page_tracker"
+        key="magazine_selector"
     )
-    st.session_state.page_index = page_select
-with nav_col3:
-    st.button("Next Page ▶", on_click=next_page, disabled=(st.session_state.page_index == total_hospitals - 1), key="top_next")
+    st.session_state.page_index = selected_idx
+with nav_t3:
+    st.button("Next Page ▶", on_click=page_forward, disabled=(st.session_state.page_index == total_records - 1), key="t_next")
 
-# Extract the working row based on active selection
+# Extract focused row context
 row = df.iloc[st.session_state.page_index]
 
-# --- RENDER MAGAZINE COVER/PROFILE HEADER ---
+# --- FACILITY COVER PAGE HEADER ---
 st.markdown(f"""
     <div class="magazine-header">
-        <h1>{row['Q. 1.1 - Official name of the facility']}</h1>
-        <p style="font-style: italic; font-size: 1.2rem; color: #555;">{row['Q. 1.2 - Official acronym']} — Region {row['Q. 1.3 - Region (geographic)']}</p>
+        <h1>{get_val(row, 'Q. 1.1')}</h1>
+        <p style="font-size: 1.3rem; font-style: italic; color: #5E5D5A; margin-top: 5px;">
+            {get_val(row, 'Q. 1.2')} — Geographic Region {get_val(row, 'Q. 1.3')}
+        </p>
     </div>
 """, unsafe_allow_html=True)
 
-# Main layout split for the visual spread
-col_left_gallery, col_right_profile = st.columns([2, 3])
+# --- MAIN PAGE SPREAD: VISUAL SIDE vs IDENTITY SIDE ---
+spread_left, spread_right = st.columns([2, 3])
 
-with col_left_gallery:
-    # Render main structural visuals cleanly
-    if row['Q. 6.3 - Official seal']:
-        st.image(row['Q. 6.3 - Official seal'], caption="Official Seal", width=160)
-    
-    if row['Q. 6.1 - Exterior facade of the main building (at least two)']:
-        # Splits comma-separated image URLs if multiple exist
-        facades = str(row['Q. 6.1 - Exterior facade of the main building (at least two)']).split(',')
-        st.image(facades[0].strip(), caption="Exterior Facade View", use_container_width=True)
+with spread_left:
+    # Asset Management Grid (Seals, portraits and landscapes)
+    seal_url = get_val(row, 'Q. 6.3')
+    if seal_url != "N/A":
+        st.image(seal_url, caption="Official Institutional Seal", width=150)
         
-    if row['Q. 6.2 - Interior lobby of the main building']:
-        st.image(row['Q. 6.2 - Interior lobby of the main building'], caption="Main Lobby Interior", use_container_width=True)
+    facade_val = get_val(row, 'Q. 6.1')
+    if facade_val != "N/A":
+        facade_urls = facade_val.split(',')
+        st.image(facade_urls[0].strip(), caption="Exterior Facade (Primary View)", use_container_width=True)
+        if len(facade_urls) > 1:
+            st.image(facade_urls[1].strip(), caption="Exterior Facade (Alternate View)", use_container_width=True)
+            
+    lobby_url = get_val(row, 'Q. 6.2')
+    if lobby_url != "N/A":
+        st.image(lobby_url, caption="Main Interior Lobby", use_container_width=True)
 
-with col_right_profile:
-    st.markdown('<div class="section-banner">SECTION 1: LEADERSHIP & IDENTITY</div>', unsafe_allow_html=True)
+with spread_right:
+    st.markdown('<div class="section-banner">I. LEADERSHIP, VISION & CORPORATE IDENTITY</div>', unsafe_allow_html=True)
     
-    lead_col1, lead_col2 = st.columns([1, 2])
-    with lead_col1:
-        if row['Q. 6.4 - Chief of the facility']:
-            st.image(row['Q. 6.4 - Chief of the facility'], use_container_width=True)
-    with lead_col2:
-        st.markdown(f"### {row['Q. 2.1 - Name of the facility chief']}")
-        st.caption(f"**{row['Q. 2.2 - Position title of the facility chief']}**")
-        st.write(f"**Founding Identity:** {row['Q. 2.7 - Founding name and year']}")
-        st.write(f"**Motto/Slogan:** *{row['Q. 2.5 - Institution's motto or slogan']}**")
-        
-    st.markdown(f"**Institution Vision:**\n> {row['Q. 2.3 - Institution's vision']}")
-    st.markdown(f"**Institution Mission:**\n> {row['Q. 2.4 - Institution's mission']}")
-    st.write(f"**Latest Hospital Mandate:** {row['Q. 2.6 - Latest hospital mandate']}")
-    st.write(f"**Workforce Demographics:** {row['Q. 2.8 - Number (numerator/denominator) and percent of females employed as of end of 2024']}")
+    chief_col1, chief_col2 = st.columns([1, 2])
+    with chief_col1:
+        chief_img = get_val(row, 'Q. 6.4')
+        if chief_img != "N/A":
+            st.image(chief_img, use_container_width=True, caption="Chief of Facility")
+    with chief_col2:
+        st.markdown(f"### {get_val(row, 'Q. 2.1')}")
+        st.markdown(f"**Designated Role:** *{get_val(row, 'Q. 2.2')}*")
+        st.write(f"**Founding Identity:** {get_val(row, 'Q. 2.7')}")
+        st.write(f"**Motto / Slogan:** \"{get_val(row, 'Q. 2.5')}\"")
 
-# --- SECTION 2: PHYSICAL & OPERATIONAL CLASSIFICATION ---
-st.markdown('<div class="section-banner">SECTION 2: FACILITY CLASSIFICATION & INFRASTRUCTURE</div>', unsafe_allow_html=True)
-infra1, infra2, infra3 = st.columns(3)
-with infra1:
-    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-    st.markdown("**Basic Footprint**")
-    st.write(f"**Land Area:** {row['Q. 3.1 - Land area (in sqm)']} sqm")
-    st.write(f"**Gross Floor Area:** {row['Q. 3.2 - Total gross floor area (in sqm)']} sqm")
-    st.write(f"**Main Address:** {row['Q. 1.4 - Address of the main location']}")
-    st.write(f"**Coordinates:** {row['Q. 1.5 - GPS coordinates']}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"**Institutional Vision Blueprint:**")
+    st.markdown(f"<div class='block-quote-editorial'>{get_val(row, 'Q. 2.3')}</div>", unsafe_allow_html=True)
+    st.markdown(f"**Mission Directives:**")
+    st.markdown(f"<div class='block-quote-editorial'>{get_val(row, 'Q. 2.4')}</div>", unsafe_allow_html=True)
+    
+    st.write(f"**Latest Legislative / Operational Mandate:** {get_val(row, 'Q. 2.6')}")
+    st.write(f"**Staff Gender Metric (End of 2024):** {get_val(row, 'Q. 2.8')}")
 
-with infra2:
-    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-    st.markdown("**Regulatory Status**")
-    st.write(f"**Classification:** {row['Q. 3.3 - Hospital classification (per LTO 2024)']}")
-    st.write(f"**Capability Level:** {row['Q. 3.4 - Hospital capability level (per LTO 2024)']}")
-    st.write(f"**Malasakit Center Inception:** {row['Q. 3.8 - Year the Malasakit Center opened in the hospital']}")
-    st.markdown('</div>', unsafe_allow_html=True)
+# --- PHYSICAL INFRASTRUCTURE & CLASSIFICATION ---
+st.markdown('<div class="section-banner">II. INFRASTRUCTURE CAPACITY & LICENSING</div>', unsafe_allow_html=True)
+inf_c1, inf_c2, inf_c3 = st.columns(3)
 
-with infra3:
-    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-    st.markdown("**Bed Capacities**")
-    st.write(f"**Authorized (by Law):** {row['Q. 3.5 - Authorized bed capacity (by law)']}")
-    st.write(f"**Authorized (by License):** {row['Q. 3.6 - Authorized bed capacity (by license)']}")
-    st.write(f"**Implementing Capacity (2024):** {row['Q. 3.7 - Implementing bed capacity (as of 2024)']}")
-    st.markdown('</div>', unsafe_allow_html=True)
+with inf_c1:
+    st.markdown(f"""<div class="data-card">
+        <h4>Spatial Footprint</h4><hr style='margin:10px 0;'>
+        <b>Total Land Area:</b> {get_val(row, 'Q. 3.1')} sqm<br><br>
+        <b>Gross Floor Area:</b> {get_val(row, 'Q. 3.2')} sqm<br><br>
+        <b>Main Physical Location:</b> {get_val(row, 'Q. 1.4')}<br><br>
+        <b>Geospatial Mapping Coordinates:</b> {get_val(row, 'Q. 1.5')}
+    </div>""", unsafe_allow_html=True)
 
-# --- SECTION 3: APEX CLINICAL NETWORKS & SPECIALTY DESIGNATIONS ---
-st.markdown('<div class="section-banner">SECTION 3: CLINICAL CAPABILITIES & SPECIALTY DESIGNATIONS</div>', unsafe_allow_html=True)
-net_col1, net_col2 = st.columns(2)
-with net_col1:
-    st.write(f"**Eligible Apex/End-Referral Facility:** {row['Q. 3.9 (F) - Is the hospital an eligible apex or end-referral facility as of 2024?']}")
-    st.write(f"**Linked Health Care Provider Networks (HCPN):** {row['Q. 3.9.1 - List all health care provider networks (HCPN) linked to you as their apex/end-referral facility as of end of 2024']}")
-    st.write(f"**MOA / Legally Bound Networks:** {row['Q. 3.9.2 - List HCPNs that are linked to you, which have Memoranda of Agreements or other legal instruments as of end of 2024']}")
-with net_col2:
-    st.write(f"**Outside Main Location Operational Facilities:** {row['Q. 3.11 - Additional facilities owned and operated by the hospital outside of its main location as of 2024']}")
-    st.write(f"**Outside Main Location Contractual Facilities:** {row['Q. 3.12 - Additional facilities operated but not owned by the hospital outside its main location as of 2024']}")
-    st.write(f"**BUCAS Center Name:** {row['Q 3.13.1 - Name of BUCAS Center']} ({row['Q 3.13.2 - Address of the BUCAS Center (in-house/stand-alone)']})")
+with inf_c2:
+    st.markdown(f"""<div class="data-card">
+        <h4>Regulatory Classifications</h4><hr style='margin:10px 0;'>
+        <b>LTO Classification (2024):</b> {get_val(row, 'Q. 3.3')}<br><br>
+        <b>Clinical Capability Level:</b> {get_val(row, 'Q. 3.4')}<br><br>
+        <b>Malasakit Center Establishment Year:</b> {get_val(row, 'Q. 3.8')}
+    </div>""", unsafe_allow_html=True)
 
-st.markdown("##### DOH Designated Specialty Centers")
-specialty_fields = [
-    "BRAIN AND SPINE CARE", "BURN CARE", "CANCER CARE", "CARDIOVASCULAR CARE", 
-    "DERMATOLOGY CARE", "EYE CARE", "GERIATRIC CARE", "INFECTIOUS DISEASE AND TROPICAL MEDICINE", 
-    "LUNG CARE", "MENTAL HEALTH", "NEONATAL CARE", "ORTHOPEDIC CARE", 
-    "PHYSICAL REHABILITATION MEDICINE", "RENAL CARE AND KIDNEY TRANSPLANT", "TOXICOLOGY", "TRAUMA CARE"
+with inf_c3:
+    st.markdown(f"""<div class="data-card">
+        <h4>Bed Allocations Framework</h4><hr style='margin:10px 0;'>
+        <b>Authorized Capacity (Statutory Law):</b> {get_val(row, 'Q. 3.5')}<br><br>
+        <b>Authorized Capacity (DOH License):</b> {get_val(row, 'Q. 3.6')}<br><br>
+        <b>Actual Implementing Beds (As of 2024):</b> {get_val(row, 'Q. 3.7')}
+    </div>""", unsafe_allow_html=True)
+
+# --- APEX CARE STRATEGIES & NETWORKS ---
+st.markdown('<div class="section-banner">III. APEX REFERRAL STATUS & HEALTH NETWORKS</div>', unsafe_allow_html=True)
+ap_c1, ap_c2 = st.columns(2)
+with ap_c1:
+    st.write(f"**Eligible Apex or End-Referral Designation:** {get_val(row, 'Q. 3.9 (F)')}")
+    st.write(f"**Linked Health Care Provider Networks (HCPN):** {get_val(row, 'Q. 3.9.1')}")
+    st.write(f"**HCPN Binding Frameworks (MOAs/Legal Instruments):** {get_val(row, 'Q. 3.9.2')}")
+with ap_c2:
+    st.write(f"**External Owned & Operated Extensions:** {get_val(row, 'Q. 3.11')}")
+    st.write(f"**External Operated (Non-Owned) Extensions:** {get_val(row, 'Q. 3.12')}")
+    st.write(f"**Associated BUCAS Facility Hub:** {get_val(row, 'Q 3.13.1')} — *{get_val(row, 'Q 3.13.2')}*")
+
+# --- DESIGNATED SPECIALTY CENTERS SPECIAL INTERACTION ---
+st.write("#### Designated National Specialty Centers Matrix")
+has_specialties = get_val(row, 'Q. 3.10 (F)')
+st.write(f"*DOH Designated Specialty Center Status:* **{has_specialties}**")
+
+specialty_map = [
+    ("BRAIN AND SPINE CARE", "Q. 3.10.1"), ("BURN CARE", "Q. 3.10.2"),
+    ("CANCER CARE", "Q. 3.10.3"), ("CARDIOVASCULAR CARE", "Q. 3.10.4"),
+    ("DERMATOLOGY CARE", "Q. 3.10.5"), ("EYE CARE", "Q. 3.10.6"),
+    ("GERIATRIC CARE", "Q. 3.10.7"), ("INFECTIOUS DISEASE", "Q. 3.10.8"),
+    ("LUNG CARE", "Q. 3.10.9"), ("MENTAL HEALTH", "Q. 3.10.10"),
+    ("NEONATAL CARE", "Q. 3.10.11"), ("ORTHOPEDIC CARE", "Q. 3.10.12"),
+    ("PHYSICAL REHABILITATION", "Q. 3.10.13"), ("RENAL & KIDNEY TRANSPLANT", "Q. 3.10.14"),
+    ("TOXICOLOGY", "Q. 3.10.15"), ("TRAUMA CARE", "Q. 3.10.16")
 ]
 
-# Create a clean display grid for the active specialty items
-spec_cols = st.columns(4)
-for i, spec in enumerate(specialty_fields):
-    col_target = spec_cols[i % 4]
-    sheet_header_key = f"Q. 3.10.{i+1} - Are you designated with a specialty center on {spec}?"
-    if sheet_header_key in row and str(row[sheet_header_key]).strip().lower() == "yes":
-        col_target.markdown(f"🏛️ **{spec.title()}**")
+spec_grid = st.columns(4)
+for index, (label, token) in enumerate(specialty_map):
+    target_column = spec_grid[index % 4]
+    status = get_val(row, token, "No")
+    if "yes" in status.lower():
+        target_column.markdown(f"🔹 **{label}**: `Designated`")
+    else:
+        target_column.markdown(f"<span style='color:#B0AFA9;'>🔸 {label}: None</span>", unsafe_allow_html=True)
 
-# --- SECTION 4: HISTORICAL METRICS & PERFORMANCE DATA ---
-st.markdown('<div class="section-banner">SECTION 4: OPERATIONAL METRICS & ANNUAL TRENDS</div>', unsafe_allow_html=True)
+# --- CLINICAL PERFORMANCE AND HISTORICAL TRENDS MATRIX ---
+st.markdown('<div class="section-banner">IV. STATISTICAL REPORTING & CHRONOLOGICAL TRENDS</div>', unsafe_allow_html=True)
 
-metrics_data = {
-    "Metric Category": [
-        "Bed Occupancy Rate", 
-        "Inpatient Bed Days", 
-        "Average Daily Patients Served", 
-        "Average Daily Discharges", 
-        "Outpatient Visits", 
-        "Emergency Room Visits"
+metrics_table_structure = {
+    "Operational Tracking Metrics (Chronological)": [
+        "Bed Occupancy Rate (%)",
+        "Inpatient Bed Days Metrics",
+        "Average Daily Baseline Patients Served",
+        "Average Daily Administrative Discharges",
+        "Outpatient Clinical Visits Logged",
+        "Emergency Room Outpatient Visits"
     ],
-    "2022": [row["Q. 4.1.1 - Bed occupancy rate (2022)"], row["Q. 4.2.1 - Inpatient bed days (2022)"], row["Q. 4.3.1 - Average daily patients served (2022)"], row["Q. 4.4.1 - Average daily discharges (2022)"], row["Q. 4.5.1 - Outpatient visits (2022)"], row["Q. 4.6.1 - Emergency room visits (2022)"]],
-    "2023": [row["Q. 4.1.2 - Bed occupancy rate (2023)"], row["Q. 4.2.2 - Inpatient bed days (2023)"], row["Q. 4.3.2 - Average daily patients served (2023)"], row["Q. 4.4.2 - Average daily discharges (2023)"], row["Q. 4.5.2 - Outpatient visits (2023)"], row["Q. 4.6.2 - Emergency room visits (2023)"]],
-    "2024": [row["Q. 4.1.3 - Bed occupancy rate (2024)"], row["Q. 4.2.3 - Inpatient bed days (2024)"], row["Q. 4.3.3 - Average daily patients served (2024)"], row["Q. 4.4.3 - Average daily discharges (2024)"], row["Q. 4.5.3 - Outpatient visits (2024)"], row["Q. 4.6.3 - Emergency room visits (2024)"]]
+    "2022": [get_val(row, 'Q. 4.1.1'), get_val(row, 'Q. 4.2.1'), get_val(row, 'Q. 4.3.1'), get_val(row, 'Q. 4.4.1'), get_val(row, 'Q. 4.5.1'), get_val(row, 'Q. 4.6.1')],
+    "2023": [get_val(row, 'Q. 4.1.2'), get_val(row, 'Q. 4.2.2'), get_val(row, 'Q. 4.3.2'), get_val(row, 'Q. 4.4.2'), get_val(row, 'Q. 4.5.2'), get_val(row, 'Q. 4.6.2')],
+    "2024": [get_val(row, 'Q. 4.1.3'), get_val(row, 'Q. 4.2.3'), get_val(row, 'Q. 4.3.3'), get_val(row, 'Q. 4.4.3'), get_val(row, 'Q. 4.5.3'), get_val(row, 'Q. 4.6.3')]
 }
-st.table(pd.DataFrame(metrics_data).set_index("Metric Category"))
+st.table(pd.DataFrame(metrics_table_structure).set_index("Operational Tracking Metrics (Chronological)"))
 
-stat1, stat2, stat3 = st.columns(3)
-with stat1:
-    st.write(f"**Malasakit Financial Beneficiaries (2024):** {row['Q. 4.7 - Patients who received financial assistance through the Malasakit Center (2024; \"N/A\" if not applicable)']}")
-with stat2:
-    st.write(f"**Adult Female Patients (≥18, 2024):** {row['Q. 4.8 - Number (numerator/denominator) and percent of female patients aged 18 and above served (2024)']}")
-with stat3:
-    st.write(f"**Juvenile Female Patients (≤17, 2024):** {row['Q. 4.9 - Number (numerator/denominator) and percent of female patients aged 17 and below served (2024)']}")
+stat_box1, stat_box2, stat_box3 = st.columns(3)
+with stat_box1:
+    st.info(f"**Malasakit Financial Grant Recipients (2024):**\n\n {get_val(row, 'Q. 4.7')}")
+with stat_box2:
+    st.info(f"**Adult Female Patient Service Matrix (≥18):**\n\n {get_val(row, 'Q. 4.8')}")
+with stat_box3:
+    st.info(f"**Pediatric/Juvenile Female Patient Matrix (≤17):**\n\n {get_val(row, 'Q. 4.9')}")
 
-# --- SECTION 5: CERTIFICATIONS & RATINGS ---
-st.markdown('<div class="section-banner">SECTION 5: QUALITY COMPLIANCE & ACCREDITATIONS</div>', unsafe_allow_html=True)
-rate1, rate2, rate3 = st.columns(3)
-rate1.metric("Hospital Scorecard Rating (2024)", str(row["Q 5.1 - Hospital scorecard rating (2024)"]))
-rate2.metric("IHOMP Assessment Rating (2019)", str(row["Q 5.2 - IHOMP assessment rating (2019)"]))
-rate3.metric("Green Star Quality Rating (2024)", str(row["Q 5.3 - Green star rating (2024)"]))
+# --- COMPLIANCE, QUALITY STANDARDS & STRATEGIC RATINGS ---
+st.markdown('<div class="section-banner">V. QUALITY GOVERNANCE, RATINGS & ACCREDITATIONS</div>', unsafe_allow_html=True)
+score_c1, score_c2, score_c3 = st.columns(3)
 
-st.write(f"**ISO 9001 Certification Framework:** {row['Q. 5.4 - ISO 9001 certification body and latest year of certification (\"N/A\" if not applicable)']}")
-st.write(f"**PGS Milestone Attainment:** {row['Q. 5.5 - PGS status attained and/or award and year (\"N/A\" if not applicable)']}")
+score_c1.metric(label="Hospital Scorecard Rating (2024)", value=get_val(row, 'Q 5.1'))
+score_c2.metric(label="IHOMP Assessment Rating (2019)", value=get_val(row, 'Q 5.2'))
+score_c3.metric(label="Green Star Quality Rating (2024)", value=get_val(row, 'Q 5.3'))
 
-# --- SECTION 6: INSTITUTIONAL DIRECTORY ---
-st.markdown('<div class="section-banner">SECTION 6: MEDIA & INTER-AGENCY CONTACTS</div>', unsafe_allow_html=True)
-media1, media2 = st.columns(2)
-with media1:
-    st.markdown("**Public Touchpoints**")
-    st.write(f"📞 **Telephone:** {row['Q. 1.6 - Telephone number/s (\"N/A\" if not applicable)']}")
-    st.write(f"📱 **Mobile:** {row['Q. 1.7 - Mobile phone number/s (\"N/A\" if not applicable)']}")
-    st.write(f"📧 **Official Email:** {row['Q. 1.8 - Official email address/es (\"N/A\" if not applicable)']}")
-    st.write(f"🌐 **Web URL:** {row['Q. 1.9 - Official web address (\"N/A\" if not applicable)']}")
-    st.write(f"💬 **Social Media Channel:** {row['Q. 1.10 - Official social media account/s (\"N/A\" if not applicable)']}")
-with media2:
-    st.markdown("**Administrative Contact Person**")
-    st.write(f"👤 **Name:** {row['Q. 7.1 - Name of contact person']}")
-    st.write(f"💼 **Designated Role:** {row['Q 7.2 - Position title of the contact person']}")
-    st.write(f"🏢 **Assignment Unit:** {row['Q. 7.3 - Department/Division/Section/Unit']}")
-    st.write(f"📱 **Secure Phone Line:** {row['Q. 7.4 - Personal mobile number']}")
-    st.write(f"📧 **Direct Work Email:** {row['Q. 7.5 - Personal email address']}")
+st.write(f"**ISO 9001 Certification Parameters (Body & Year):** {get_val(row, 'Q. 5.4')}")
+st.write(f"**Performance Governance System (PGS) Strategic Status:** {get_val(row, 'Q. 5.5')}")
 
-# --- BOTTOM FOOTER NAVIGATION ---
-st.markdown("---")
-btm_col1, btm_col2, btm_col3 = st.columns([1, 2, 1])
-with btm_col1:
-    st.button("◀ Previous Facility", on_click=prev_page, disabled=(st.session_state.page_index == 0), key="btm_prev")
-with btm_col2:
-    st.markdown(f"<p style='text-align: center; color: gray;'>Profile {st.session_state.page_index + 1} of {total_hospitals}</p>", unsafe_allow_html=True)
-with btm_col3:
-    st.button("Next Facility ▶", on_click=next_page, disabled=(st.session_state.page_index == total_hospitals - 1), key="btm_next")
+# --- EXTERNAL CONTACTS AND CORRESPONDENCE TRACKING DIRECTORY ---
+st.markdown('<div class="section-banner">VI. CHANNELS OF CORRESPONDENCE & DIRECTORY INFO</div>', unsafe_allow_html=True)
+contact_spread_l, contact_spread_r = st.columns(2)
+
+with contact_spread_l:
+    st.markdown("""<div class="data-card" style="border-left: 4px solid #4A6B82;">
+        <h5>Public Structural Touchpoints</h5><br>
+        <b>Landline Connections:</b> """ + get_val(row, 'Q. 1.6') + """<br>
+        <b>Mobile Hotlines:</b> """ + get_val(row, 'Q. 1.7') + """<br>
+        <b>Official Corporate Email:</b> """ + get_val(row, 'Q. 1.8') + """<br>
+        <b>Web Domain:</b> """ + get_val(row, 'Q. 1.9') + """<br>
+        <b>Social Media Portals:</b> """ + get_val(row, 'Q. 1.10') + """
+    </div>""", unsafe_allow_html=True)
+
+with contact_spread_r:
+    st.markdown("""<div class="data-card" style="border-left: 4px solid #824A4A;">
+        <h5>Internal Administrative Liaison Profile</h5><br>
+        <b>Contact Coordinator:</b> """ + get_val(row, 'Q. 7.1') + """<br>
+        <b>Official Position Title:</b> """ + get_val(row, 'Q 7.2') + """<br>
+        <b>Department / Operating Unit:</b> """ + get_val(row, 'Q. 7.3') + """<br>
+        <b>Direct Mobile Connection:</b> """ + get_val(row, 'Q. 7.4') + """<br>
+        <b>Direct Correspondence Email:</b> """ + get_val(row, 'Q. 7.5') + """
+    </div>""", unsafe_allow_html=True)
+
+# --- FOOTER MAGAZINE PAGE-FLIP NAVIGATION BLOCK ---
+st.markdown("<hr style='border-top: 2px solid #E2DCD2;'>", unsafe_allow_html=True)
+nav_b1, nav_b2, nav_b3 = st.columns([1, 2, 1])
+with nav_b1:
+    st.button("◀ Previous Profile Page", on_click=page_backward, disabled=(st.session_state.page_index == 0), key="b_prev")
+with nav_b2:
+    st.markdown(f"<p style='text-align: center; color: #767571; font-family: Georgia, serif;'>Profile Sheet {st.session_state.page_index + 1} of {total_records}</p>", unsafe_allow_html=True)
+with nav_b3:
+    st.button("Next Profile Page ▶", on_click=page_forward, disabled=(st.session_state.page_index == total_records - 1), key="b_next")
