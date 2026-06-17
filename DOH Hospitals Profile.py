@@ -11,10 +11,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- EDITORIAL SYSTEM DESIGN (CSS WITH BUTTON FIXES) ---
+# --- EDITORIAL SYSTEM DESIGN (CSS PRESETS) ---
 st.markdown("""
     <style>
-    /* Premium editorial paper texture style background */
     .stApp {
         background-color: #FAF8F5;
         color: #2B2A28;
@@ -62,10 +61,10 @@ st.markdown("""
         margin: 10px 0;
     }
     
-    /* --- NAVIGATION BUTTON HIGH CONTRAST OVERRIDES --- */
+    /* --- NAVIGATION BUTTON CONTRAST OVERRIDES --- */
     div.stButton > button {
-        background-color: #7D6E57 !important; /* Warm editorial brown */
-        color: #FFFFFF !important;            /* High contrast crisp white text */
+        background-color: #7D6E57 !important;
+        color: #FFFFFF !important;            
         border: 1px solid #7D6E57 !important;
         border-radius: 4px !important;
         padding: 0.5rem 1.5rem !important;
@@ -74,50 +73,44 @@ st.markdown("""
         width: 100%;
     }
     div.stButton > button:hover {
-        background-color: #5D513F !important; /* Elegant dark shade on hover */
+        background-color: #5D513F !important; 
         color: #FFFFFF !important;
         border-color: #5D513F !important;
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     div.stButton > button:disabled {
-        background-color: #E2DCD2 !important; /* Clean muted gray-cream when unclickable */
+        background-color: #E2DCD2 !important; 
         color: #A19B91 !important;
         border-color: #E2DCD2 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- ROBUST GOOGLE FORMS LINK TRANSLATOR ---
-def convert_drive_url(url):
-    """Converts a standard or Google Form uploaded Drive link into a raw direct image stream."""
-    url = str(url).strip()
-    if not url or url.lower() == "n/a" or url == "":
+# --- ROBUST GOOGLE FORMS LINK INTERPRETER ---
+def convert_drive_url(url_string):
+    """
+    Extracts explicit Google Drive IDs out of cluttered Form submissions 
+    (e.g. 'image.jpg (https://drive.google.com/...)') and targets a secure stream.
+    """
+    url_string = str(url_string).strip()
+    if not url_string or url_string.lower() == "n/a" or url_string == "":
         return None
         
-    if "drive.google.com" in url:
-        file_id = None
-        # Handle form link format 1: /file/d/[ID]/view
-        if "/file/d/" in url:
-            match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
-            if match:
-                file_id = match.group(1)
-        # Handle form link format 2: open?id=[ID] or uc?id=[ID]
-        elif "id=" in url:
-            match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
-            if match:
-                file_id = match.group(1)
-                
-        if file_id:
-            return f"https://drive.google.com/uc?export=view&id={file_id}"
+    # Regex locates the target ID string following 'id=' or '/file/d/'
+    match = re.search(r'(?:id=|/file/d/)([a-zA-Z0-9_-]+)', url_string)
+    if match:
+        file_id = match.group(1)
+        # Using the thumbnail pipeline with a size boundary avoids cross-origin browser 403 errors
+        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
             
-    if url.startswith("http://") or url.startswith("https://"):
-        return url
+    if url_string.startswith("http://") or url_string.startswith("https://"):
+        return url_string
         
     return None
 
-# --- SAFE IMAGE RENDERING FRAMEWORK ---
+# --- SAFE IMAGE RENDERING MATRIX ---
 def display_magazine_image(url_string, caption_text, width_override=None):
-    """Safely renders single or multi-url image arrays with neat textual placeholders if missing."""
+    """Safely extracts data elements and draws image nodes or muted placeholders."""
     cleaned_url = convert_drive_url(url_string)
     if cleaned_url:
         if width_override:
@@ -125,7 +118,7 @@ def display_magazine_image(url_string, caption_text, width_override=None):
         else:
             st.image(cleaned_url, caption=caption_text, use_container_width=True)
     else:
-        st.caption(f"ℹ️ *No publication image file attached for {caption_text}*")
+        st.caption(f"ℹ️ *No publication image asset found for {caption_text}*")
 
 # --- AUTHENTICATION & SECURITY CONTROL ---
 @st.cache_data(ttl=600)
@@ -180,7 +173,7 @@ def page_backward():
     if st.session_state.page_index > 0:
         st.session_state.page_index -= 1
 
-# --- TOP EDITORIAL NAVIGATION BAR ---
+# --- TOP NAVIGATION INTERFACE ---
 nav_t1, nav_t2, nav_t3 = st.columns([1, 2, 1])
 with nav_t1:
     st.button("◀ Previous Page", on_click=page_backward, disabled=(st.session_state.page_index == 0), key="t_prev")
@@ -196,7 +189,7 @@ with nav_t2:
 with nav_t3:
     st.button("Next Page ▶", on_click=page_forward, disabled=(st.session_state.page_index == total_records - 1), key="t_next")
 
-# Extract focused row context
+# Target Row Context
 row = df.iloc[st.session_state.page_index]
 
 # --- FACILITY COVER PAGE HEADER ---
@@ -209,17 +202,16 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- MAIN PAGE SPREAD: VISUAL SIDE vs IDENTITY SIDE ---
+# --- MAIN SPREAD WINDOW ---
 spread_left, spread_right = st.columns([2, 3])
 
 with spread_left:
-    # Asset Management Grid with Fixed Auto-Drive Translations
     seal_val = get_val(row, 'Q. 6.3')
     display_magazine_image(seal_val, "Official Institutional Seal", width_override=150)
         
     facade_val = get_val(row, 'Q. 6.1')
     if facade_val != "N/A":
-        # Google Forms handles multiple file uploads separated by commas
+        # Split multi-photo entries if form upload has more than one item
         facade_urls = facade_val.split(',')
         display_magazine_image(facade_urls[0].strip(), "Exterior Facade (Primary View)")
         if len(facade_urls) > 1 and facade_urls[1].strip():
@@ -317,7 +309,7 @@ for index, (label, token) in enumerate(specialty_map):
     else:
         target_column.markdown(f"<span style='color:#B0AFA9;'>🔸 {label}: None</span>", unsafe_allow_html=True)
 
-# --- CLINICAL PERFORMANCE AND HISTORICAL TRENDS MATRIX ---
+# --- PERFORMANCE CHRONOLOGICAL TRENDS ---
 st.markdown('<div class="section-banner">IV. STATISTICAL REPORTING & CHRONOLOGICAL TRENDS</div>', unsafe_allow_html=True)
 
 metrics_table_structure = {
@@ -343,7 +335,7 @@ with stat_box2:
 with stat_box3:
     st.info(f"**Pediatric/Juvenile Female Patient Matrix (≤17):**\n\n {get_val(row, 'Q. 4.9')}")
 
-# --- COMPLIANCE, QUALITY STANDARDS & STRATEGIC RATINGS ---
+# --- GOVERNANCE & ACEREDITATIONS ---
 st.markdown('<div class="section-banner">V. QUALITY GOVERNANCE, RATINGS & ACCREDITATIONS</div>', unsafe_allow_html=True)
 score_c1, score_c2, score_c3 = st.columns(3)
 
@@ -354,7 +346,7 @@ score_c3.metric(label="Green Star Quality Rating (2024)", value=get_val(row, 'Q 
 st.write(f"**ISO 9001 Certification Parameters (Body & Year):** {get_val(row, 'Q. 5.4')}")
 st.write(f"**Performance Governance System (PGS) Strategic Status:** {get_val(row, 'Q. 5.5')}")
 
-# --- EXTERNAL CONTACTS DIRECTORY ---
+# --- CONTACT COMMUNICATIONS DIRECTORY ---
 st.markdown('<div class="section-banner">VI. CHANNELS OF CORRESPONDENCE & DIRECTORY INFO</div>', unsafe_allow_html=True)
 contact_spread_l, contact_spread_r = st.columns(2)
 
