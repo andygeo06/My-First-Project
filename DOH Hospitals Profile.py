@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import re
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- PAGE CONFIGURATION ---
@@ -10,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- EDITORIAL SYSTEM DESIGN (CSS) ---
+# --- EDITORIAL SYSTEM DESIGN (CSS WITH BUTTON FIXES) ---
 st.markdown("""
     <style>
     /* Premium editorial paper texture style background */
@@ -60,8 +61,43 @@ st.markdown("""
         color: #4A4946;
         margin: 10px 0;
     }
+    
+    /* --- STRICT NAVIGATION BUTTON STYLING OVERRIDES --- */
+    div.stButton > button {
+        background-color: #7D6E57 !important; /* Warm editorial brown */
+        color: #FFFFFF !important;            /* Crisp white text */
+        border: 1px solid #7D6E57 !important;
+        border-radius: 4px !important;
+        padding: 0.5rem 1.5rem !important;
+        font-weight: bold !important;
+        transition: all 0.2s ease-in-out;
+        width: 100%;
+    }
+    div.stButton > button:hover {
+        background-color: #5D513F !important; /* Slightly darker shade on hover */
+        color: #FFFFFF !important;
+        border-color: #5D513F !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    div.stButton > button:disabled {
+        background-color: #E2DCD2 !important; /* Muted gray-cream when disabled */
+        color: #A19B91 !important;
+        border-color: #E2DCD2 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
+
+# --- AUTOMATIC GOOGLE DRIVE URL CONVERTER ---
+def convert_drive_url(url):
+    """Converts a standard Google Drive sharing link into a direct image stream link."""
+    url = str(url).strip()
+    if "drive.google.com" in url:
+        # Extract the file ID using regex
+        match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+        if match:
+            file_id = match.group(1)
+            return f"https://drive.google.com/uc?export=view&id={file_id}"
+    return url
 
 # --- AUTHENTICATION & SECURITY CONTROL ---
 @st.cache_data(ttl=600)
@@ -73,7 +109,6 @@ def load_sheet_data():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Safely parse service account block dictionary from st.secrets TOML
     creds_dict = dict(st.secrets["gcp_service_account"])
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
@@ -81,7 +116,6 @@ def load_sheet_data():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     
-    # Connect using the public/private sheet URL parameter matching your secrets file
     sheet_url = st.secrets["GSHEETS_URL"]
     workbook = client.open_by_url(sheet_url)
     sheet = workbook.worksheet("DATA")
@@ -95,7 +129,6 @@ except Exception as e:
     st.stop()
 
 # --- RESILIENT DATA LOOKUP ENGINE ---
-# This ensures string mismatches, single quotes, or minor tracking variations won't break runtime execution.
 def get_val(row_data, prefix_token, fallback="N/A"):
     matched_col = [col for col in row_data.index if str(col).strip().startswith(prefix_token)]
     if matched_col:
@@ -119,7 +152,7 @@ def page_backward():
     if st.session_state.page_index > 0:
         st.session_state.page_index -= 1
 
-# --- TOP EDITORIAL NAVIGATIONSpread BAR ---
+# --- TOP EDITORIAL NAVIGATION BAR ---
 nav_t1, nav_t2, nav_t3 = st.columns([1, 2, 1])
 with nav_t1:
     st.button("◀ Previous Page", on_click=page_backward, disabled=(st.session_state.page_index == 0), key="t_prev")
@@ -152,19 +185,19 @@ st.markdown(f"""
 spread_left, spread_right = st.columns([2, 3])
 
 with spread_left:
-    # Asset Management Grid (Seals, portraits and landscapes)
-    seal_url = get_val(row, 'Q. 6.3')
+    # Asset Management Grid with Auto-Drive Translation
+    seal_url = convert_drive_url(get_val(row, 'Q. 6.3'))
     if seal_url != "N/A":
         st.image(seal_url, caption="Official Institutional Seal", width=150)
         
     facade_val = get_val(row, 'Q. 6.1')
     if facade_val != "N/A":
         facade_urls = facade_val.split(',')
-        st.image(facade_urls[0].strip(), caption="Exterior Facade (Primary View)", use_container_width=True)
-        if len(facade_urls) > 1:
-            st.image(facade_urls[1].strip(), caption="Exterior Facade (Alternate View)", use_container_width=True)
+        st.image(convert_drive_url(facade_urls[0].strip()), caption="Exterior Facade (Primary View)", use_container_width=True)
+        if len(facade_urls) > 1 and facade_urls[1].strip():
+            st.image(convert_drive_url(facade_urls[1].strip()), caption="Exterior Facade (Alternate View)", use_container_width=True)
             
-    lobby_url = get_val(row, 'Q. 6.2')
+    lobby_url = convert_drive_url(get_val(row, 'Q. 6.2'))
     if lobby_url != "N/A":
         st.image(lobby_url, caption="Main Interior Lobby", use_container_width=True)
 
@@ -173,7 +206,7 @@ with spread_right:
     
     chief_col1, chief_col2 = st.columns([1, 2])
     with chief_col1:
-        chief_img = get_val(row, 'Q. 6.4')
+        chief_img = convert_drive_url(get_val(row, 'Q. 6.4'))
         if chief_img != "N/A":
             st.image(chief_img, use_container_width=True, caption="Chief of Facility")
     with chief_col2:
@@ -231,7 +264,7 @@ with ap_c2:
     st.write(f"**External Operated (Non-Owned) Extensions:** {get_val(row, 'Q. 3.12')}")
     st.write(f"**Associated BUCAS Facility Hub:** {get_val(row, 'Q 3.13.1')} — *{get_val(row, 'Q 3.13.2')}*")
 
-# --- DESIGNATED SPECIALTY CENTERS SPECIAL INTERACTION ---
+# --- DESIGNATED SPECIALTY CENTERS ---
 st.write("#### Designated National Specialty Centers Matrix")
 has_specialties = get_val(row, 'Q. 3.10 (F)')
 st.write(f"*DOH Designated Specialty Center Status:* **{has_specialties}**")
@@ -293,7 +326,7 @@ score_c3.metric(label="Green Star Quality Rating (2024)", value=get_val(row, 'Q 
 st.write(f"**ISO 9001 Certification Parameters (Body & Year):** {get_val(row, 'Q. 5.4')}")
 st.write(f"**Performance Governance System (PGS) Strategic Status:** {get_val(row, 'Q. 5.5')}")
 
-# --- EXTERNAL CONTACTS AND CORRESPONDENCE TRACKING DIRECTORY ---
+# --- EXTERNAL CONTACTS DIRECTORY ---
 st.markdown('<div class="section-banner">VI. CHANNELS OF CORRESPONDENCE & DIRECTORY INFO</div>', unsafe_allow_html=True)
 contact_spread_l, contact_spread_r = st.columns(2)
 
@@ -317,7 +350,7 @@ with contact_spread_r:
         <b>Direct Correspondence Email:</b> """ + get_val(row, 'Q. 7.5') + """
     </div>""", unsafe_allow_html=True)
 
-# --- FOOTER MAGAZINE PAGE-FLIP NAVIGATION BLOCK ---
+# --- BOTTOM FOOTER NAVIGATION ---
 st.markdown("<hr style='border-top: 2px solid #E2DCD2;'>", unsafe_allow_html=True)
 nav_b1, nav_b2, nav_b3 = st.columns([1, 2, 1])
 with nav_b1:
