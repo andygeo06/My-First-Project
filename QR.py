@@ -20,26 +20,30 @@ def generate_qr(data):
 st.title("🔗 Bulk Link to QR Code Converter")
 
 # Use text_area for multi-line input
-links_input = st.text_area("Paste your links here (one link per line):")
+links_input = st.text_area("Paste your links here (one link per line):", height=150)
 
-if links_input:
-    # Split input by newline and remove empty lines
-    links = [line for line in links_input.split('\n') if line.strip()]
-    
-    st.write(f"Generating {len(links)} QR codes...")
-    
-    # Use columns to display QR codes in a grid (2 columns)
-    cols = st.columns(2)
-    
-    for index, link in enumerate(links):
-        qr_buffer = generate_qr(link)
+# The initialization button
+if st.button("Initialize Generation"):
+    if links_input:
+        # Split input by newline and remove empty lines
+        links = [line for line in links_input.split('\n') if line.strip()]
         
-        # Display in alternating columns
-        with cols[index % 2]:
-            st.image(qr_buffer, caption=f"QR for: {link[:20]}...", use_container_width=True)
-            st.download_button(
-                label=f"Download {index + 1}",
-                data=qr_buffer,
-                file_name=f"qrcode_{index + 1}.png",
-                mime="image/png"
-            )
+        st.success(f"Processing {len(links)} links...")
+        
+        # Use columns to display QR codes in a grid (2 columns)
+        cols = st.columns(2)
+        
+        for index, link in enumerate(links):
+            qr_buffer = generate_qr(link)
+            
+            # Display in alternating columns
+            with cols[index % 2]:
+                st.image(qr_buffer, caption=f"QR {index + 1}", use_container_width=True)
+                st.download_button(
+                    label=f"Download QR {index + 1}",
+                    data=qr_buffer,
+                    file_name=f"qrcode_{index + 1}.png",
+                    mime="image/png"
+                )
+    else:
+        st.warning("Please paste at least one link before initializing.")
