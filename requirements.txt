@@ -6,3 +6,5 @@ gspread
 oauth2client
 streamlit-calendar
 streamlit-browser-storage
+qrcode[pil]
+streamlit
