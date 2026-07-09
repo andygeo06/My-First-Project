@@ -3,41 +3,43 @@ import qrcode
 from io import BytesIO
 
 def generate_qr(data):
-    # Create QR code object
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
         border=4,
     )
-    qr.add_data(data)
+    qr.add_data(data.strip())
     qr.make(fit=True)
-    
-    # Create an image from the QR Code instance
     img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Save image to a bytes buffer
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-st.title("🔗 Link to QR Code Converter")
+st.title("🔗 Bulk Link to QR Code Converter")
 
-# User input
-url_input = st.text_input("Enter your link here:")
+# Use text_area for multi-line input
+links_input = st.text_area("Paste your links here (one link per line):")
 
-if url_input:
-    # Generate the QR code
-    qr_buffer = generate_qr(url_input)
+if links_input:
+    # Split input by newline and remove empty lines
+    links = [line for line in links_input.split('\n') if line.strip()]
     
-    # Display the image in Streamlit
-    st.image(qr_buffer, caption="Scan this code", use_container_width=False)
+    st.write(f"Generating {len(links)} QR codes...")
     
-    # Add a download button
-    st.download_button(
-        label="Download QR Code",
-        data=qr_buffer,
-        file_name="qrcode.png",
-        mime="image/png"
-    )
+    # Use columns to display QR codes in a grid (2 columns)
+    cols = st.columns(2)
+    
+    for index, link in enumerate(links):
+        qr_buffer = generate_qr(link)
+        
+        # Display in alternating columns
+        with cols[index % 2]:
+            st.image(qr_buffer, caption=f"QR for: {link[:20]}...", use_container_width=True)
+            st.download_button(
+                label=f"Download {index + 1}",
+                data=qr_buffer,
+                file_name=f"qrcode_{index + 1}.png",
+                mime="image/png"
+            )
