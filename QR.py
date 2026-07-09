@@ -3,48 +3,54 @@ import qrcode
 from io import BytesIO
 
 def generate_qr(data):
-    # Ensure the data starts with http:// or https://
-    formatted_data = data.strip()
-    if not formatted_data.startswith(("http://", "https://")):
-        formatted_data = "https://" + formatted_data
+    # Aggressive cleaning: remove whitespace, tabs, and newlines
+    clean_data = "".join(data.split())
+    
+    # Force add https:// if it is missing
+    if not clean_data.lower().startswith(("http://", "https://")):
+        clean_data = "https://" + clean_data
         
+    # Use High error correction (better for dense/complex URLs)
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=10,
         border=4,
     )
-    qr.add_data(formatted_data)
-    qr.add_data(data.strip())
+    qr.add_data(clean_data)
     qr.make(fit=True)
+    
     img = qr.make_image(fill_color="black", back_color="white")
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-st.title("🔗 Bulk Link to QR Code Converter")
+st.title("🔗 HFDB Professional Bulk QR Generator")
 
-# Use text_area for multi-line input
-links_input = st.text_area("Paste your links here (one link per line):", height=150)
+st.markdown("""
+Paste your links below. Each link will be automatically formatted for **direct mobile browser opening**. 
+Use your phone's **native camera app** for the best experience.
+""")
 
-# The initialization button
+# Text area for bulk input
+links_input = st.text_area("Paste your links here (one per line):", height=200)
+
 if st.button("Initialize Generation"):
     if links_input:
-        # Split input by newline and remove empty lines
+        # Split by lines and remove empty ones
         links = [line for line in links_input.split('\n') if line.strip()]
         
-        st.success(f"Processing {len(links)} links...")
+        st.success(f"Successfully processed {len(links)} link(s).")
         
-        # Use columns to display QR codes in a grid (2 columns)
+        # Grid layout for readability
         cols = st.columns(2)
         
         for index, link in enumerate(links):
             qr_buffer = generate_qr(link)
             
-            # Display in alternating columns
             with cols[index % 2]:
-                st.image(qr_buffer, caption=f"QR {index + 1}", use_container_width=True)
+                st.image(qr_buffer, caption=f"Link {index + 1}", use_container_width=True)
                 st.download_button(
                     label=f"Download QR {index + 1}",
                     data=qr_buffer,
