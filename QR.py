@@ -3,12 +3,18 @@ import qrcode
 from io import BytesIO
 
 def generate_qr(data):
+    # Ensure the data starts with http:// or https://
+    formatted_data = data.strip()
+    if not formatted_data.startswith(("http://", "https://")):
+        formatted_data = "https://" + formatted_data
+        
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
         border=4,
     )
+    qr.add_data(formatted_data)
     qr.add_data(data.strip())
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
