@@ -100,9 +100,10 @@ try:
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
-    df_in_raw = pd.DataFrame(pad_in)
-    df_out_raw = pd.DataFrame(pad_out)
-    user_df = pd.DataFrame(pad_user)
+    # Initialize with predefined columns if the lists are empty to prevent 0-column errors
+    df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
+    df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
+    user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
     
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_in.columns = [str(i) for i in range(14)]
