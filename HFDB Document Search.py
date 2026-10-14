@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 
 # --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
+st.set_page_config(page_title="HFDB Document Searching Tool - Test Version", layout="wide")
 
 st.markdown("""
     <style>
@@ -72,16 +72,19 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-# Cache the data fetching for 30 seconds to prevent API Quota Limits!
+# Cache data with TTL=0 for testing/debugging purposes
 @st.cache_data(ttl=0, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
     
-    # Bypass name lookup entirely and fetch by sheet index position
-    # (Index 0 is first tab, so find the position of your OUT tab)
+    # Safe fallback lookup for OUT worksheet to bypass naming/string match bugs
     ws_in = d.worksheet("IN")
-    ws_out = d.get_worksheet(5) # Grabs the 6th tab directly by index
+    try:
+        ws_out = d.worksheet("OUT")
+    except:
+        ws_out = d.get_worksheet(5) # Fallback to index position if name fails
+        
     ws_user = d.worksheet("USER")
     ws_link = d.worksheet("LINK_DB")
     
@@ -169,7 +172,7 @@ def mass_search_filter(df, query):
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
-    st.title("HFDB Documents")
+    st.title("HFDB Documents (Test Build)")
     tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
     config_in = { df_in.columns[i]: st.column_config.TextColumn(list(["Received","Time","DTRAK No.","Control No.","Subject","Doc Type","Origin","Acted","Time","Sent","Division","Staff","Tag","Action Taken"])[i]) for i in range(14) }
@@ -273,19 +276,19 @@ with col_main:
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
-    # --- HOTSWAP DEBUG TOGGLE ---
+    # --- HOTSWAP TOGGLE ---
     with st.expander("🛠️ Hotswap Controls"):
-        debug_mode = st.checkbox("Enable Diagnostic Mode", value=False)
+        debug_mode = st.checkbox("Enable Diagnostic Mode", value=True)
 
-    # --- DIAGNOSTIC MODE VIEW ---
+    # --- DIAGNOSTIC MODE PANEL ---
     if debug_mode:
-        st.markdown('<div class="action-panel" style="border-color: #ffc107;">', unsafe_allow_html=True)
-        st.markdown("### 🔍 Diagnostic Mode")
-        st.write(f"**OUT Raw Row Count:** `{len(data_out)}`")
+        st.markdown('<div class="action-panel" style="border-color: #ffc107; margin-bottom: 15px;">', unsafe_allow_html=True)
+        st.markdown("### 🔍 Live Diagnostics")
+        st.write(f"**OUT Raw Rows Fetched:** `{len(data_out)}`")
         st.write(f"**OUT DataFrame Shape:** `{df_out.shape}`")
-        st.write(f"**Row 0 (Title):** `{data_out[0][:2] if len(data_out) > 0 else 'N/A'}`")
-        st.write(f"**Row 1 (Header):** `{data_out[1][:2] if len(data_out) > 1 else 'N/A'}`")
-        st.write(f"**Row 2 (Data):** `{data_out[2][:2] if len(data_out) > 2 else 'N/A'}`")
+        st.write(f"**Row 0 (Index 0):** `{data_out[0][:2] if len(data_out) > 0 else 'N/A'}`")
+        st.write(f"**Row 1 (Index 1):** `{data_out[1][:2] if len(data_out) > 1 else 'N/A'}`")
+        st.write(f"**Row 2 (Index 2):** `{data_out[2][:2] if len(data_out) > 2 else 'N/A'}`")
         st.markdown('</div>', unsafe_allow_html=True)
 
     sel_in = selection_in.selection.rows
