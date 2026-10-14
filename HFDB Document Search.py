@@ -73,22 +73,23 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 # Cache the data fetching for 30 seconds to prevent API Quota Limits!
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=0, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
     
-    # Safe fallback extraction for OUT worksheet to prevent connection lookup errors
-    try:
-        ws_out = d.worksheet("OUT")
-    except:
-        ws_out = d.get_worksheet(5) # Fallback index position for OUT tab
-        
+    # Bypass name lookup entirely and fetch by sheet index position
+    # (Index 0 is first tab, so find the position of your OUT tab)
+    ws_in = d.worksheet("IN")
+    ws_out = d.get_worksheet(5) # Grabs the 6th tab directly by index
+    ws_user = d.worksheet("USER")
+    ws_link = d.worksheet("LINK_DB")
+    
     return (
-        d.worksheet("IN").get_all_values(),
+        ws_in.get_all_values(),
         ws_out.get_all_values(),
-        d.worksheet("USER").get_all_values(),
-        d.worksheet("LINK_DB").get_all_values()
+        ws_user.get_all_values(),
+        ws_link.get_all_values()
     )
 
 try:
