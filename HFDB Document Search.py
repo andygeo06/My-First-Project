@@ -89,10 +89,8 @@ try:
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
     
-    # We define this here so the "Confirm Link" button has permission to write data later
     ws_link = doc.worksheet("LINK_DB")
     
-    # Load data using the new cached function
     data_in, data_out, data_user, data_link = fetch_sheet_data()
     
     MIN_COLS = 20
@@ -100,7 +98,6 @@ try:
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
-    # Initialize with predefined columns if the lists are empty to prevent 0-column errors
     df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
     df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
     user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
@@ -150,7 +147,7 @@ def send_signal(user_name, user_email, dtrak_list):
         except: return False
     return True
 
-# --- NEW: MASS SEARCH HELPER FUNCTION ---
+# --- MASS SEARCH HELPER FUNCTION ---
 def mass_search_filter(df, query):
     if not query:
         return df
@@ -293,9 +290,15 @@ with col_action:
         st.write(f"**Selected:** {total_selected}")
         
         selected_dtraks = []
-        if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
-        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
-        for d in selected_dtraks: st.info(f"📄 {d}")
+        if sel_in: 
+            selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
+        if sel_out: 
+            # Safely grab from column index 5 (Current DTRAK No.) or fallback to column index 3 if out of bounds
+            col_idx = 5 if filtered_out.shape[1] > 5 else 3
+            selected_dtraks.extend(filtered_out.iloc[sel_out, col_idx].tolist())
+            
+        for d in selected_dtraks: 
+            st.info(f"📄 {d}")
         
         if st.button("SEND TO MY EMAIL"):
             if not user_name: st.error("Select name!")
