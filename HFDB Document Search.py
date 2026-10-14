@@ -66,15 +66,28 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-@st.cache_data(ttl=0, show_spinner=False)  # TTL set to 0 to bypass cache during testing!
+@st.cache_data(ttl=0, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
+    
+    # Fetch worksheets safely by index or name to avoid string mismatch issues
+    ws_in = d.worksheet("IN")
+    # If the named worksheet fails or returns a ref error, we can grab it by index (e.g., sheet index)
+    try:
+        ws_out = d.worksheet("OUT")
+    except:
+        ws_out = d.get_worksheet(5) # Fallback to worksheet index if name lookup fails
+        
+    ws_user = d.worksheet("USER")
+    ws_link = d.worksheet("LINK_DB")
+    
     return (
-        d.worksheet("IN").get_all_values(),
-        d.worksheet("OUT").get_all_values(),
-        d.worksheet("USER").get_all_values(),
-        d.worksheet("LINK_DB").get_all_values()
+        ws_in.get_all_values(),
+        ws_out.get_all_values(),
+        ws_user.get_all_values(),
+        ws_link.get_all_values()
+    )
     )
 
 try:
