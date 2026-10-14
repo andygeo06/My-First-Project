@@ -324,3 +324,25 @@ with col_action:
     else:
         st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
+
+@st.cache_data(ttl=0, show_spinner=False)
+def fetch_sheet_data():
+    c = get_gspread_client()
+    d = c.open_by_url(st.secrets["GSHEETS_URL"])
+    
+    # Print all sheet titles to see what gspread detects
+    all_worksheets = d.worksheets()
+    sheet_names_debug = [ws.title for ws in all_worksheets]
+    st.write("📋 **Detected Worksheets in Google Sheets:**", sheet_names_debug)
+    
+    ws_in = d.worksheet("IN")
+    ws_out = d.worksheet("OUT")
+    ws_user = d.worksheet("USER")
+    ws_link = d.worksheet("LINK_DB")
+    
+    return (
+        ws_in.get_all_values(),
+        ws_out.get_all_values(),
+        ws_user.get_all_values(),
+        ws_link.get_all_values()
+    )
