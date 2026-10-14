@@ -89,15 +89,18 @@ try:
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
     
+    # We define this here so the "Confirm Link" button has permission to write data later
     ws_link = doc.worksheet("LINK_DB")
     
+    # Load data using the cached function
     data_in, data_out, data_user, data_link = fetch_sheet_data()
     
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
-    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]] # Fixed: Skips title row & header row properly, starting data on row index 2
+    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
+    # Safely initialize DataFrames with fallback columns to prevent length/0-column mismatches
     df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
     df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
     user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
@@ -290,20 +293,9 @@ with col_action:
         st.write(f"**Selected:** {total_selected}")
         
         selected_dtraks = []
-        if sel_in: 
-            selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
-        if sel_out: 
-            for idx in sel_out:
-                row_vals = filtered_out.iloc[idx]
-                val = str(row_vals.get("5", row_vals.iloc[5] if len(row_vals) > 5 else ""))
-                if not val.strip():
-                    val = str(row_vals.get("2", row_vals.iloc[2] if len(row_vals) > 2 else ""))
-                if not val.strip() and len(row_vals) > 3:
-                    val = str(row_vals.iloc[3])
-                selected_dtraks.append(val)
-            
-        for d in selected_dtraks: 
-            st.info(f"📄 {d}")
+        if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
+        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
+        for d in selected_dtraks: st.info(f"📄 {d}")
         
         if st.button("SEND TO MY EMAIL"):
             if not user_name: st.error("Select name!")
