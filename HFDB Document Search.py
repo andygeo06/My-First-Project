@@ -95,7 +95,7 @@ try:
     
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
-    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[1:]] # Fixed slice to capture data starting at row index 1
+    pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]] # Fixed: Skips title row & header row properly, starting data on row index 2
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
     df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
