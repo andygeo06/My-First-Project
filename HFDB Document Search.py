@@ -7,15 +7,17 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 
 # --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="HFDB Document Searching Tool - Test Version", layout="wide")
+st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
+    /* Hide default Streamlit headers and footers for a clean app feel */
     header[data-testid="stHeader"] { visibility: hidden; height: 0% !important; }
     [data-testid="stDecoration"] { display: none; }
     .block-container { padding-top: 2rem !important; margin-top: -3.8rem !important; padding-bottom: 8rem !important; }
     [data-testid="stVerticalBlock"] > div:first-child { margin-top: 0px !important; padding-top: 0px !important; }
     
+    /* Search Bar Styling - Adaptive borders with no forced text color */
     .stTextArea > div > div > textarea { 
         border-radius: 10px; 
         border: 2px solid rgba(0, 150, 255, 0.4) !important; 
@@ -23,6 +25,7 @@ st.markdown("""
         box-shadow: 0 0 8px rgba(0, 150, 255, 0.1) !important;
     }
     
+    /* Action Panel - Uses semi-transparent colors so it looks soft in light mode and sleek in dark mode */
     .action-panel { 
         padding: 20px; 
         border-radius: 15px; 
@@ -30,11 +33,13 @@ st.markdown("""
         background-color: rgba(0, 150, 255, 0.05); 
     }
     
+    /* Responsive Tabs for Mobile */
     @media (max-width: 768px) { 
         .stTabs [data-baseweb="tab"] { padding-left: 10px !important; padding-right: 10px !important; } 
         .stTabs [data-baseweb="tab"] p { font-size: 13px !important; } 
     }
     
+    /* Global Primary Button Gradient - HEIGHT UPDATED TO 68PX TO MATCH TEXT AREA */
     .stButton > button { 
         background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); 
         color: #ffffff !important; 
@@ -45,6 +50,7 @@ st.markdown("""
         border: none; 
     }
     
+    /* Mobile Hint Animation */
     .mobile-hint { 
         background: #007bff; color: #ffffff !important; padding: 10px; 
         border-radius: 10px; text-align: center; font-weight: bold; 
@@ -59,54 +65,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GSPREAD AUTHENTICATION & CACHED LOADING (TTL=0 FOR TESTING) ---
+# --- 2. GSPREAD AUTHENTICATION & CACHED LOADING ---
 @st.cache_resource
 def get_gspread_client():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-@st.cache_data(ttl=0, show_spinner=False)
+# Cache the data fetching for 30 seconds to prevent API Quota Limits!
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
     
-    # Fetch worksheets safely by index or name to avoid string mismatch issues
-    ws_in = d.worksheet("IN")
-    # If the named worksheet fails or returns a ref error, we can grab it by index (e.g., sheet index)
+    # Safe fallback extraction for OUT worksheet to prevent connection lookup errors
     try:
         ws_out = d.worksheet("OUT")
     except:
-        ws_out = d.get_worksheet(5) # Fallback to worksheet index if name lookup fails
+        ws_out = d.get_worksheet(5) # Fallback index position for OUT tab
         
-    ws_user = d.worksheet("USER")
-    ws_link = d.worksheet("LINK_DB")
-    
     return (
-        ws_in.get_all_values(),
+        d.worksheet("IN").get_all_values(),
         ws_out.get_all_values(),
-        ws_user.get_all_values(),
-        ws_link.get_all_values()
-    )
+        d.worksheet("USER").get_all_values(),
+        d.worksheet("LINK_DB").get_all_values()
     )
 
 try:
     client = get_gspread_client()
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
+    
     ws_link = doc.worksheet("LINK_DB")
     
     data_in, data_out, data_user, data_link = fetch_sheet_data()
     
-    # --- DIAGNOSTIC PANEL FOR OUT SHEET ---
-    st.info(f"""
-    🔍 **OUT Sheet Diagnostic Info:**
-    * Total Raw Rows Fetched from Google Sheets: `{len(data_out)}`
-    * Row 0 (Index 0): `{data_out[0][:3] if len(data_out) > 0 else 'N/A'}`
-    * Row 1 (Index 1): `{data_out[1][:3] if len(data_out) > 1 else 'N/A'}`
-    * Row 2 (Index 2): `{data_out[2][:3] if len(data_out) > 2 else 'N/A'}`
-    """)
-
     MIN_COLS = 20
     pad_in = [r + [""] * (MIN_COLS - len(r)) for r in data_in[3:]]
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
@@ -116,8 +109,6 @@ try:
     df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
     user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
     
-    st.warning(f"📊 **DataFrame Shape After Slicing & Pading:** `df_out_raw` shape is `{df_out_raw.shape}`")
-
     df_in = df_in_raw.iloc[:, :14].fillna("")
     df_in.columns = [str(i) for i in range(14)]
     df_out = df_out_raw.iloc[:, :14].fillna("")
@@ -177,7 +168,7 @@ def mass_search_filter(df, query):
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
-    st.title("HFDB Documents (Test Mode)")
+    st.title("HFDB Documents")
     tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
     config_in = { df_in.columns[i]: st.column_config.TextColumn(list(["Received","Time","DTRAK No.","Control No.","Subject","Doc Type","Origin","Acted","Time","Sent","Division","Staff","Tag","Action Taken"])[i]) for i in range(14) }
@@ -281,6 +272,21 @@ with col_main:
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
+    # --- HOTSWAP DEBUG TOGGLE ---
+    with st.expander("🛠️ Hotswap Controls"):
+        debug_mode = st.checkbox("Enable Diagnostic Mode", value=False)
+
+    # --- DIAGNOSTIC MODE VIEW ---
+    if debug_mode:
+        st.markdown('<div class="action-panel" style="border-color: #ffc107;">', unsafe_allow_html=True)
+        st.markdown("### 🔍 Diagnostic Mode")
+        st.write(f"**OUT Raw Row Count:** `{len(data_out)}`")
+        st.write(f"**OUT DataFrame Shape:** `{df_out.shape}`")
+        st.write(f"**Row 0 (Title):** `{data_out[0][:2] if len(data_out) > 0 else 'N/A'}`")
+        st.write(f"**Row 1 (Header):** `{data_out[1][:2] if len(data_out) > 1 else 'N/A'}`")
+        st.write(f"**Row 2 (Data):** `{data_out[2][:2] if len(data_out) > 2 else 'N/A'}`")
+        st.markdown('</div>', unsafe_allow_html=True)
+
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     if len(sel_in) > 0 or len(sel_out) > 0:
