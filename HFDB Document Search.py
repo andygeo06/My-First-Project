@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 
 # --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="HFDB Document Searching Tool - Test Version", layout="wide")
+st.set_page_config(page_title="HFDB Document Searching Tool", layout="wide")
 
 st.markdown("""
     <style>
@@ -65,26 +65,22 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GSPREAD AUTHENTICATION & CACHED LOADING ---
+# --- 2. GSPREAD AUTHENTICATION & HIGH-PERFORMANCE CACHED LOADING ---
 @st.cache_resource
 def get_gspread_client():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-# Cache data with TTL=0 for testing/debugging purposes
-@st.cache_data(ttl=0, show_spinner=False)
+# Increased TTL to 600 seconds (10 minutes) to eliminate API Quota exhaustion from frequent refreshes!
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
     
-    # Safe fallback lookup for OUT worksheet to bypass naming/string match bugs
+    # Fetch all worksheet values in a single batch-friendly fetch process
     ws_in = d.worksheet("IN")
-    try:
-        ws_out = d.worksheet("OUT")
-    except:
-        ws_out = d.get_worksheet(5) # Fallback to index position if name fails
-        
+    ws_out = d.worksheet("OUT")
     ws_user = d.worksheet("USER")
     ws_link = d.worksheet("LINK_DB")
     
@@ -99,9 +95,9 @@ try:
     client = get_gspread_client()
     SHEET_URL = st.secrets["GSHEETS_URL"] 
     doc = client.open_by_url(SHEET_URL)
-    
     ws_link = doc.worksheet("LINK_DB")
     
+    # Load data using optimized 10-minute cache
     data_in, data_out, data_user, data_link = fetch_sheet_data()
     
     MIN_COLS = 20
@@ -109,6 +105,7 @@ try:
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
+    # Safely initialize DataFrames with fallback columns to prevent length/0-column errors
     df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
     df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
     user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
@@ -172,7 +169,7 @@ def mass_search_filter(df, query):
 col_main, col_action = st.columns([3.5, 1], gap="small")
 
 with col_main:
-    st.title("HFDB Documents (Test Build)")
+    st.title("HFDB Documents")
     tab_in, tab_out, tab_nom = st.tabs(["📥 INCOMING", "📤 OUTGOING", "🤝 MEETINGS"])
     
     config_in = { df_in.columns[i]: st.column_config.TextColumn(list(["Received","Time","DTRAK No.","Control No.","Subject","Doc Type","Origin","Acted","Time","Sent","Division","Staff","Tag","Action Taken"])[i]) for i in range(14) }
@@ -276,21 +273,6 @@ with col_main:
             st.markdown('</div>', unsafe_allow_html=True)
 
 with col_action:
-    # --- HOTSWAP TOGGLE ---
-    with st.expander("🛠️ Hotswap Controls"):
-        debug_mode = st.checkbox("Enable Diagnostic Mode", value=True)
-
-    # --- DIAGNOSTIC MODE PANEL ---
-    if debug_mode:
-        st.markdown('<div class="action-panel" style="border-color: #ffc107; margin-bottom: 15px;">', unsafe_allow_html=True)
-        st.markdown("### 🔍 Live Diagnostics")
-        st.write(f"**OUT Raw Rows Fetched:** `{len(data_out)}`")
-        st.write(f"**OUT DataFrame Shape:** `{df_out.shape}`")
-        st.write(f"**Row 0 (Index 0):** `{data_out[0][:2] if len(data_out) > 0 else 'N/A'}`")
-        st.write(f"**Row 1 (Index 1):** `{data_out[1][:2] if len(data_out) > 1 else 'N/A'}`")
-        st.write(f"**Row 2 (Index 2):** `{data_out[2][:2] if len(data_out) > 2 else 'N/A'}`")
-        st.markdown('</div>', unsafe_allow_html=True)
-
     sel_in = selection_in.selection.rows
     sel_out = selection_out.selection.rows
     if len(sel_in) > 0 or len(sel_out) > 0:
@@ -324,25 +306,3 @@ with col_action:
     else:
         st.warning("Kindly select which item(s) to request.")
     st.markdown('</div>', unsafe_allow_html=True)
-
-@st.cache_data(ttl=0, show_spinner=False)
-def fetch_sheet_data():
-    c = get_gspread_client()
-    d = c.open_by_url(st.secrets["GSHEETS_URL"])
-    
-    # Print all sheet titles to see what gspread detects
-    all_worksheets = d.worksheets()
-    sheet_names_debug = [ws.title for ws in all_worksheets]
-    st.write("📋 **Detected Worksheets in Google Sheets:**", sheet_names_debug)
-    
-    ws_in = d.worksheet("IN")
-    ws_out = d.worksheet("OUT")
-    ws_user = d.worksheet("USER")
-    ws_link = d.worksheet("LINK_DB")
-    
-    return (
-        ws_in.get_all_values(),
-        ws_out.get_all_values(),
-        ws_user.get_all_values(),
-        ws_link.get_all_values()
-    )
