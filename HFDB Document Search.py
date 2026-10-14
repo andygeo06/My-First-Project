@@ -293,9 +293,14 @@ with col_action:
         if sel_in: 
             selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
         if sel_out: 
-            # Safely grab from column index 5 (Current DTRAK No.) or fallback to column index 3 if out of bounds
-            col_idx = 5 if filtered_out.shape[1] > 5 else 3
-            selected_dtraks.extend(filtered_out.iloc[sel_out, col_idx].tolist())
+            for idx in sel_out:
+                row_vals = filtered_out.iloc[idx]
+                val = str(row_vals.get("5", row_vals.iloc[5] if len(row_vals) > 5 else ""))
+                if not val.strip():
+                    val = str(row_vals.get("2", row_vals.iloc[2] if len(row_vals) > 2 else ""))
+                if not val.strip() and len(row_vals) > 3:
+                    val = str(row_vals.iloc[3])
+                selected_dtraks.append(val)
             
         for d in selected_dtraks: 
             st.info(f"📄 {d}")
