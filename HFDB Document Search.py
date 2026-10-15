@@ -72,13 +72,12 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
     return gspread.authorize(creds)
 
-# Increased TTL to 600 seconds (10 minutes) to eliminate API Quota exhaustion from frequent refreshes!
+# 10-minute cache TTL to protect against Google API quota exhaustion
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_sheet_data():
     c = get_gspread_client()
     d = c.open_by_url(st.secrets["GSHEETS_URL"])
     
-    # Fetch all worksheet values in a single batch-friendly fetch process
     ws_in = d.worksheet("IN")
     ws_out = d.worksheet("OUT")
     ws_user = d.worksheet("USER")
@@ -97,7 +96,6 @@ try:
     doc = client.open_by_url(SHEET_URL)
     ws_link = doc.worksheet("LINK_DB")
     
-    # Load data using optimized 10-minute cache
     data_in, data_out, data_user, data_link = fetch_sheet_data()
     
     MIN_COLS = 20
@@ -105,7 +103,6 @@ try:
     pad_out = [r + [""] * (MIN_COLS - len(r)) for r in data_out[2:]]
     pad_user = [r + [""] * (MIN_COLS - len(r)) for r in data_user[1:]]
     
-    # Safely initialize DataFrames with fallback columns to prevent length/0-column errors
     df_in_raw = pd.DataFrame(pad_in) if pad_in else pd.DataFrame(columns=range(MIN_COLS))
     df_out_raw = pd.DataFrame(pad_out) if pad_out else pd.DataFrame(columns=range(MIN_COLS))
     user_df = pd.DataFrame(pad_user) if pad_user else pd.DataFrame(columns=range(MIN_COLS))
@@ -290,8 +287,13 @@ with col_action:
         st.write(f"**Selected:** {total_selected}")
         
         selected_dtraks = []
-        if sel_in: selected_dtraks.extend(filtered_in.iloc[sel_in, 2].tolist())
-        if sel_out: selected_dtraks.extend(filtered_out.iloc[sel_out, 5].tolist())
+        if sel_in: 
+            valid_sel_in = [i for i in sel_in if i < len(filtered_in)]
+            selected_dtraks.extend(filtered_in.iloc[valid_sel_in, 2].tolist())
+        if sel_out: 
+            valid_sel_out = [i for i in sel_out if i < len(filtered_out)]
+            selected_dtraks.extend(filtered_out.iloc[valid_sel_out, 5].tolist())
+            
         for d in selected_dtraks: st.info(f"📄 {d}")
         
         if st.button("SEND TO MY EMAIL"):
