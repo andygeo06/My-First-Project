@@ -44,7 +44,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     body = f"""
     Hi {applicant_name},
 
-    Your meeting slot has been successfully booked!
+    Your interview slot has been successfully booked!
 
     📅 Date: {date_str}
     ⏰ Time: {time_str}
@@ -52,7 +52,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
 
     IMPORTANT GUIDELINES:
     - Please join the meeting strictly on time. 
-    - Each session is strictly capped at 30 minutes to accommodate all applicants.
+    - Each session is strictly capped at 25 minutes to accommodate all applicants.
     - Late arrivals will not be given time extensions. Sessions that exceed the allotted window will be automatically closed.
 
     Best regards,
