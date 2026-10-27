@@ -56,7 +56,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     - Late arrivals will not be given time extensions. Sessions that exceed the allotted window will be automatically closed.
 
     Best regards,
-    Scheduling Team
+    FPMD Scheduling Bot
     """
     msg.attach(MIMEText(body, "plain"))
 
