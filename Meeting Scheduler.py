@@ -11,7 +11,7 @@ import streamlit as st
 
 # --- CONFIGURATION & SECRETS ---
 # Replace with your actual Google Sheet URL
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gOmoM8dJeXCMHJAtZHT98isgxdCmhRgt/edit?gid=584760277#gid=584760277"
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1D4ED6iOhLxRObPMOJOkMTNhNws7feeCexhMFsnDZnI0/edit?gid=1337273052#gid=1337273052"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
