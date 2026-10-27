@@ -73,7 +73,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
 
 
 # --- UI SETUP ---
-st.title("📅 Applicant Meeting Scheduler")
+st.title("📅 Applicant Interview Scheduler")
 st.write(
     "Enter your submitted Full Name and Email to verify your identity and select your interview slot."
 )
