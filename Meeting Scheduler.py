@@ -139,7 +139,7 @@ if selected_name != "-- Select --":
 
             # Display the fixed date instead of a date picker
             formatted_date_str = FIXED_BOOKING_DATE.strftime("%B %d, %Y")
-            st.info(f"📅 **Scheduled Interview Date (8AM to 5PM, STRICTLY 30 Minutes Per Applicant):** {formatted_date_str}")
+            st.info(f"📅 **Scheduled Interview Date:** {formatted_date_str}")
 
             # Generate 30-min time slots from 8:00 AM to 5:00 PM
             start_time = datetime.time(8, 0)
