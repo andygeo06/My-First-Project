@@ -74,7 +74,7 @@ st.write(
 
 try:
     client, creds = get_gspread_client()
-    sheet = client.open(SPREADSHEET_NAME).sheet1  # Assuming data is in Sheet 1
+    sheet = client.open(SPREADSHEET_NAME).Details  # Assuming data is in Sheet 1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 except Exception as e:
