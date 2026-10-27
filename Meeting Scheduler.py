@@ -15,7 +15,7 @@ STATIC_MEET_LINK = "https://meet.google.com/ift-tjse-knu"  # <-- Replace with yo
 
 # 🔒 FIX THE MEETING DATE HERE (Change this whenever you have a new schedule date)
 # Format: datetime.date(YYYY, MM, DD)
-FIXED_BOOKING_DATE = datetime.date(2026, 10, 28)
+FIXED_BOOKING_DATE = datetime.date(2026, 10, 31)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -135,11 +135,20 @@ if selected_name != "-- Select --":
             st.success("✅ Identity verified successfully!")
 
             st.divider()
+            
+            # --- PROMINENT POLICY & TIME RESTRICTION WARNING ---
+            st.warning(
+                "⚠️ **IMPORTANT POLICY & TIME RESTRICTIONS**\n\n"
+                "- **Operating Hours:** Interviews run strictly from **8:00 AM to 5:00 PM**.\n"
+                "- **Duration:** Each slot is strictly capped at **30 minutes**.\n"
+                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 30-minute block to prevent overlap with other applicants."
+            )
+
             st.subheader("Select Your Meeting Slot")
 
-            # Display the fixed date instead of a date picker
+            # Display the fixed date
             formatted_date_str = FIXED_BOOKING_DATE.strftime("%B %d, %Y")
-            st.info(f"📅 **Scheduled Interview Date:** {formatted_date_str}")
+            st.info(f"📅 **Scheduled Meeting Date:** {formatted_date_str}")
 
             # Generate 30-min time slots from 8:00 AM to 5:00 PM
             start_time = datetime.time(8, 0)
