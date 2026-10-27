@@ -15,7 +15,7 @@ STATIC_MEET_LINK = "https://meet.google.com/ift-tjse-knu"  # <-- Replace with yo
 
 # 🔒 FIX THE MEETING DATE HERE (Change this whenever you have a new schedule date)
 # Format: datetime.date(YYYY, MM, DD)
-FIXED_BOOKING_DATE = datetime.date(2026, 10, 31)
+FIXED_BOOKING_DATE = datetime.date(2026, 10, 30)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -39,12 +39,12 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     msg = MIMEMultipart()
     msg["From"] = sender_email
     msg["To"] = to_email
-    msg["Subject"] = f"Interview Confirmed: {date_str} at {time_str}"
+    msg["Subject"] = f"Meeting Confirmed: {date_str} at {time_str}"
 
     body = f"""
     Hi {applicant_name},
 
-    Your interview slot has been successfully booked!
+    Your meeting slot has been successfully booked!
 
     📅 Date: {date_str}
     ⏰ Time: {time_str}
@@ -52,11 +52,11 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
 
     IMPORTANT GUIDELINES:
     - Please join the meeting strictly on time. 
-    - Each session is strictly capped at 25 minutes to accommodate all applicants.
+    - Each session is strictly capped at 30 minutes to accommodate all applicants.
     - Late arrivals will not be given time extensions. Sessions that exceed the allotted window will be automatically closed.
 
     Best regards,
-    FPMD Scheduling Bot
+    Scheduling Team
     """
     msg.attach(MIMEText(body, "plain"))
 
@@ -114,15 +114,11 @@ if selected_name != "-- Select --":
     registered_email = df.loc[df["Name"] == selected_name, "Email"].values[0]
     current_status = df.loc[df["Name"] == selected_name, "Status"].values[0]
 
-    # Check if already booked
+    # Check if already booked (Hidden link, email reminder only)
     if str(current_status).strip().lower() == "booked":
         st.warning(
-            f"⚠️ **{selected_name}**, you have already booked a schedule!"
+            f"⚠️ **{selected_name}**, you have already booked a schedule! Please check your email for the meeting link and details."
         )
-        existing_link = df.loc[
-            df["Name"] == selected_name, "Meet Link"
-        ].values[0]
-        st.info(f"Your Google Meet Link: {existing_link}")
         st.stop()
 
     # Email Verification Input
@@ -140,8 +136,8 @@ if selected_name != "-- Select --":
             st.warning(
                 "⚠️ **IMPORTANT POLICY & TIME RESTRICTIONS**\n\n"
                 "- **Operating Hours:** Interviews run strictly from **8:00 AM to 5:00 PM**.\n"
-                "- **Duration:** Each slot is strictly capped at **25 minutes**.\n"
-                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 25-minute block to prevent overlap with other applicants."
+                "- **Duration:** Each slot is strictly capped at **30 minutes**.\n"
+                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 30-minute block to prevent overlap with other applicants."
             )
 
             st.subheader("Select Your Meeting Slot")
@@ -203,9 +199,8 @@ if selected_name != "-- Select --":
                             # 3. Send Email via SMTP
                             email_sent = send_email_smtp(registered_email, selected_name, str(FIXED_BOOKING_DATE), selected_slot, STATIC_MEET_LINK)
 
-                            st.success("🎉 Booking confirmed successfully!")
+                            st.success("🎉 Booking confirmed successfully! Please check your email for the meeting link and instructions.")
                             st.balloons()
-                            st.markdown(f"**Google Meet Link:** [{STATIC_MEET_LINK}]({STATIC_MEET_LINK})")
                             if email_sent:
                                 st.info(f"📧 Confirmation email successfully sent to {registered_email}!")
 
