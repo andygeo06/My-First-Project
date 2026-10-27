@@ -1,0 +1,216 @@
+import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import google.auth
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+import gspread
+import pandas as pd
+import streamlit as st
+
+# --- CONFIGURATION & SECRETS ---
+# In Streamlit, store your credentials in st.secrets or upload them securely.
+SPREADSHEET_NAME = (
+    "2026 Receiving/Releasing"  # Update with your actual Sheet name
+)
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/calendar",
+]
+
+
+@st.cache_resource
+def get_gspread_client():
+    # Load credentials from Streamlit secrets
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+    client = gspread.authorize(creds)
+    return client, creds
+
+
+def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
+    sender_email = st.secrets["smtp"]["email"]
+    app_password = st.secrets["smtp"]["app_password"]
+
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = to_email
+    msg["Subject"] = f"Meeting Confirmed: {date_str} at {time_str}"
+
+    body = f"""
+    Hi {applicant_name},
+
+    Your meeting slot has been successfully booked!
+
+    📅 Date: {date_str}
+    ⏰ Time: {time_str}
+    🔗 Google Meet Link: {meet_link}
+
+    Please save this link for your meeting.
+
+    Best regards,
+    Scheduling Team
+    """
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, app_password)
+        server.sendmail(sender_email, to_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"Failed to send email: {e}")
+        return false
+
+
+# --- UI SETUP ---
+st.title("📅 Applicant Meeting Scheduler")
+st.write(
+    "Select your name, verify your email, and pick an available 30-minute time slot between 8:00 AM and 5:00 PM."
+)
+
+try:
+    client, creds = get_gspread_client()
+    sheet = client.open(SPREADSHEET_NAME).sheet1  # Assuming data is in Sheet 1
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+except Exception as e:
+    st.error(
+        f"Error connecting to Google Sheets. Please check your credentials and sheet name. Details: {e}"
+    )
+    st.stop()
+
+# Ensure required columns exist
+expected_columns = [
+    "Name",
+    "Email",
+    "Booking Date",
+    "Booking Time",
+    "Meet Link",
+    "Status",
+]
+for col in expected_columns:
+    if col not in df.columns:
+        df[col] = ""
+
+# --- STEP 1: AUTHENTICATION ---
+names = df["Name"].dropna().unique().tolist()
+selected_name = st.selectbox("Select Your Name", ["-- Select --"] + names)
+
+if selected_name != "-- Select --":
+    # Get the registered email for this applicant
+    applicant_row_idx = (
+        df[df["Name"] == selected_name].index[0] + 2
+    )  # 1-based index + header offset
+    registered_email = df.loc[df["Name"] == selected_name, "Email"].values[0]
+    current_status = df.loc[df["Name"] == selected_name, "Status"].values[0]
+
+    # Check if already booked
+    if current_status == "Booked":
+        st.warning(
+            f"⚠️ **{selected_name}**, you have already booked a schedule!"
+        )
+        existing_link = df.loc[
+            df["Name"] == selected_name, "Meet Link"
+        ].values[0]
+        st.info(f"Your Google Meet Link: {existing_link}")
+        st.stop()
+
+    # Email Verification Input
+    entered_email = st.text_input(
+        "Enter your registered Email Address to verify identity:"
+    )
+
+    if entered_email:
+        if entered_email.strip().lower() == str(registered_email).strip().lower():
+            st.success("✅ Identity verified successfully!")
+
+            st.divider()
+            st.subheader("Select Your Meeting Slot")
+
+            # Date selection (Weekdays only)
+            booking_date = st.date_input(
+                "Meeting Date",
+                min_value=datetime.date.today(),
+                value=datetime.date.today() + datetime.timedelta(days=1),
+            )
+
+            # Generate 30-min time slots from 8:00 AM to 5:00 PM
+            start_time = datetime.time(8, 0)
+            end_time = datetime.time(17, 0)
+            slots = []
+            current_t = datetime.datetime.combine(
+                datetime.date.today(), start_time
+            )
+            while current_t.time() < end_time:
+                slot_str = current_t.strftime("%I:%M %p")
+                slots.append(slot_str)
+                current_t += datetime.timedelta(minutes=30)
+
+            # Check already booked slots for this date
+            booked_slots_on_date = df[
+                (df["Booking Date"] == str(booking_date))
+                & (df["Status"] == "Booked")
+            ]["Booking Time"].tolist()
+
+            available_slots = [s for s in slots if s not in booked_slots_on_date]
+
+            if not available_slots:
+                st.error("❌ No slots available on this date. Please pick another day.")
+            else:
+                selected_slot = st.selectbox("Available Time Slots (30 mins)", available_slots)
+
+                if st.button("Confirm and Book Schedule", type="primary"):
+                    with st.spinner("Creating Google Meet link and booking slot..."):
+                        try:
+                            # 1. Create Google Calendar Event & Meet Link
+                            calendar_service = build("calendar", "v3", credentials=creds)
+
+                            # Parse slot time
+                            time_obj = datetime.datetime.strptime(selected_slot, "%I:%M %p").time()
+                            start_datetime = datetime.datetime.combine(booking_date, time_obj)
+                            end_datetime = start_datetime + datetime.timedelta(minutes=30)
+
+                            event_body = {
+                                "summary": f"Meeting with {selected_name}",
+                                "description": f"Scheduled via Streamlit portal for {selected_name}.",
+                                "start": {"dateTime": start_datetime.isoformat(), "timeZone": "Asia/Manila"},
+                                "end": {"dateTime": end_datetime.isoformat(), "timeZone": "Asia/Manila"},
+                                "conferenceData": {
+                                    "createRequest": {
+                                        "requestId": f"meet-{applicant_row_idx}-{int(datetime.datetime.now().timestamp())}",
+                                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                                    }
+                                },
+                            }
+
+                            event = calendar_service.events().insert(
+                                calendarId="primary", body=event_body, conferenceDataVersion=1
+                            ).execute()
+
+                            meet_link = event.get("hangoutLink", "Link not generated")
+
+                            # 2. Update Google Sheet
+                            # Columns: Name(1), Email(2), Booking Date(3), Booking Time(4), Meet Link(5), Status(6)
+                            sheet.update_cell(applicant_row_idx, 3, str(booking_date))
+                            sheet.update_cell(applicant_row_idx, 4, selected_slot)
+                            sheet.update_cell(applicant_row_idx, 5, meet_link)
+                            sheet.update_cell(applicant_row_idx, 6, "Booked")
+
+                            # 3. Send Email via SMTP
+                            email_sent = send_email_smtp(registered_email, selected_name, str(booking_date), selected_slot, meet_link)
+
+                            st.success("🎉 Booking confirmed successfully!")
+                            st.balloons()
+                            st.markdown(f"**Google Meet Link:** [{meet_link}]({meet_link})")
+                            if email_sent:
+                                st.info(f"📧 Confirmation email successfully sent to {registered_email}!")
+
+                        except Exception as e:
+                            st.error(f"An error occurred during booking: {e}")
+
+        else:
+            st.error("❌ Email does not match our records for this name. Please try again.")
