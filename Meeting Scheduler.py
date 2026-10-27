@@ -39,7 +39,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     msg = MIMEMultipart()
     msg["From"] = sender_email
     msg["To"] = to_email
-    msg["Subject"] = f"Meeting Confirmed: {date_str} at {time_str}"
+    msg["Subject"] = f"Interview Confirmed: {date_str} at {time_str}"
 
     body = f"""
     Hi {applicant_name},
