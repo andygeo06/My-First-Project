@@ -140,8 +140,8 @@ if selected_name != "-- Select --":
             st.warning(
                 "⚠️ **IMPORTANT POLICY & TIME RESTRICTIONS**\n\n"
                 "- **Operating Hours:** Interviews run strictly from **8:00 AM to 5:00 PM**.\n"
-                "- **Duration:** Each slot is strictly capped at **30 minutes**.\n"
-                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 30-minute block to prevent overlap with other applicants."
+                "- **Duration:** Each slot is strictly capped at **25 minutes**.\n"
+                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 25-minute block to prevent overlap with other applicants."
             )
 
             st.subheader("Select Your Meeting Slot")
