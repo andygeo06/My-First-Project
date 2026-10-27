@@ -123,7 +123,7 @@ if selected_name != "-- Select --":
 
     # Email Verification Input
     entered_email = st.text_input(
-        "Enter your registered Email Address to verify identity:"
+        "Enter your submitted Email Address to verify identity:"
     )
 
     if entered_email:
