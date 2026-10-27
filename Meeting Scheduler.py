@@ -118,25 +118,23 @@ if st.session_state.get("booking_success", False):
         st.rerun()
     st.stop()
 
-# --- STEP 1: PRIVACY-FOCUSED IDENTITY VERIFICATION (TEXT INPUTS) ---
+# --- STEP 1: EMAIL-ONLY IDENTITY VERIFICATION ---
 if not st.session_state.get("verified", False):
     with st.form("verification_form"):
-        entered_name = st.text_input("Full Name (as submitted):")
         entered_email = st.text_input("Registered Email Address:")
         verify_submitted = st.form_submit_button("Verify Identity", type="primary")
 
     if verify_submitted:
-        if not entered_name.strip() or not entered_email.strip():
-            st.error("❌ Please enter both your Full Name and Email Address.")
+        if not entered_email.strip():
+            st.error("❌ Please enter your Email Address.")
         else:
-            # Check for matching record (case-insensitive)
+            # Check for matching email record (case-insensitive)
             match_row = df[
-                (df["Name"].astype(str).str.strip().str.lower() == entered_name.strip().lower()) & 
-                (df["Email"].astype(str).str.strip().str.lower() == entered_email.strip().lower())
+                df["Email"].astype(str).str.strip().str.lower() == entered_email.strip().lower()
             ]
 
             if match_row.empty:
-                st.error("❌ No matching applicant found with that Name and Email combination. Please check your details. Make sure you include your Middle Initial (M.I.) if applicable.")
+                st.error("❌ No matching applicant found with that Email Address. Please check your details.")
             else:
                 # Save verified details into session state
                 st.session_state["verified"] = True
