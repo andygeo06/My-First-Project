@@ -10,8 +10,8 @@ import pandas as pd
 import streamlit as st
 
 # --- CONFIGURATION & SECRETS ---
-# Replace with your actual Google Sheet URL
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1D4ED6iOhLxRObPMOJOkMTNhNws7feeCexhMFsnDZnI0/edit?gid=1337273052#gid=1337273052"
+STATIC_MEET_LINK = "https://meet.google.com/ift-tjse-knu"  # <-- Replace with your permanent/reusable Google Meet link
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -46,7 +46,10 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     ⏰ Time: {time_str}
     🔗 Google Meet Link: {meet_link}
 
-    Please save this link for your meeting.
+    IMPORTANT GUIDELINES:
+    - Please join the meeting strictly on time. 
+    - Each session is strictly capped at 30 minutes to accommodate all applicants.
+    - Late arrivals will not be given time extensions. Sessions that exceed the allotted window will be automatically closed.
 
     Best regards,
     Scheduling Team
@@ -73,7 +76,7 @@ st.write(
 
 try:
     client, creds = get_gspread_client()
-    # Connect directly via URL and target the "IN" tab
+    # Connect directly via URL and target the "Details" tab
     spreadsheet = client.open_by_url(SPREADSHEET_URL)
     sheet = spreadsheet.worksheet("Details")
     data = sheet.get_all_records()
@@ -163,48 +166,36 @@ if selected_name != "-- Select --":
                 selected_slot = st.selectbox("Available Time Slots (30 mins)", available_slots)
 
                 if st.button("Confirm and Book Schedule", type="primary"):
-                    with st.spinner("Creating Google Meet link and booking slot..."):
+                    with st.spinner("Booking slot and sending confirmation..."):
                         try:
-                            # 1. Create Google Calendar Event & Meet Link
+                            # 1. Create clean 30-min calendar block on primary calendar
                             calendar_service = build("calendar", "v3", credentials=creds)
 
-                            # Parse slot time
                             time_obj = datetime.datetime.strptime(selected_slot, "%I:%M %p").time()
                             start_datetime = datetime.datetime.combine(booking_date, time_obj)
                             end_datetime = start_datetime + datetime.timedelta(minutes=30)
 
                             event_body = {
-                                "summary": f"Meeting with {selected_name}",
-                                "description": f"Scheduled via Streamlit portal for {selected_name}.",
+                                "summary": f"Meeting: {selected_name}",
+                                "description": f"Applicant: {selected_name}\nEmail: {registered_email}\nGoogle Meet Link: {STATIC_MEET_LINK}",
                                 "start": {"dateTime": start_datetime.isoformat(), "timeZone": "Asia/Manila"},
                                 "end": {"dateTime": end_datetime.isoformat(), "timeZone": "Asia/Manila"},
-                                "conferenceData": {
-                                    "createRequest": {
-                                        "requestId": f"meet-{applicant_row_idx}-{int(datetime.datetime.now().timestamp())}",
-                                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
-                                    }
-                                },
+                                "location": STATIC_MEET_LINK
                             }
-
-                            event = calendar_service.events().insert(
-                                calendarId="primary", body=event_body, conferenceDataVersion=1
-                            ).execute()
-
-                            meet_link = event.get("hangoutLink", "Link not generated")
+                            calendar_service.events().insert(calendarId="primary", body=event_body).execute()
 
                             # 2. Update Google Sheet
-                            # Columns: Name(1), Email(2), Booking Date(3), Booking Time(4), Meet Link(5), Status(6)
                             sheet.update_cell(applicant_row_idx, 3, str(booking_date))
                             sheet.update_cell(applicant_row_idx, 4, selected_slot)
-                            sheet.update_cell(applicant_row_idx, 5, meet_link)
+                            sheet.update_cell(applicant_row_idx, 5, STATIC_MEET_LINK)
                             sheet.update_cell(applicant_row_idx, 6, "Booked")
 
                             # 3. Send Email via SMTP
-                            email_sent = send_email_smtp(registered_email, selected_name, str(booking_date), selected_slot, meet_link)
+                            email_sent = send_email_smtp(registered_email, selected_name, str(booking_date), selected_slot, STATIC_MEET_LINK)
 
                             st.success("🎉 Booking confirmed successfully!")
                             st.balloons()
-                            st.markdown(f"**Google Meet Link:** [{meet_link}]({meet_link})")
+                            st.markdown(f"**Google Meet Link:** [{STATIC_MEET_LINK}]({STATIC_MEET_LINK})")
                             if email_sent:
                                 st.info(f"📧 Confirmation email successfully sent to {registered_email}!")
 
