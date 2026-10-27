@@ -10,20 +10,18 @@ import pandas as pd
 import streamlit as st
 
 # --- CONFIGURATION & SECRETS ---
-# In Streamlit, store your credentials in st.secrets or upload them securely.
-SPREADSHEET_NAME = (
-    "2026 Receiving/Releasing"  # Update with your actual Sheet name
-)
+# Replace with your actual Google Sheet URL
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID_HERE/edit"
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive",  # Required for open_by_url connection
     "https://www.googleapis.com/auth/calendar",
 ]
 
 
 @st.cache_resource
 def get_gspread_client():
-    # Load credentials from Streamlit secrets
     creds_dict = dict(st.secrets["gcp_service_account"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     client = gspread.authorize(creds)
@@ -64,7 +62,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
         return True
     except Exception as e:
         st.error(f"Failed to send email: {e}")
-        return false
+        return False
 
 
 # --- UI SETUP ---
@@ -75,12 +73,14 @@ st.write(
 
 try:
     client, creds = get_gspread_client()
-    sheet = client.open(SPREADSHEET_NAME).Details  # Assuming data is in Sheet 1
+    # Connect directly via URL and target the "IN" tab
+    spreadsheet = client.open_by_url(https://docs.google.com/spreadsheets/d/1gOmoM8dJeXCMHJAtZHT98isgxdCmhRgt/edit?gid=584760277#gid=584760277)
+    sheet = spreadsheet.worksheet("Details")
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 except Exception as e:
     st.error(
-        f"Error connecting to Google Sheets. Please check your credentials and sheet name. Details: {e}"
+        f"Error connecting to Google Sheets. Please check your credentials and URL. Details: {e}"
     )
     st.stop()
 
@@ -102,15 +102,13 @@ names = df["Name"].dropna().unique().tolist()
 selected_name = st.selectbox("Select Your Name", ["-- Select --"] + names)
 
 if selected_name != "-- Select --":
-    # Get the registered email for this applicant
-    applicant_row_idx = (
-        df[df["Name"] == selected_name].index[0] + 2
-    )  # 1-based index + header offset
+    # Get the registered email for this applicant (DataFrame index + 2 for header offset)
+    applicant_row_idx = df[df["Name"] == selected_name].index[0] + 2
     registered_email = df.loc[df["Name"] == selected_name, "Email"].values[0]
     current_status = df.loc[df["Name"] == selected_name, "Status"].values[0]
 
     # Check if already booked
-    if current_status == "Booked":
+    if str(current_status).strip().lower() == "booked":
         st.warning(
             f"⚠️ **{selected_name}**, you have already booked a schedule!"
         )
@@ -132,7 +130,7 @@ if selected_name != "-- Select --":
             st.divider()
             st.subheader("Select Your Meeting Slot")
 
-            # Date selection (Weekdays only)
+            # Date selection
             booking_date = st.date_input(
                 "Meeting Date",
                 min_value=datetime.date.today(),
@@ -153,8 +151,8 @@ if selected_name != "-- Select --":
 
             # Check already booked slots for this date
             booked_slots_on_date = df[
-                (df["Booking Date"] == str(booking_date))
-                & (df["Status"] == "Booked")
+                (df["Booking Date"].astype(str) == str(booking_date))
+                & (df["Status"].astype(str).str.lower() == "booked")
             ]["Booking Time"].tolist()
 
             available_slots = [s for s in slots if s not in booked_slots_on_date]
