@@ -11,7 +11,7 @@ import streamlit as st
 
 # --- CONFIGURATION & SECRETS ---
 # Replace with your actual Google Sheet URL
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID_HERE/edit"
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gOmoM8dJeXCMHJAtZHT98isgxdCmhRgt/edit?gid=584760277#gid=584760277"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -74,7 +74,7 @@ st.write(
 try:
     client, creds = get_gspread_client()
     # Connect directly via URL and target the "IN" tab
-    spreadsheet = client.open_by_url(https://docs.google.com/spreadsheets/d/1gOmoM8dJeXCMHJAtZHT98isgxdCmhRgt/edit?gid=584760277#gid=584760277)
+    spreadsheet = client.open_by_url(SPREADSHEET_URL)
     sheet = spreadsheet.worksheet("Details")
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
