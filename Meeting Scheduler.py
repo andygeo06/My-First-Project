@@ -13,6 +13,10 @@ import streamlit as st
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1D4ED6iOhLxRObPMOJOkMTNhNws7feeCexhMFsnDZnI0/edit?gid=1337273052#gid=1337273052"
 STATIC_MEET_LINK = "https://meet.google.com/ift-tjse-knu"  # <-- Replace with your permanent/reusable Google Meet link
 
+# 🔒 FIX THE MEETING DATE HERE (Change this whenever you have a new schedule date)
+# Format: datetime.date(YYYY, MM, DD)
+FIXED_BOOKING_DATE = datetime.date(2026, 10, 28)
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",  # Required for open_by_url connection
@@ -71,7 +75,7 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
 # --- UI SETUP ---
 st.title("📅 Applicant Meeting Scheduler")
 st.write(
-    "Select your name, verify your email, and pick an available 30-minute time slot between 8:00 AM and 5:00 PM."
+    "Select your name, verify your email, and pick an available 30-minute time slot for the scheduled date."
 )
 
 try:
@@ -133,12 +137,9 @@ if selected_name != "-- Select --":
             st.divider()
             st.subheader("Select Your Meeting Slot")
 
-            # Date selection
-            booking_date = st.date_input(
-                "Meeting Date",
-                min_value=datetime.date.today(),
-                value=datetime.date.today() + datetime.timedelta(days=1),
-            )
+            # Display the fixed date instead of a date picker
+            formatted_date_str = FIXED_BOOKING_DATE.strftime("%B %d, %Y")
+            st.info(f"📅 **Scheduled Meeting Date:** {formatted_date_str}")
 
             # Generate 30-min time slots from 8:00 AM to 5:00 PM
             start_time = datetime.time(8, 0)
@@ -152,16 +153,16 @@ if selected_name != "-- Select --":
                 slots.append(slot_str)
                 current_t += datetime.timedelta(minutes=30)
 
-            # Check already booked slots for this date
+            # Check already booked slots for this fixed date
             booked_slots_on_date = df[
-                (df["Booking Date"].astype(str) == str(booking_date))
+                (df["Booking Date"].astype(str) == str(FIXED_BOOKING_DATE))
                 & (df["Status"].astype(str).str.lower() == "booked")
             ]["Booking Time"].tolist()
 
             available_slots = [s for s in slots if s not in booked_slots_on_date]
 
             if not available_slots:
-                st.error("❌ No slots available on this date. Please pick another day.")
+                st.error("❌ All time slots are fully booked for this date.")
             else:
                 selected_slot = st.selectbox("Available Time Slots (30 mins)", available_slots)
 
@@ -172,7 +173,7 @@ if selected_name != "-- Select --":
                             calendar_service = build("calendar", "v3", credentials=creds)
 
                             time_obj = datetime.datetime.strptime(selected_slot, "%I:%M %p").time()
-                            start_datetime = datetime.datetime.combine(booking_date, time_obj)
+                            start_datetime = datetime.datetime.combine(FIXED_BOOKING_DATE, time_obj)
                             end_datetime = start_datetime + datetime.timedelta(minutes=30)
 
                             event_body = {
@@ -185,13 +186,13 @@ if selected_name != "-- Select --":
                             calendar_service.events().insert(calendarId="primary", body=event_body).execute()
 
                             # 2. Update Google Sheet
-                            sheet.update_cell(applicant_row_idx, 3, str(booking_date))
+                            sheet.update_cell(applicant_row_idx, 3, str(FIXED_BOOKING_DATE))
                             sheet.update_cell(applicant_row_idx, 4, selected_slot)
                             sheet.update_cell(applicant_row_idx, 5, STATIC_MEET_LINK)
                             sheet.update_cell(applicant_row_idx, 6, "Booked")
 
                             # 3. Send Email via SMTP
-                            email_sent = send_email_smtp(registered_email, selected_name, str(booking_date), selected_slot, STATIC_MEET_LINK)
+                            email_sent = send_email_smtp(registered_email, selected_name, str(FIXED_BOOKING_DATE), selected_slot, STATIC_MEET_LINK)
 
                             st.success("🎉 Booking confirmed successfully!")
                             st.balloons()
