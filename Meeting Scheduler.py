@@ -39,24 +39,24 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
     msg = MIMEMultipart()
     msg["From"] = sender_email
     msg["To"] = to_email
-    msg["Subject"] = f"Meeting Confirmed: {date_str} at {time_str}"
+    msg["Subject"] = f"Interview Confirmed: {date_str} at {time_str}"
 
     body = f"""
     Hi {applicant_name},
 
-    Your meeting slot has been successfully booked!
+    Your interview slot has been successfully booked!
 
     📅 Date: {date_str}
     ⏰ Time: {time_str}
     🔗 Google Meet Link: {meet_link}
 
     IMPORTANT GUIDELINES:
-    - Please join the meeting strictly on time. 
-    - Each session is strictly capped at 30 minutes to accommodate all applicants.
+    - Please join the interview strictly on time. 
+    - Each session is strictly capped at 25 minutes to accommodate all applicants.
     - Late arrivals will not be given time extensions. Sessions that exceed the allotted window will be automatically closed.
 
     Best regards,
-    Scheduling Team
+    FPMD Scheduling Bot
     """
     msg.attach(MIMEText(body, "plain"))
 
@@ -75,12 +75,11 @@ def send_email_smtp(to_email, applicant_name, date_str, time_str, meet_link):
 # --- UI SETUP ---
 st.title("📅 Applicant Meeting Scheduler")
 st.write(
-    "Select your name, verify your email, and pick an available 30-minute time slot for the scheduled date."
+    "Enter your submitted Full Name and Email to verify your identity and select your interview slot."
 )
 
 try:
     client, creds = get_gspread_client()
-    # Connect directly via URL and target the "Details" tab
     spreadsheet = client.open_by_url(SPREADSHEET_URL)
     sheet = spreadsheet.worksheet("Details")
     data = sheet.get_all_records()
@@ -104,108 +103,143 @@ for col in expected_columns:
     if col not in df.columns:
         df[col] = ""
 
-# --- STEP 1: AUTHENTICATION ---
-names = df["Name"].dropna().unique().tolist()
-selected_name = st.selectbox("Select Your Name", ["-- Select --"] + names)
+# --- POST-BOOKING SUCCESS SCREEN ---
+if st.session_state.get("booking_success", False):
+    st.balloons()
+    st.success("🎉 **Booking Confirmed Successfully!**")
+    st.info(
+        f"A confirmation email with the meeting link and instructions has been sent to **{st.session_state.get('booked_email', '')}**.\n\n"
+        f"📅 **Date:** {FIXED_BOOKING_DATE.strftime('%B %d, %Y')}\n"
+        f"⏰ **Time:** {st.session_state.get('booked_slot', '')}"
+    )
+    if st.button("🔄 Done / Return to Home", type="primary"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+    st.stop()
 
-if selected_name != "-- Select --":
-    # Get the registered email for this applicant (DataFrame index + 2 for header offset)
-    applicant_row_idx = df[df["Name"] == selected_name].index[0] + 2
-    registered_email = df.loc[df["Name"] == selected_name, "Email"].values[0]
-    current_status = df.loc[df["Name"] == selected_name, "Status"].values[0]
+# --- STEP 1: PRIVACY-FOCUSED IDENTITY VERIFICATION (TEXT INPUTS) ---
+if not st.session_state.get("verified", False):
+    with st.form("verification_form"):
+        entered_name = st.text_input("Full Name (as submitted):")
+        entered_email = st.text_input("Registered Email Address:")
+        verify_submitted = st.form_submit_button("Verify Identity", type="primary")
 
-    # Check if already booked (Hidden link, email reminder only)
+    if verify_submitted:
+        if not entered_name.strip() or not entered_email.strip():
+            st.error("❌ Please enter both your Full Name and Email Address.")
+        else:
+            # Check for matching record (case-insensitive)
+            match_row = df[
+                (df["Name"].astype(str).str.strip().str.lower() == entered_name.strip().lower()) & 
+                (df["Email"].astype(str).str.strip().str.lower() == entered_email.strip().lower())
+            ]
+
+            if match_row.empty:
+                st.error("❌ No matching applicant found with that Name and Email combination. Please check your details. Make sure you include your Middle Initial (M.I.) if applicable.")
+            else:
+                # Save verified details into session state
+                st.session_state["verified"] = True
+                st.session_state["applicant_name"] = match_row.iloc[0]["Name"]
+                st.session_state["applicant_email"] = match_row.iloc[0]["Email"]
+                st.session_state["applicant_row_idx"] = match_row.index[0] + 2
+                st.session_state["applicant_status"] = match_row.iloc[0]["Status"]
+                st.rerun()
+
+# --- STEP 2: SLOT SELECTION (IF VERIFIED) ---
+if st.session_state.get("verified", False):
+    selected_name = st.session_state["applicant_name"]
+    registered_email = st.session_state["applicant_email"]
+    applicant_row_idx = st.session_state["applicant_row_idx"]
+    current_status = st.session_state["applicant_status"]
+
+    st.success(f"✅ Identity verified successfully for **{selected_name}**!")
+
+    # Check if already booked
     if str(current_status).strip().lower() == "booked":
         st.warning(
-            f"⚠️ **{selected_name}**, you have already booked a schedule! Please check your email for the meeting link and details."
+            f"⚠️ **{selected_name}**, you have already booked a schedule! Please check your email for the interview link and details."
         )
+        if st.button("🔄 Start Over"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
         st.stop()
 
-    # Email Verification Input
-    entered_email = st.text_input(
-        "Enter your submitted Email Address to verify identity:"
+    st.divider()
+    
+    # --- POLICY & TIME RESTRICTION WARNING ---
+    st.warning(
+        "⚠️ **IMPORTANT POLICY & TIME RESTRICTIONS**\n\n"
+        "- **Operating Hours:** Interviews run strictly from **8:00 AM to 5:00 PM**.\n"
+        "- **Duration:** Each slot is strictly capped at **25 minutes**.\n"
+        "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 30-minute block to prevent overlap with other applicants."
     )
 
-    if entered_email:
-        if entered_email.strip().lower() == str(registered_email).strip().lower():
-            st.success("✅ Identity verified successfully!")
+    st.subheader("Select Your Meeting Slot")
 
-            st.divider()
-            
-            # --- PROMINENT POLICY & TIME RESTRICTION WARNING ---
-            st.warning(
-                "⚠️ **IMPORTANT POLICY & TIME RESTRICTIONS**\n\n"
-                "- **Operating Hours:** Interviews run strictly from **8:00 AM to 5:00 PM**.\n"
-                "- **Duration:** Each slot is strictly capped at **30 minutes**.\n"
-                "- **Enforcement:** Late arrivals will **not** be given time extensions. Sessions will close promptly at the end of your scheduled 30-minute block to prevent overlap with other applicants."
-            )
+    # Display the fixed date
+    formatted_date_str = FIXED_BOOKING_DATE.strftime("%B %d, %Y")
+    st.info(f"📅 **Scheduled Meeting Date:** {formatted_date_str}")
 
-            st.subheader("Select Your Meeting Slot")
+    # Generate 30-min time slots from 8:00 AM to 5:00 PM
+    start_time = datetime.time(8, 0)
+    end_time = datetime.time(17, 0)
+    slots = []
+    current_t = datetime.datetime.combine(
+        datetime.date.today(), start_time
+    )
+    while current_t.time() < end_time:
+        slot_str = current_t.strftime("%I:%M %p")
+        slots.append(slot_str)
+        current_t += datetime.timedelta(minutes=30)
 
-            # Display the fixed date
-            formatted_date_str = FIXED_BOOKING_DATE.strftime("%B %d, %Y")
-            st.info(f"📅 **Scheduled Meeting Date:** {formatted_date_str}")
+    # Check already booked slots for this fixed date
+    booked_slots_on_date = df[
+        (df["Booking Date"].astype(str) == str(FIXED_BOOKING_DATE))
+        & (df["Status"].astype(str).str.lower() == "booked")
+    ]["Booking Time"].tolist()
 
-            # Generate 30-min time slots from 8:00 AM to 5:00 PM
-            start_time = datetime.time(8, 0)
-            end_time = datetime.time(17, 0)
-            slots = []
-            current_t = datetime.datetime.combine(
-                datetime.date.today(), start_time
-            )
-            while current_t.time() < end_time:
-                slot_str = current_t.strftime("%I:%M %p")
-                slots.append(slot_str)
-                current_t += datetime.timedelta(minutes=30)
+    available_slots = [s for s in slots if s not in booked_slots_on_date]
 
-            # Check already booked slots for this fixed date
-            booked_slots_on_date = df[
-                (df["Booking Date"].astype(str) == str(FIXED_BOOKING_DATE))
-                & (df["Status"].astype(str).str.lower() == "booked")
-            ]["Booking Time"].tolist()
+    if not available_slots:
+        st.error("❌ All time slots are fully booked for this date.")
+    else:
+        selected_slot = st.selectbox("Available Time Slots (30 mins)", available_slots)
 
-            available_slots = [s for s in slots if s not in booked_slots_on_date]
+        if st.button("Confirm and Book Schedule", type="primary"):
+            with st.spinner("Booking slot and sending confirmation..."):
+                try:
+                    # 1. Create clean 30-min calendar block on primary calendar
+                    calendar_service = build("calendar", "v3", credentials=creds)
 
-            if not available_slots:
-                st.error("❌ All time slots are fully booked for this date.")
-            else:
-                selected_slot = st.selectbox("Available Time Slots (30 mins)", available_slots)
+                    time_obj = datetime.datetime.strptime(selected_slot, "%I:%M %p").time()
+                    start_datetime = datetime.datetime.combine(FIXED_BOOKING_DATE, time_obj)
+                    end_datetime = start_datetime + datetime.timedelta(minutes=30)
 
-                if st.button("Confirm and Book Schedule", type="primary"):
-                    with st.spinner("Booking slot and sending confirmation..."):
-                        try:
-                            # 1. Create clean 30-min calendar block on primary calendar
-                            calendar_service = build("calendar", "v3", credentials=creds)
+                    event_body = {
+                        "summary": f"Meeting: {selected_name}",
+                        "description": f"Applicant: {selected_name}\nEmail: {registered_email}\nGoogle Meet Link: {STATIC_MEET_LINK}",
+                        "start": {"dateTime": start_datetime.isoformat(), "timeZone": "Asia/Manila"},
+                        "end": {"dateTime": end_datetime.isoformat(), "timeZone": "Asia/Manila"},
+                        "location": STATIC_MEET_LINK
+                    }
+                    calendar_service.events().insert(calendarId="primary", body=event_body).execute()
 
-                            time_obj = datetime.datetime.strptime(selected_slot, "%I:%M %p").time()
-                            start_datetime = datetime.datetime.combine(FIXED_BOOKING_DATE, time_obj)
-                            end_datetime = start_datetime + datetime.timedelta(minutes=30)
+                    # 2. Update Google Sheet
+                    sheet.update_cell(applicant_row_idx, 3, str(FIXED_BOOKING_DATE))
+                    sheet.update_cell(applicant_row_idx, 4, selected_slot)
+                    sheet.update_cell(applicant_row_idx, 5, STATIC_MEET_LINK)
+                    sheet.update_cell(applicant_row_idx, 6, "Booked")
 
-                            event_body = {
-                                "summary": f"Meeting: {selected_name}",
-                                "description": f"Applicant: {selected_name}\nEmail: {registered_email}\nGoogle Meet Link: {STATIC_MEET_LINK}",
-                                "start": {"dateTime": start_datetime.isoformat(), "timeZone": "Asia/Manila"},
-                                "end": {"dateTime": end_datetime.isoformat(), "timeZone": "Asia/Manila"},
-                                "location": STATIC_MEET_LINK
-                            }
-                            calendar_service.events().insert(calendarId="primary", body=event_body).execute()
+                    # 3. Send Email via SMTP
+                    send_email_smtp(registered_email, selected_name, str(FIXED_BOOKING_DATE), selected_slot, STATIC_MEET_LINK)
 
-                            # 2. Update Google Sheet
-                            sheet.update_cell(applicant_row_idx, 3, str(FIXED_BOOKING_DATE))
-                            sheet.update_cell(applicant_row_idx, 4, selected_slot)
-                            sheet.update_cell(applicant_row_idx, 5, STATIC_MEET_LINK)
-                            sheet.update_cell(applicant_row_idx, 6, "Booked")
+                    # 4. Trigger success screen view
+                    st.session_state["booking_success"] = True
+                    st.session_state["booked_slot"] = selected_slot
+                    st.session_state["booked_email"] = registered_email
+                    st.rerun()
 
-                            # 3. Send Email via SMTP
-                            email_sent = send_email_smtp(registered_email, selected_name, str(FIXED_BOOKING_DATE), selected_slot, STATIC_MEET_LINK)
-
-                            st.success("🎉 Booking confirmed successfully! Please check your email for the meeting link and instructions.")
-                            st.balloons()
-                            if email_sent:
-                                st.info(f"📧 Confirmation email successfully sent to {registered_email}!")
-
-                        except Exception as e:
-                            st.error(f"An error occurred during booking: {e}")
-
-        else:
-            st.error("❌ Email does not match our records for this name. Please try again.")
+                except Exception as e:
+                    st.error(f"An error occurred during booking: {e}")
