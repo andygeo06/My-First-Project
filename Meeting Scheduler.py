@@ -121,7 +121,7 @@ if st.session_state.get("booking_success", False):
 # --- STEP 1: EMAIL-ONLY IDENTITY VERIFICATION ---
 if not st.session_state.get("verified", False):
     with st.form("verification_form"):
-        entered_email = st.text_input("Registered Email Address:")
+        entered_email = st.text_input("Submitted Email Address:")
         verify_submitted = st.form_submit_button("Verify Identity", type="primary")
 
     if verify_submitted:
