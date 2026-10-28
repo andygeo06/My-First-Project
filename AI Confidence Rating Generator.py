@@ -17,7 +17,7 @@ except Exception as e:
     st.error("Missing Streamlit secrets configuration! Please check your App Secrets on Streamlit Community Cloud.")
     st.stop()
 
-# Helper function with robust retry and error handling
+# Helper function with robust error catching
 def generate_with_retry(ai_client, model_name, prompt, max_retries=2):
     for attempt in range(max_retries):
         try:
@@ -51,75 +51,64 @@ if submitted:
         st.error("Please enter a valid Google Sheet URL.")
     else:
         try:
-            st.info("Authenticating with Google Sheets...")
-            gc = gspread.service_account_from_dict(service_account_info)
-            sh = gc.open_by_url(sheet_url)
-            worksheet = sh.worksheet(tab_name)
+            with st.status("Connecting and processing...", expanded=True) as status:
+                st.write("Authenticating with Google Sheets...")
+                gc = gspread.service_account_from_dict(service_account_info)
+                sh = gc.open_by_url(sheet_url)
+                worksheet = sh.worksheet(tab_name)
 
-            st.info("Fetching response data from sheet...")
-            
-            d_values = worksheet.col_values(4)[1:]  # Skip header D1
-            e_values = worksheet.col_values(5)[1:]  # Skip header E1
-            h_values = worksheet.col_values(8)[1:]  # Existing Column H values
+                st.write("Fetching response data from sheet...")
+                d_values = worksheet.col_values(4)[1:]  # Skip header D1
+                e_values = worksheet.col_values(5)[1:]  # Skip header E1
+                h_values = worksheet.col_values(8)[1:]  # Existing Column H values
 
-            max_len = max(len(d_values), len(e_values))
+                max_len = max(len(d_values), len(e_values))
 
-            d_values += [""] * (max_len - len(d_values))
-            e_values += [""] * (max_len - len(e_values))
-            h_values += [""] * (max_len - len(h_values))
+                d_values += [""] * (max_len - len(d_values))
+                e_values += [""] * (max_len - len(e_values))
+                h_values += [""] * (max_len - len(h_values))
 
-            ai_client = genai.Client(api_key=gemini_api_key)
+                ai_client = genai.Client(api_key=gemini_api_key)
 
-            results = []
-            updates_to_make = []
+                results = []
+                updated_count = 0
 
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+                for i in range(max_len):
+                    row_idx = i + 2  
+                    col_d_text = str(d_values[i]).strip()
+                    col_e_text = str(e_values[i]).strip()
+                    
+                    combined_essay = f"{col_d_text}\n{col_e_text}".strip()
+                    existing_h = str(h_values[i]).strip()
 
-            for i in range(max_len):
-                row_idx = i + 2  
-                col_d_text = str(d_values[i]).strip()
-                col_e_text = str(e_values[i]).strip()
-                
-                combined_essay = f"{col_d_text}\n{col_e_text}".strip()
-                existing_h = str(h_values[i]).strip()
+                    if existing_h:
+                        results.append(existing_h)
+                        continue
 
-                if existing_h:
-                    results.append(existing_h)
-                    continue
+                    if not combined_essay:
+                        results.append("No essay text found")
+                        continue
 
-                if not combined_essay:
-                    results.append("No essay text found")
-                    continue
+                st.write(f"Analyzing Row {row_idx} of {max_len + 1}...")
 
-                status_text.text(f"Analyzing Row {row_idx} of {max_len + 1}...")
+                    # Generate analysis
+                    analysis = generate_with_retry(ai_client, "gemini-3.8-flash", combined_essay)
+                    results.append(analysis)
 
-                prompt = (
-                    "Analyze the following submission text and evaluate whether it was likely written by an AI or a human. "
-                    "Provide a concise response starting with a confidence percentage (e.g., '85% Likely AI') "
-                    "followed by 1 brief bullet explaining why based on writing style, perplexity, or repetition.\n\n"
-                    f"Text:\n\"{combined_essay}\""
-                )
+                    # WRITE TO SHEET IMMEDIATELY PER ROW (Instead of waiting till the end)
+                    try:
+                        worksheet.update_acell(f'H{row_idx}', analysis)
+                        updated_count += 1
+                    except Exception as write_err:
+                        st.warning(f"Could not write to Row {row_idx} directly: {write_err}")
 
-                # Safely generate analysis without breaking the loop
-                analysis = generate_with_retry(ai_client, "gemini-3.8-flash", prompt)
-                results.append(analysis)
+                    time.sleep(0.3)
 
-                updates_to_make.append({
-                    'range': f'H{row_idx}',
-                    'values': [[analysis]]
-                })
+                status.update(label="Processing complete!", state="complete", expanded=False)
 
-                progress_bar.progress((i + 1) / max_len)
-                time.sleep(0.3)  # Short breather
+            st.success(f"Successfully processed and updated {updated_count} rows in Google Sheets!")
 
-            if updates_to_make:
-                st.info("Writing results back to Column H...")
-                worksheet.batch_update(updates_to_make)
-                st.success("Successfully analyzed and updated Column H!")
-            else:
-                st.warning("No new pending rows detected in Column H.")
-
+            # Summary Table
             st.subheader("Results Overview")
             df = pd.DataFrame({
                 "Row": range(2, max_len + 2),
