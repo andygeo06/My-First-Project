@@ -89,13 +89,13 @@ if submitted:
                         results.append("No essay text found")
                         continue
 
-                st.write(f"Analyzing Row {row_idx} of {max_len + 1}...")
+                    st.write(f"Analyzing Row {row_idx} of {max_len + 1}...")
 
-                    # Generate analysis
+                    # Generate analysis with retry wrapper
                     analysis = generate_with_retry(ai_client, "gemini-3.8-flash", combined_essay)
                     results.append(analysis)
 
-                    # WRITE TO SHEET IMMEDIATELY PER ROW (Instead of waiting till the end)
+                    # WRITE TO SHEET IMMEDIATELY PER ROW
                     try:
                         worksheet.update_acell(f'H{row_idx}', analysis)
                         updated_count += 1
