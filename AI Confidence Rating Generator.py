@@ -17,24 +17,25 @@ except Exception as e:
     st.error("Missing Streamlit secrets configuration! Please check your App Secrets on Streamlit Community Cloud.")
     st.stop()
 
-# Helper function with automatic retry handling for 503 high-demand errors
-def generate_with_retry(ai_client, model_name, prompt, max_retries=3):
+# Helper function with robust retry and error handling
+def generate_with_retry(ai_client, model_name, prompt, max_retries=2):
     for attempt in range(max_retries):
         try:
             response = ai_client.models.generate_content(
                 model=model_name,
                 contents=prompt,
             )
-            return response.text.strip()
+            if response and response.text:
+                return response.text.strip()
+            return "Error: Empty response from AI"
         except Exception as e:
             error_str = str(e)
-            # If it's a 503 UNAVAILABLE error and we haven't exhausted our retries, wait and retry
-            if "503" in error_str and attempt < max_retries - 1:
-                sleep_time = (2 ** attempt) * 2  # Exponential backoff: 2s, 4s, 8s...
-                time.sleep(sleep_time)
+            if ("503" in error_str or "429" in error_str) and attempt < max_retries - 1:
+                time.sleep((2 ** attempt) * 2)
                 continue
             else:
-                raise e
+                return f"API Error: {error_str}"
+    return "Error: Max retries exceeded"
 
 # User Input Form
 with st.form("analysis_form"):
@@ -51,26 +52,22 @@ if submitted:
     else:
         try:
             st.info("Authenticating with Google Sheets...")
-            # Authenticate using service account dict directly from st.secrets
             gc = gspread.service_account_from_dict(service_account_info)
             sh = gc.open_by_url(sheet_url)
             worksheet = sh.worksheet(tab_name)
 
             st.info("Fetching response data from sheet...")
             
-            # Fetch D (Column 4), E (Column 5), and H (Column 8)
             d_values = worksheet.col_values(4)[1:]  # Skip header D1
             e_values = worksheet.col_values(5)[1:]  # Skip header E1
             h_values = worksheet.col_values(8)[1:]  # Existing Column H values
 
             max_len = max(len(d_values), len(e_values))
 
-            # Pad lists to ensure uniform length
             d_values += [""] * (max_len - len(d_values))
             e_values += [""] * (max_len - len(e_values))
             h_values += [""] * (max_len - len(h_values))
 
-            # Initialize Gemini Client
             ai_client = genai.Client(api_key=gemini_api_key)
 
             results = []
@@ -80,15 +77,13 @@ if submitted:
             status_text = st.empty()
 
             for i in range(max_len):
-                row_idx = i + 2  # Rows start at 2 in Sheets (1-indexed + header)
+                row_idx = i + 2  
                 col_d_text = str(d_values[i]).strip()
                 col_e_text = str(e_values[i]).strip()
                 
-                # Combine Columns D & E if both exist
                 combined_essay = f"{col_d_text}\n{col_e_text}".strip()
                 existing_h = str(h_values[i]).strip()
 
-                # Skip if row already evaluated in Column H
                 if existing_h:
                     results.append(existing_h)
                     continue
@@ -106,24 +101,18 @@ if submitted:
                     f"Text:\n\"{combined_essay}\""
                 )
 
-                try:
-                    # Using gemini-3.8-flash with built-in retry wrapper
-                    analysis = generate_with_retry(ai_client, "gemini-3.8-flash", prompt)
-                except Exception as err:
-                    analysis = f"Error: {str(err)}"
-
+                # Safely generate analysis without breaking the loop
+                analysis = generate_with_retry(ai_client, "gemini-3.8-flash", prompt)
                 results.append(analysis)
 
-                # Batch write to Column H (Column 8)
                 updates_to_make.append({
                     'range': f'H{row_idx}',
                     'values': [[analysis]]
                 })
 
                 progress_bar.progress((i + 1) / max_len)
-                time.sleep(0.5)  # Pause between requests to respect rate limits
+                time.sleep(0.3)  # Short breather
 
-            # Update Google Sheet
             if updates_to_make:
                 st.info("Writing results back to Column H...")
                 worksheet.batch_update(updates_to_make)
@@ -131,7 +120,6 @@ if submitted:
             else:
                 st.warning("No new pending rows detected in Column H.")
 
-            # Summary Table
             st.subheader("Results Overview")
             df = pd.DataFrame({
                 "Row": range(2, max_len + 2),
