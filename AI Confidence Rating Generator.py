@@ -88,7 +88,7 @@ if submitted:
                                     "content": prompt,
                                 }
                             ],
-                            model="llama-3.3-70b-versatile",
+                            model="openai/gpt-oss-120b",
                         )
                         analysis = chat_completion.choices[0].message.content.strip()
                     except Exception as api_err:
