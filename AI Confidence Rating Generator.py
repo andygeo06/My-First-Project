@@ -1,41 +1,21 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from google import genai
+from groq import Groq
 import time
 
-st.set_page_config(page_title="Form Response AI Essay Analyzer", layout="wide")
+st.set_page_config(page_title="Form Response AI Essay Analyzer (Groq)", layout="wide")
 
-st.title("📄 Google Form Responses - AI Essay Analyzer")
-st.write("Enter your sheet link to evaluate response text (Columns D & E) with Gemini AI and record results in Column H.")
+st.title("📄 Google Form Responses - AI Essay Analyzer (Groq Powered)")
+st.write("Enter your sheet link to evaluate response text (Columns D & E) with Llama 3 on Groq and record results in Column H.")
 
 # Load secrets from Streamlit Secrets
 try:
-    gemini_api_key = st.secrets["GEMINI_API_KEY"]
+    groq_api_key = st.secrets["GROQ_API_KEY"]
     service_account_info = dict(st.secrets["gcp_service_account"])
 except Exception as e:
-    st.error("Missing Streamlit secrets configuration! Please check your App Secrets on Streamlit Community Cloud.")
+    st.error("Missing Streamlit secrets configuration! Please ensure GROQ_API_KEY and gcp_service_account are set in your App Secrets.")
     st.stop()
-
-# Helper function with robust error catching
-def generate_with_retry(ai_client, model_name, prompt, max_retries=2):
-    for attempt in range(max_retries):
-        try:
-            response = ai_client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-            )
-            if response and response.text:
-                return response.text.strip()
-            return "Error: Empty response from AI"
-        except Exception as e:
-            error_str = str(e)
-            if ("503" in error_str or "429" in error_str) and attempt < max_retries - 1:
-                time.sleep((2 ** attempt) * 2)
-                continue
-            else:
-                return f"API Error: {error_str}"
-    return "Error: Max retries exceeded"
 
 # User Input Form
 with st.form("analysis_form"):
@@ -68,7 +48,8 @@ if submitted:
                 e_values += [""] * (max_len - len(e_values))
                 h_values += [""] * (max_len - len(h_values))
 
-                ai_client = genai.Client(api_key=gemini_api_key)
+                # Initialize Groq Client
+                groq_client = Groq(api_key=groq_api_key)
 
                 results = []
                 updated_count = 0
@@ -91,22 +72,42 @@ if submitted:
 
                     st.write(f"Analyzing Row {row_idx} of {max_len + 1}...")
 
-                    # Generate analysis with retry wrapper
-                    analysis = generate_with_retry(ai_client, "gemini-3.8-flash", combined_essay)
+                    prompt = (
+                        "Analyze the following submission text and evaluate whether it was likely written by an AI or a human. "
+                        "Provide a concise response starting with a confidence percentage (e.g., '85% Likely AI') "
+                        "followed by 1 brief bullet explaining why based on writing style, perplexity, or repetition.\n\n"
+                        f"Text:\n\"{combined_essay}\""
+                    )
+
+                    # Call Groq API (Llama 3.3 70B)
+                    try:
+                        chat_completion = groq_client.chat.completions.create(
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": prompt,
+                                }
+                            ],
+                            model="llama-3.3-70b-versatile",
+                        )
+                        analysis = chat_completion.choices[0].message.content.strip()
+                    except Exception as api_err:
+                        analysis = f"Groq API Error: {str(api_err)}"
+
                     results.append(analysis)
 
-                    # WRITE TO SHEET IMMEDIATELY PER ROW
+                    # Write to sheet immediately per row
                     try:
                         worksheet.update_acell(f'H{row_idx}', analysis)
                         updated_count += 1
                     except Exception as write_err:
                         st.warning(f"Could not write to Row {row_idx} directly: {write_err}")
 
-                    time.sleep(0.3)
+                    time.sleep(0.2) # Short pause
 
                 status.update(label="Processing complete!", state="complete", expanded=False)
 
-            st.success(f"Successfully processed and updated {updated_count} rows in Google Sheets!")
+            st.success(f"Successfully processed and updated {updated_count} rows using Groq!")
 
             # Summary Table
             st.subheader("Results Overview")
