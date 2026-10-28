@@ -17,6 +17,25 @@ except Exception as e:
     st.error("Missing Streamlit secrets configuration! Please check your App Secrets on Streamlit Community Cloud.")
     st.stop()
 
+# Helper function with automatic retry handling for 503 high-demand errors
+def generate_with_retry(ai_client, model_name, prompt, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = ai_client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            return response.text.strip()
+        except Exception as e:
+            error_str = str(e)
+            # If it's a 503 UNAVAILABLE error and we haven't exhausted our retries, wait and retry
+            if "503" in error_str and attempt < max_retries - 1:
+                sleep_time = (2 ** attempt) * 2  # Exponential backoff: 2s, 4s, 8s...
+                time.sleep(sleep_time)
+                continue
+            else:
+                raise e
+
 # User Input Form
 with st.form("analysis_form"):
     sheet_url = st.text_input(
@@ -88,11 +107,8 @@ if submitted:
                 )
 
                 try:
-                    response = ai_client.models.generate_content(
-                        model="gemini-3.8-flash",
-                        contents=prompt,
-                    )
-                    analysis = response.text.strip()
+                    # Using gemini-3.8-flash with built-in retry wrapper
+                    analysis = generate_with_retry(ai_client, "gemini-3.8-flash", prompt)
                 except Exception as err:
                     analysis = f"Error: {str(err)}"
 
@@ -105,7 +121,7 @@ if submitted:
                 })
 
                 progress_bar.progress((i + 1) / max_len)
-                time.sleep(0.5)  # Pause to avoid rate limit issues
+                time.sleep(0.5)  # Pause between requests to respect rate limits
 
             # Update Google Sheet
             if updates_to_make:
